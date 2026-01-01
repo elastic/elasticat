@@ -1,0 +1,117 @@
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.2.3
+    container_name: turbodevlog-es
+    environment:
+      # Single-node discovery
+      - discovery.type=single-node
+      # Disable security for local development simplicity
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+      # Cluster name
+      - cluster.name=turbodevlog
+      # Node name
+      - node.name=turbodevlog-es01
+      # Enable ML for semantic search capabilities (optional)
+      - xpack.ml.use_auto_machine_memory_percent=true
+    # Memory allocation - ES automatically sizes JVM heap based on container memory
+    mem_limit: 2g
+    memswap_limit: 2g
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    networks:
+      - turbodevlog
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -qE '\"status\":\"(green|yellow)\"'"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+
+  # EDOT - Elastic Distribution of OpenTelemetry
+  otel-collector:
+    image: docker.elastic.co/elastic-agent/elastic-agent:9.2.3
+    container_name: turbodevlog-otel
+    environment:
+      # Enable OTel mode for Elastic Agent
+      - ELASTIC_AGENT_OTEL=true
+      # Elasticsearch connection (no auth for local dev)
+      - ELASTICSEARCH_ENDPOINT=http://elasticsearch:9200
+      # Collector endpoints
+      - OTEL_COLLECTOR_HOST=0.0.0.0
+      - OTEL_COLLECTOR_PORT_GRPC=4317
+      - OTEL_COLLECTOR_PORT_HTTP=4318
+    command: ["otelcol", "--config=/etc/otel-collector/config.yaml"]
+    # Note: removed 'user: "0:0"' for rootless Podman compatibility
+    volumes:
+      - ./edot-config.yaml:/etc/otel-collector/config.yaml:ro,Z
+      # Mount local logs directory - users put their log files here
+      # or symlink their app's log directory to ./logs
+      - ${TURBODEVLOG_LOGS_DIR:-./logs}:/var/log/app:ro,Z
+      # Optional: Mount host filesystem for host metrics (comment out if not needed)
+      # - /:/hostfs:ro
+      # Optional: Docker-specific mounts for container log collection (Docker only, not Podman)
+      # - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      # - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    networks:
+      - turbodevlog
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  # Optional: Kibana for advanced visualization
+  # Start with: docker compose --profile kibana up -d
+  kibana:
+    image: docker.elastic.co/kibana/kibana:9.2.3
+    container_name: turbodevlog-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - xpack.security.enabled=false
+      - server.name=turbodevlog-kibana
+    ports:
+      - "5601:5601"
+    networks:
+      - turbodevlog
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    profiles:
+      - kibana
+
+  # Optional: Elasticsearch MCP Server for AI assistant integration
+  # Start with: docker compose --profile mcp up -d
+  mcp-server:
+    image: docker.elastic.co/mcp/elasticsearch:latest
+    container_name: turbodevlog-mcp
+    environment:
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+    ports:
+      - "3000:3000"
+    networks:
+      - turbodevlog
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    profiles:
+      - mcp
+
+networks:
+  turbodevlog:
+    driver: bridge
+
+volumes:
+  esdata:
+    driver: local

@@ -1,0 +1,109 @@
+receivers:
+  # OTLP receiver for apps instrumented with OpenTelemetry SDK
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+  # Docker container logs via filelog receiver
+  filelog/docker:
+    include:
+      - /var/lib/docker/containers/*/*.log
+    start_at: end
+    include_file_path: true
+    include_file_name: false
+    operators:
+      # Parse Docker JSON log format
+      - type: json_parser
+        id: parser-docker
+        timestamp:
+          parse_from: attributes.time
+          layout: '%Y-%m-%dT%H:%M:%S.%fZ'
+      # Extract container ID from file path
+      - type: regex_parser
+        id: extract_container_id
+        regex: '^.*containers/(?P<container_id>[^/]+)/.*\.log$'
+        parse_from: attributes["log.file.path"]
+      # Move 'log' field to body
+      - type: move
+        id: move_log
+        from: attributes.log
+        to: body
+
+processors:
+  # Batch logs for efficient sending
+  batch:
+    timeout: 5s
+    send_batch_size: 256
+    send_batch_max_size: 512
+
+  # Add resource attributes
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: development
+        action: upsert
+      - key: log.source
+        value: turbodevlog
+        action: upsert
+
+  # Transform to add service name from container labels if available
+  transform:
+    log_statements:
+      - context: log
+        statements:
+          # Set default service name if not present
+          - set(resource.attributes["service.name"], "docker") where resource.attributes["service.name"] == nil
+
+exporters:
+  # Elasticsearch exporter for logs
+  elasticsearch:
+    endpoints:
+      - http://elasticsearch:9200
+    logs_index: turbodevlog-logs
+    logs_dynamic_index:
+      enabled: true
+    mapping:
+      mode: ecs
+    flush:
+      bytes: 5242880  # 5MB
+      interval: 5s
+    retry:
+      enabled: true
+      initial_interval: 100ms
+      max_interval: 30s
+      max_elapsed_time: 5m
+
+  # Debug exporter for troubleshooting (logs to stdout)
+  debug:
+    verbosity: basic
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+
+  pipelines:
+    # Pipeline for OTLP logs from instrumented applications
+    logs/otlp:
+      receivers: [otlp]
+      processors: [resource, batch]
+      exporters: [elasticsearch]
+
+    # Pipeline for Docker container logs
+    logs/docker:
+      receivers: [filelog/docker]
+      processors: [transform, resource, batch]
+      exporters: [elasticsearch]
+
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      address: 0.0.0.0:8888
