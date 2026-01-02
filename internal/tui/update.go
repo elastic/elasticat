@@ -38,6 +38,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.lastRefresh = time.Now()
 		if msg.err != nil {
 			m.err = msg.err
+			m.showErrorModal()
 		} else {
 			m.logs = msg.logs
 			m.total = msg.total
@@ -67,6 +68,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.fieldsLoading = false
 		if msg.err != nil {
 			m.err = msg.err
+			m.showErrorModal()
 		} else {
 			m.availableFields = msg.fields
 		}
@@ -115,6 +117,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.metricsLoading = false
 		if msg.err != nil {
 			m.err = msg.err
+			m.showErrorModal()
 		} else {
 			m.aggregatedMetrics = msg.result
 			m.err = nil
@@ -125,6 +128,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.tracesLoading = false
 		if msg.err != nil {
 			m.err = msg.err
+			m.showErrorModal()
 		} else {
 			m.transactionNames = msg.names
 			m.err = nil
@@ -135,15 +139,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spansLoading = false
 		if msg.err != nil {
 			m.err = msg.err
+			m.showErrorModal()
 		} else {
 			m.spans = msg.spans
 			m.err = nil
 		}
 		return m, nil
 
+	case perspectiveDataMsg:
+		m.perspectiveLoading = false
+		if msg.err != nil {
+			m.err = msg.err
+			m.showErrorModal()
+		} else {
+			m.perspectiveItems = msg.items
+			m.err = nil
+			m.statusMessage = fmt.Sprintf("Loaded %d %s", len(msg.items), m.currentPerspective.String())
+			m.statusTime = time.Now()
+		}
+		return m, nil
+
 	case errMsg:
 		m.err = msg
 		m.loading = false
+		m.showErrorModal()
 		return m, nil
 	}
 
@@ -161,8 +180,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.viewport, cmd = m.viewport.Update(msg)
 		cmds = append(cmds, cmd)
+	case viewErrorModal:
+		var cmd tea.Cmd
+		m.errorViewport, cmd = m.errorViewport.Update(msg)
+		cmds = append(cmds, cmd)
 	}
 
 	return m, tea.Batch(cmds...)
+}
+
+// showErrorModal configures the error viewport and switches to error modal view
+func (m *Model) showErrorModal() {
+	m.previousMode = m.mode
+	m.mode = viewErrorModal
+	// Set up error viewport dimensions
+	modalWidth := min(m.width-8, 80)
+	m.errorViewport.Width = modalWidth - 8 // Account for border + padding + margin
+	m.errorViewport.Height = min(m.height-15, 20) // Leave room for title/actions
+	if m.err != nil {
+		m.errorViewport.SetContent(m.err.Error())
+	}
+	m.errorViewport.GotoTop()
 }
 

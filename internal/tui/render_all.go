@@ -11,20 +11,46 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// getContentHeight returns the available height for main content
+// accounting for title, status bar, help bar, and optional compact detail
+func (m Model) getContentHeight(includeCompactDetail bool) int {
+	const titleHeaderHeight = 1
+	const newlines = 4 // Newlines between sections
+
+	fixedHeight := titleHeaderHeight + statusBarHeight + helpBarHeight + layoutPadding + newlines
+	if includeCompactDetail {
+		fixedHeight += compactDetailHeight
+	}
+
+	contentHeight := m.height - fixedHeight
+	if contentHeight < 3 {
+		contentHeight = 3
+	}
+	return contentHeight
+}
+
+// getFullScreenHeight returns height for full-screen views (detail, fields, etc.)
+// These views don't have compact detail but need extra space for their own headers
+func (m Model) getFullScreenHeight() int {
+	const titleHeaderHeight = 1
+	const extraPadding = 2 // Extra padding for full-screen views
+
+	fixedHeight := titleHeaderHeight + statusBarHeight + helpBarHeight + layoutPadding + extraPadding
+
+	contentHeight := m.height - fixedHeight
+	if contentHeight < 3 {
+		contentHeight = 3
+	}
+	return contentHeight
+}
+
 func (m Model) View() string {
 	if m.width == 0 {
 		return "Loading..."
 	}
 
-	// Calculate heights
-	// Total available: m.height
-	// Fixed elements: title header (1) + status bar (1) + help bar (1) + compact detail (5) + padding (2) + newlines (4)
-	const titleHeaderHeight = 1
-	fixedHeight := titleHeaderHeight + statusBarHeight + helpBarHeight + compactDetailHeight + layoutPadding + 4
-	logListHeight := m.height - fixedHeight
-	if logListHeight < 3 {
-		logListHeight = 3
-	}
+	// Calculate heights using helper method
+	logListHeight := m.getContentHeight(true)
 
 	var b strings.Builder
 
@@ -72,6 +98,24 @@ func (m Model) View() string {
 		b.WriteString(m.renderPerspectiveList(logListHeight))
 		b.WriteString("\n")
 		b.WriteString(m.renderCompactDetail())
+	case viewErrorModal:
+		// Render the underlying view first (so modal appears on top)
+		switch m.previousMode {
+		case viewLogs:
+			b.WriteString(m.renderLogListWithHeight(logListHeight))
+		case viewMetricsDashboard:
+			b.WriteString(m.renderMetricsDashboard(logListHeight))
+		case viewTraceNames:
+			b.WriteString(m.renderTransactionNames(logListHeight))
+		case viewPerspectiveList:
+			b.WriteString(m.renderPerspectiveList(logListHeight))
+		default:
+			b.WriteString(m.renderLogListWithHeight(logListHeight))
+		}
+		// Render error modal overlay
+		b.WriteString(m.renderErrorModal())
+		// Skip help bar for modal (it has its own instructions)
+		return b.String()
 	}
 
 	// Help bar (bottom)
@@ -83,84 +127,100 @@ func (m Model) View() string {
 
 // renderTitleHeader renders the title header with cat ASCII art and frame line
 func (m Model) renderTitleHeader() string {
-	title := " =^..^= 𝓣𝑬𝓵𝓪𝓼𝓽𝓲𝓒𝓪𝓽 =^..^= "
+	title := "\\ =^..^= 𝓣𝑬𝓵𝓪𝓼𝓽𝓲𝓒𝓪𝓽 =^..^= /"
+
+	// Add perspective indicator when in perspective view
+	if m.mode == viewPerspectiveList {
+		title = "\\ =^..^= 𝓣𝑬𝓵𝓪𝓼𝓽𝓲𝓒𝓪𝓽 [" + m.currentPerspective.String() + "] =^..^= /"
+	}
+
+	// Build operational info for right side
+	var infoParts []string
+	infoParts = append(infoParts, "Lookback: "+m.lookback.String())
+
+	if m.sortAscending {
+		infoParts = append(infoParts, "Sort: oldest→")
+	} else {
+		infoParts = append(infoParts, "Sort: newest→")
+	}
+
+	if m.autoRefresh {
+		infoParts = append(infoParts, "Auto: ON")
+	} else {
+		infoParts = append(infoParts, "Auto: OFF")
+	}
+
+	// Make entire operational info white
+	rightInfo := lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Render("[ " + strings.Join(infoParts, " │ ") + " ]")
 
 	// Calculate how many characters we need for the line to fill the width
 	// Account for padding in the style (2 chars)
+	// Use lipgloss.Width to get actual rendered width (ignoring ANSI codes)
 	availableWidth := m.width - 2
-	titleLen := len([]rune(title)) // Use rune length for Unicode
+	titleLen := lipgloss.Width(title)
+	rightInfoLen := lipgloss.Width(rightInfo)
 
-	if titleLen >= availableWidth {
-		return TitleHeaderStyle.Width(m.width).Render(title)
+	// Check if everything fits
+	if titleLen+rightInfoLen >= availableWidth {
+		// Not enough space, just show title with line
+		lineChars := availableWidth - titleLen
+		if lineChars < 0 {
+			lineChars = 0
+		}
+		line := strings.Repeat("═", lineChars)
+		return TitleHeaderStyle.Width(m.width).Render(title + line)
 	}
 
-	// Fill the rest with box drawing characters
-	lineChars := availableWidth - titleLen
+	// Fill the middle with box drawing characters
+	lineChars := availableWidth - titleLen - rightInfoLen
 	line := strings.Repeat("═", lineChars)
 
-	fullHeader := title + line
+	fullHeader := title + line + rightInfo
 	return TitleHeaderStyle.Width(m.width).Render(fullHeader)
 }
 
 func (m Model) renderStatusBar() string {
-	var parts []string
+	// Row 1: Signal, Index, Total, Filters, Loading
+	var row1Parts []string
 
 	// Signal type
-	parts = append(parts, StatusKeyStyle.Render("Signal: ")+StatusValueStyle.Render(m.signalType.String()))
-
-	// Connection status
-	if m.err != nil {
-		parts = append(parts, ErrorStyle.Render("ES: err"))
-	} else {
-		parts = append(parts, StatusKeyStyle.Render("ES: ")+StatusValueStyle.Render("ok"))
-	}
+	row1Parts = append(row1Parts, StatusKeyStyle.Render("Signal: ")+StatusValueStyle.Render(m.signalType.String()))
 
 	// Current index
-	parts = append(parts, StatusKeyStyle.Render("Idx: ")+StatusValueStyle.Render(m.client.GetIndex()+"*"))
+	row1Parts = append(row1Parts, StatusKeyStyle.Render("Idx: ")+StatusValueStyle.Render(m.client.GetIndex()+"*"))
 
 	// Total logs
-	parts = append(parts, StatusKeyStyle.Render("Total: ")+StatusValueStyle.Render(fmt.Sprintf("%d", m.total)))
+	row1Parts = append(row1Parts, StatusKeyStyle.Render("Total: ")+StatusValueStyle.Render(fmt.Sprintf("%d", m.total)))
 
-	// Filters
+	// Filters (with visual indicator when active)
 	if m.searchQuery != "" {
-		parts = append(parts, StatusKeyStyle.Render("Query: ")+StatusValueStyle.Render(TruncateWithEllipsis(m.searchQuery, 20)))
+		row1Parts = append(row1Parts, StatusKeyStyle.Render("Query: ")+StatusValueStyle.Render(TruncateWithEllipsis(m.searchQuery, 20)))
 	}
 	if m.levelFilter != "" {
-		parts = append(parts, StatusKeyStyle.Render("Level: ")+StatusValueStyle.Render(m.levelFilter))
-	}
-	if m.serviceFilter != "" {
-		parts = append(parts, StatusKeyStyle.Render("Service: ")+StatusValueStyle.Render(m.serviceFilter))
+		row1Parts = append(row1Parts, StatusKeyStyle.Render("Level: ")+StatusValueStyle.Render(m.levelFilter))
 	}
 	if m.filterService != "" {
-		parts = append(parts, StatusKeyStyle.Render("🔍Service: ")+StatusValueStyle.Render(m.filterService))
+		row1Parts = append(row1Parts, lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")).Bold(true).Render("⚡ Service: ")+StatusValueStyle.Render(m.filterService))
 	}
 	if m.filterResource != "" {
-		parts = append(parts, StatusKeyStyle.Render("🔍Resource: ")+StatusValueStyle.Render(m.filterResource))
-	}
-
-	// Lookback duration
-	parts = append(parts, StatusKeyStyle.Render("Lookback: ")+StatusValueStyle.Render(m.lookback.String()))
-
-	// Sort order
-	if m.sortAscending {
-		parts = append(parts, StatusKeyStyle.Render("Sort: ")+StatusValueStyle.Render("oldest→"))
-	} else {
-		parts = append(parts, StatusKeyStyle.Render("Sort: ")+StatusValueStyle.Render("newest→"))
-	}
-
-	// Auto-refresh status
-	if m.autoRefresh {
-		parts = append(parts, StatusKeyStyle.Render("Auto: ")+StatusValueStyle.Render("ON"))
-	} else {
-		parts = append(parts, StatusKeyStyle.Render("Auto: ")+StatusValueStyle.Render("OFF"))
+		row1Parts = append(row1Parts, lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")).Bold(true).Render("⚡ Resource: ")+StatusValueStyle.Render(m.filterResource))
 	}
 
 	// Loading indicator
 	if m.loading {
-		parts = append(parts, LoadingStyle.Render("loading..."))
+		row1Parts = append(row1Parts, LoadingStyle.Render("loading..."))
 	}
 
-	return StatusBarStyle.Width(m.width - 2).Render(strings.Join(parts, "  │  "))
+	row1 := strings.Join(row1Parts, "  │  ")
+
+	// Row 2: Only ES status if there's an error
+	var row2 string
+	if m.err != nil {
+		row2 = "\n" + ErrorStyle.Render("ES: err")
+	}
+
+	// Combine rows (row2 only if it has content)
+	return StatusBarStyle.Width(m.width - 2).Render(row1 + row2)
 }
 
 func (m Model) renderLogList() string {
@@ -654,8 +714,8 @@ func (m Model) renderQueryOverlay() string {
 		b.WriteString(QueryBodyStyle.Render("'"))
 	}
 
-	// Calculate height based on content
-	height := m.height - 12
+	// Calculate height - use full screen height since this replaces the log list
+	height := m.getFullScreenHeight()
 	if height < 10 {
 		height = 10
 	}
@@ -685,11 +745,13 @@ func (m Model) renderDetailView() string {
 	header := strings.Join(parts, "  ")
 	content := m.viewport.View()
 
+	contentHeight := m.getFullScreenHeight()
+
 	// Only add header line if we have something to show
 	if header != "" {
-		return DetailStyle.Width(m.width - 4).Height(m.height - 6).Render(header + "\n" + content)
+		return DetailStyle.Width(m.width - 4).Height(contentHeight).Render(header + "\n" + content)
 	}
-	return DetailStyle.Width(m.width - 4).Height(m.height - 6).Render(content)
+	return DetailStyle.Width(m.width - 4).Height(contentHeight).Render(content)
 }
 
 func (m Model) renderFieldSelector() string {
@@ -707,9 +769,11 @@ func (m Model) renderFieldSelector() string {
 	b.WriteString(DetailMutedStyle.Render("Space/Enter to toggle • / to search • r to reset • ESC to close"))
 	b.WriteString("\n\n")
 
+	contentHeight := m.getFullScreenHeight()
+
 	if m.fieldsLoading {
 		b.WriteString(LoadingStyle.Render("Loading fields..."))
-		return DetailStyle.Width(m.width - 4).Height(m.height - 6).Render(b.String())
+		return DetailStyle.Width(m.width - 4).Height(contentHeight).Render(b.String())
 	}
 
 	// Get sorted fields
@@ -721,7 +785,7 @@ func (m Model) renderFieldSelector() string {
 		} else {
 			b.WriteString(DetailMutedStyle.Render("No fields available"))
 		}
-		return DetailStyle.Width(m.width - 4).Height(m.height - 6).Render(b.String())
+		return DetailStyle.Width(m.width - 4).Height(contentHeight).Render(b.String())
 	}
 
 	// Create set of selected field names
@@ -730,8 +794,8 @@ func (m Model) renderFieldSelector() string {
 		selectedNames[f.Name] = true
 	}
 
-	// Calculate visible range
-	visibleHeight := m.height - 12
+	// Calculate visible range (account for header and instructions)
+	visibleHeight := contentHeight - 4
 	if visibleHeight < 5 {
 		visibleHeight = 5
 	}
@@ -793,7 +857,7 @@ func (m Model) renderFieldSelector() string {
 		b.WriteString(DetailMutedStyle.Render(fmt.Sprintf("\n%d/%d fields", m.fieldsCursor+1, len(sortedFields))))
 	}
 
-	return DetailStyle.Width(m.width - 4).Height(m.height - 6).Render(b.String())
+	return DetailStyle.Width(m.width - 4).Height(contentHeight).Render(b.String())
 }
 
 func (m Model) renderMetricsDashboard(listHeight int) string {
@@ -1013,8 +1077,10 @@ func formatMetricValue(v float64) string {
 
 // renderMetricDetail renders a full-screen view of a single metric with a large chart
 func (m Model) renderMetricDetail() string {
+	contentHeight := m.getFullScreenHeight()
+
 	if m.aggregatedMetrics == nil || m.metricsCursor >= len(m.aggregatedMetrics.Metrics) {
-		return DetailStyle.Width(m.width - 4).Height(m.height - 4).Render(
+		return DetailStyle.Width(m.width - 4).Height(contentHeight).Render(
 			DetailMutedStyle.Render("No metric selected"))
 	}
 
@@ -1056,8 +1122,8 @@ func (m Model) renderMetricDetail() string {
 		b.WriteString("\n\n")
 	}
 
-	// Render the large chart
-	chartHeight := m.height - 14 // Leave room for header, stats, and help bar
+	// Render the large chart - leave room for header and stats (8 lines)
+	chartHeight := contentHeight - 8
 	if chartHeight < 5 {
 		chartHeight = 5
 	}
@@ -1069,7 +1135,7 @@ func (m Model) renderMetricDetail() string {
 	chart := m.renderLargeChart(metric.Buckets, metric.Min, metric.Max, chartWidth, chartHeight)
 	b.WriteString(chart)
 
-	return DetailStyle.Width(m.width - 4).Height(m.height - 4).Render(b.String())
+	return DetailStyle.Width(m.width - 4).Height(contentHeight).Render(b.String())
 }
 
 // renderLargeChart creates a multi-line ASCII chart from metric buckets
@@ -1185,11 +1251,15 @@ func (m Model) renderTransactionNames(listHeight int) string {
 	}
 
 	// Calculate column widths
-	// TRANSACTION NAME (flex) | COUNT (10) | AVG(ms) (12) | ERR% (8)
+	// TRANSACTION NAME (flex) | COUNT (10) | MIN(ms) (10) | AVG(ms) (10) | MAX(ms) (10) | TRACES (8) | SPANS (8) | ERR% (8)
 	countWidth := 10
-	avgWidth := 12
+	minWidth := 10
+	avgWidth := 10
+	maxWidth := 10
+	tracesWidth := 8
+	spansWidth := 8
 	errWidth := 8
-	fixedWidth := countWidth + avgWidth + errWidth + 4 // separators
+	fixedWidth := countWidth + minWidth + avgWidth + maxWidth + tracesWidth + spansWidth + errWidth + 7 // separators
 	nameWidth := m.width - fixedWidth - 10
 	if nameWidth < 20 {
 		nameWidth = 20
@@ -1199,7 +1269,11 @@ func (m Model) renderTransactionNames(listHeight int) string {
 	header := HeaderRowStyle.Render(
 		PadOrTruncate("TRANSACTION NAME", nameWidth) + " " +
 			PadOrTruncate("COUNT", countWidth) + " " +
+			PadOrTruncate("MIN(ms)", minWidth) + " " +
 			PadOrTruncate("AVG(ms)", avgWidth) + " " +
+			PadOrTruncate("MAX(ms)", maxWidth) + " " +
+			PadOrTruncate("TRACES", tracesWidth) + " " +
+			PadOrTruncate("SPANS", spansWidth) + " " +
 			PadOrTruncate("ERR%", errWidth))
 
 	// Calculate visible range
@@ -1230,12 +1304,20 @@ func (m Model) renderTransactionNames(listHeight int) string {
 
 		// Format values
 		countStr := fmt.Sprintf("%d", tx.Count)
+		minStr := fmt.Sprintf("%.2f", tx.MinDuration)
 		avgStr := fmt.Sprintf("%.2f", tx.AvgDuration)
+		maxStr := fmt.Sprintf("%.2f", tx.MaxDuration)
+		tracesStr := fmt.Sprintf("%d", tx.TraceCount)
+		spansStr := fmt.Sprintf("%.1f", tx.AvgSpans)
 		errStr := fmt.Sprintf("%.1f%%", tx.ErrorRate)
 
 		line := PadOrTruncate(tx.Name, nameWidth) + " " +
 			PadOrTruncate(countStr, countWidth) + " " +
+			PadOrTruncate(minStr, minWidth) + " " +
 			PadOrTruncate(avgStr, avgWidth) + " " +
+			PadOrTruncate(maxStr, maxWidth) + " " +
+			PadOrTruncate(tracesStr, tracesWidth) + " " +
+			PadOrTruncate(spansStr, spansWidth) + " " +
 			PadOrTruncate(errStr, errWidth)
 
 		if selected {
@@ -1310,12 +1392,26 @@ func (m Model) renderPerspectiveList(listHeight int) string {
 		item := m.perspectiveItems[i]
 		selected := i == m.perspectiveCursor
 
+		// Check if this item is currently active as a filter
+		isActive := false
+		if m.currentPerspective == PerspectiveServices && m.filterService == item.Name {
+			isActive = true
+		} else if m.currentPerspective == PerspectiveResources && m.filterResource == item.Name {
+			isActive = true
+		}
+
 		// Format values
 		logsStr := fmt.Sprintf("%d", item.LogCount)
 		tracesStr := fmt.Sprintf("%d", item.TraceCount)
 		metricsStr := fmt.Sprintf("%d", item.MetricCount)
 
-		line := PadOrTruncate(item.Name, nameWidth) + " " +
+		// Add active marker
+		nameDisplay := item.Name
+		if isActive {
+			nameDisplay = "✓ " + item.Name
+		}
+
+		line := PadOrTruncate(nameDisplay, nameWidth) + " " +
 			PadOrTruncate(logsStr, logsWidth) + " " +
 			PadOrTruncate(tracesStr, tracesWidth) + " " +
 			PadOrTruncate(metricsStr, metricsWidth)
@@ -1494,6 +1590,104 @@ func (m Model) renderLogDetail(log es.LogEntry) string {
 	return b.String()
 }
 
+func (m Model) renderErrorModal() string {
+	var b strings.Builder
+
+	// Modal dimensions
+	modalWidth := min(m.width-8, 80)
+
+	// Calculate centering (use fixed top padding to avoid cut-off)
+	leftPadding := (m.width - modalWidth) / 2
+	topPadding := 3 // Fixed small padding from top
+
+	// Add top padding
+	for i := 0; i < topPadding; i++ {
+		b.WriteString("\n")
+	}
+
+	// Modal box style
+	modalStyle := lipgloss.NewStyle().
+		Width(modalWidth).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("196")). // Red border
+		Padding(1, 2).
+		Align(lipgloss.Left)
+
+	// Error title
+	title := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("196")).
+		Render("⚠ Error")
+
+	// Check if we just copied (statusMessage set within last 2 seconds)
+	justCopied := m.statusMessage == "Error copied to clipboard!" &&
+		time.Since(m.statusTime) < 2*time.Second
+
+	// Scroll indicator
+	scrollInfo := ""
+	if m.errorViewport.TotalLineCount() > m.errorViewport.Height {
+		scrollInfo = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")).
+			Render(fmt.Sprintf(" (scroll: %d%%) ", int(m.errorViewport.ScrollPercent()*100)))
+	}
+
+	// Action buttons
+	var copyButton string
+	if justCopied {
+		copyButton = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("42")).
+			Bold(true).
+			Render("[y] Copy ✓ copied")
+	} else {
+		copyButton = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("42")).
+			Bold(true).
+			Render("[y] Copy")
+	}
+
+	actions := lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		copyButton,
+		"  ",
+		lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")).
+			Render("[j/k] Scroll"),
+		"  ",
+		lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")).
+			Render("[esc/q] Close"),
+		scrollInfo,
+	)
+
+	// Get viewport content (wrap it in a style to constrain width)
+	viewportContent := lipgloss.NewStyle().
+		Width(modalWidth - 8). // Account for border (2) + padding (2*2) + margin (2)
+		Render(m.errorViewport.View())
+
+	// Combine content with viewport for scrollable error message
+	content := lipgloss.JoinVertical(
+		lipgloss.Left,
+		title,
+		"",
+		viewportContent,
+		"",
+		actions,
+	)
+
+	// Render modal with centering
+	modal := modalStyle.Render(content)
+
+	// Add left padding to center horizontally
+	lines := strings.Split(modal, "\n")
+	for _, line := range lines {
+		b.WriteString(strings.Repeat(" ", leftPadding))
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
 func (m Model) renderHelpBar() string {
 	var keys []string
 
@@ -1501,6 +1695,7 @@ func (m Model) renderHelpBar() string {
 	case viewLogs:
 		keys = []string{
 			HelpKeyStyle.Render("m") + HelpDescStyle.Render(" signal"),
+			HelpKeyStyle.Render("p") + HelpDescStyle.Render(" perspective"),
 			HelpKeyStyle.Render("l") + HelpDescStyle.Render(" lookback"),
 			HelpKeyStyle.Render("j/k") + HelpDescStyle.Render(" scroll"),
 			HelpKeyStyle.Render("/") + HelpDescStyle.Render(" search"),
@@ -1568,6 +1763,7 @@ func (m Model) renderHelpBar() string {
 		keys = []string{
 			HelpKeyStyle.Render("j/k") + HelpDescStyle.Render(" scroll"),
 			HelpKeyStyle.Render("enter") + HelpDescStyle.Render(" detail"),
+			HelpKeyStyle.Render("p") + HelpDescStyle.Render(" perspective"),
 			HelpKeyStyle.Render("l") + HelpDescStyle.Render(" lookback"),
 			HelpKeyStyle.Render("d") + HelpDescStyle.Render(" documents"),
 			HelpKeyStyle.Render("r") + HelpDescStyle.Render(" refresh"),
@@ -1584,9 +1780,21 @@ func (m Model) renderHelpBar() string {
 		keys = []string{
 			HelpKeyStyle.Render("j/k") + HelpDescStyle.Render(" scroll"),
 			HelpKeyStyle.Render("enter") + HelpDescStyle.Render(" select"),
+			HelpKeyStyle.Render("p") + HelpDescStyle.Render(" perspective"),
 			HelpKeyStyle.Render("l") + HelpDescStyle.Render(" lookback"),
 			HelpKeyStyle.Render("r") + HelpDescStyle.Render(" refresh"),
 			HelpKeyStyle.Render("m") + HelpDescStyle.Render(" signal"),
+			HelpKeyStyle.Render("q") + HelpDescStyle.Render(" quit"),
+		}
+	case viewPerspectiveList:
+		keys = []string{
+			HelpKeyStyle.Render("j/k") + HelpDescStyle.Render(" scroll"),
+			HelpKeyStyle.Render("enter") + HelpDescStyle.Render(" toggle filter"),
+			HelpKeyStyle.Render("p") + HelpDescStyle.Render(" cycle"),
+			HelpKeyStyle.Render("l") + HelpDescStyle.Render(" lookback"),
+			HelpKeyStyle.Render("c") + HelpDescStyle.Render(" clear all"),
+			HelpKeyStyle.Render("r") + HelpDescStyle.Render(" refresh"),
+			HelpKeyStyle.Render("esc") + HelpDescStyle.Render(" back"),
 			HelpKeyStyle.Render("q") + HelpDescStyle.Render(" quit"),
 		}
 	}

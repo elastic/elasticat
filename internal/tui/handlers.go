@@ -26,6 +26,12 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "esc":
+		// Close error modal and return to previous view
+		if m.mode == viewErrorModal {
+			m.mode = m.previousMode
+			m.err = nil // Clear error
+			return m, nil
+		}
 		// Let metric and trace views handle their own escape
 		if m.mode == viewMetricDetail || m.mode == viewMetricsDashboard || m.mode == viewTraceNames {
 			break // Fall through to mode-specific handler
@@ -59,6 +65,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleTraceNamesKey(msg)
 	case viewPerspectiveList:
 		return m.handlePerspectiveListKey(msg)
+	case viewErrorModal:
+		return m.handleErrorModalKey(msg)
 	}
 
 	return m, nil
@@ -187,8 +195,8 @@ func (m Model) getSortLabelPosition() (start, end int) {
 	}
 
 	// Optional Service filter
-	if m.serviceFilter != "" {
-		pos += len("Service: ") + len(m.serviceFilter) + 5
+	if m.filterService != "" {
+		pos += len("Service: ") + len(m.filterService) + 5
 	}
 
 	// Lookback
@@ -285,7 +293,8 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "c":
 		// Clear filters
 		m.searchQuery = ""
-		m.serviceFilter = ""
+		m.filterService = ""
+		m.filterResource = ""
 		m.levelFilter = ""
 		m.loading = true
 		return m, m.fetchLogs()
@@ -835,6 +844,22 @@ func (m Model) handleMetricsDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mode = viewLogs
 		m.loading = true
 		return m, m.fetchLogs()
+	case "p":
+		// Cycle through perspectives: Services -> Resources -> Services
+		switch m.currentPerspective {
+		case PerspectiveServices:
+			m.currentPerspective = PerspectiveResources
+		case PerspectiveResources:
+			m.currentPerspective = PerspectiveServices
+		}
+		// Enter perspective list view
+		m.mode = viewPerspectiveList
+		m.perspectiveCursor = 0
+		m.perspectiveItems = []PerspectiveItem{}
+		m.perspectiveLoading = true
+		m.statusMessage = fmt.Sprintf("Loading %s...", m.currentPerspective.String())
+		m.statusTime = time.Now()
+		return m, m.fetchPerspectiveData()
 	case "l":
 		// Cycle lookback duration
 		for i, lb := range lookbackDurations {
@@ -846,17 +871,39 @@ func (m Model) handleMetricsDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.metricsLoading = true
 		return m, m.fetchAggregatedMetrics()
 	case "m":
-		// Switch signal type
-		m.signalType = signalLogs
+		// Cycle through signal types: metrics -> logs -> traces -> metrics
+		switch m.signalType {
+		case signalLogs:
+			m.signalType = signalTraces
+		case signalTraces:
+			m.signalType = signalMetrics
+		case signalMetrics:
+			m.signalType = signalLogs
+		}
+		// Update index pattern and reset fields for new signal type
 		m.client.SetIndex(m.signalType.IndexPattern())
 		m.displayFields = DefaultFields(m.signalType)
 		m.logs = []es.LogEntry{}
 		m.selectedIndex = 0
-		m.mode = viewLogs
-		m.loading = true
 		m.statusMessage = "Auto-detecting time range..."
 		m.statusTime = time.Now()
-		return m, m.autoDetectLookback()
+
+		// Signal-specific view modes
+		switch m.signalType {
+		case signalMetrics:
+			m.mode = viewMetricsDashboard
+			m.metricsLoading = true
+			return m, tea.Batch(m.autoDetectLookback(), m.fetchAggregatedMetrics())
+		case signalTraces:
+			m.mode = viewTraceNames
+			m.traceViewLevel = traceViewNames
+			m.tracesLoading = true
+			return m, tea.Batch(m.autoDetectLookback(), m.fetchTransactionNames())
+		default:
+			m.mode = viewLogs
+			m.loading = true
+			return m, m.autoDetectLookback()
+		}
 	case "/":
 		m.mode = viewSearch
 		m.searchInput.Focus()
@@ -934,6 +981,22 @@ func (m Model) handleTraceNamesKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "r":
 		m.tracesLoading = true
 		return m, m.fetchTransactionNames()
+	case "p":
+		// Cycle through perspectives: Services -> Resources -> Services
+		switch m.currentPerspective {
+		case PerspectiveServices:
+			m.currentPerspective = PerspectiveResources
+		case PerspectiveResources:
+			m.currentPerspective = PerspectiveServices
+		}
+		// Enter perspective list view
+		m.mode = viewPerspectiveList
+		m.perspectiveCursor = 0
+		m.perspectiveItems = []PerspectiveItem{}
+		m.perspectiveLoading = true
+		m.statusMessage = fmt.Sprintf("Loading %s...", m.currentPerspective.String())
+		m.statusTime = time.Now()
+		return m, m.fetchPerspectiveData()
 	case "l":
 		// Cycle lookback duration
 		for i, lb := range lookbackDurations {
@@ -945,17 +1008,39 @@ func (m Model) handleTraceNamesKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.tracesLoading = true
 		return m, m.fetchTransactionNames()
 	case "m":
-		// Switch to next signal type (logs)
-		m.signalType = signalLogs
+		// Cycle through signal types: traces -> metrics -> logs -> traces
+		switch m.signalType {
+		case signalLogs:
+			m.signalType = signalTraces
+		case signalTraces:
+			m.signalType = signalMetrics
+		case signalMetrics:
+			m.signalType = signalLogs
+		}
+		// Update index pattern and reset fields for new signal type
 		m.client.SetIndex(m.signalType.IndexPattern())
 		m.displayFields = DefaultFields(m.signalType)
 		m.logs = []es.LogEntry{}
 		m.selectedIndex = 0
-		m.mode = viewLogs
-		m.loading = true
 		m.statusMessage = "Auto-detecting time range..."
 		m.statusTime = time.Now()
-		return m, m.autoDetectLookback()
+
+		// Signal-specific view modes
+		switch m.signalType {
+		case signalMetrics:
+			m.mode = viewMetricsDashboard
+			m.metricsLoading = true
+			return m, tea.Batch(m.autoDetectLookback(), m.fetchAggregatedMetrics())
+		case signalTraces:
+			m.mode = viewTraceNames
+			m.traceViewLevel = traceViewNames
+			m.tracesLoading = true
+			return m, tea.Batch(m.autoDetectLookback(), m.fetchTransactionNames())
+		default:
+			m.mode = viewLogs
+			m.loading = true
+			return m, m.autoDetectLookback()
+		}
 	case "/":
 		m.mode = viewSearch
 		m.searchInput.Focus()
@@ -980,27 +1065,36 @@ func (m Model) handlePerspectiveListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case "enter":
-		// Select the current perspective item and apply filter
+		// Toggle the current perspective item filter
 		if len(m.perspectiveItems) > 0 {
 			selected := m.perspectiveItems[m.perspectiveCursor]
 
-			// Set the appropriate filter based on perspective type
+			// Check if this item is already active, and toggle it
 			switch m.currentPerspective {
 			case PerspectiveServices:
-				m.filterService = selected.Name
-				m.statusMessage = fmt.Sprintf("Filtered to service: %s", selected.Name)
+				if m.filterService == selected.Name {
+					// Unset if already active
+					m.filterService = ""
+					m.statusMessage = fmt.Sprintf("Cleared service filter: %s", selected.Name)
+				} else {
+					// Set the filter
+					m.filterService = selected.Name
+					m.statusMessage = fmt.Sprintf("Filtered to service: %s", selected.Name)
+				}
 			case PerspectiveResources:
-				m.filterResource = selected.Name
-				m.statusMessage = fmt.Sprintf("Filtered to resource: %s", selected.Name)
+				if m.filterResource == selected.Name {
+					// Unset if already active
+					m.filterResource = ""
+					m.statusMessage = fmt.Sprintf("Cleared resource filter: %s", selected.Name)
+				} else {
+					// Set the filter
+					m.filterResource = selected.Name
+					m.statusMessage = fmt.Sprintf("Filtered to resource: %s", selected.Name)
+				}
 			}
 			m.statusTime = time.Now()
 
-			// Return to logs view and refresh
-			m.mode = viewLogs
-			m.logs = []es.LogEntry{}
-			m.selectedIndex = 0
-			m.loading = true
-			return m, m.fetchLogs()
+			// Stay in perspective view - user can navigate back with 'esc' when ready
 		}
 		return m, nil
 	case "c":
@@ -1043,8 +1137,15 @@ func (m Model) handlePerspectiveListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.perspectiveLoading = true
 		return m, m.fetchPerspectiveData()
 	case "esc":
-		// Return to logs view without applying filter
-		m.mode = viewLogs
+		// Return to appropriate view based on signal type
+		switch m.signalType {
+		case signalMetrics:
+			m.mode = viewMetricsDashboard
+		case signalTraces:
+			m.mode = viewTraceNames
+		default:
+			m.mode = viewLogs
+		}
 		return m, nil
 	case "q":
 		return m, tea.Quit
@@ -1053,9 +1154,63 @@ func (m Model) handlePerspectiveListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) handleErrorModalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	switch msg.String() {
+	case "y":
+		// Copy error to clipboard (consistent with 'y' in other views)
+		if m.err != nil {
+			err := clipboard.Init()
+			if err != nil {
+				m.statusMessage = "Clipboard error: " + err.Error()
+			} else {
+				clipboard.Write(clipboard.FmtText, []byte(m.err.Error()))
+				m.statusMessage = "Error copied to clipboard!"
+			}
+			m.statusTime = time.Now()
+		}
+		return m, nil
+
+	case "q", "esc":
+		// Close modal and return to previous view
+		m.mode = m.previousMode
+		m.err = nil
+		return m, nil
+
+	case "j", "down":
+		m.errorViewport.LineDown(1)
+		return m, nil
+
+	case "k", "up":
+		m.errorViewport.LineUp(1)
+		return m, nil
+
+	case "d", "pgdown":
+		m.errorViewport.HalfViewDown()
+		return m, nil
+
+	case "u", "pgup":
+		m.errorViewport.HalfViewUp()
+		return m, nil
+
+	case "g", "home":
+		m.errorViewport.GotoTop()
+		return m, nil
+
+	case "G", "end":
+		m.errorViewport.GotoBottom()
+		return m, nil
+	}
+
+	// Pass other keys to viewport for mouse wheel support
+	m.errorViewport, cmd = m.errorViewport.Update(msg)
+	return m, cmd
+}
+
 // Layout constants
 const (
-	statusBarHeight    = 1
+	statusBarHeight    = 1 // Usually one row (two when ES error)
 	helpBarHeight      = 1
 	compactDetailHeight = 5 // 3 lines of content + 2 for border
 	layoutPadding      = 2  // Top/bottom padding from AppStyle

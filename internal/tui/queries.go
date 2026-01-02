@@ -40,8 +40,8 @@ func (m Model) fetchLogs() tea.Cmd {
 		if m.searchQuery != "" {
 			opts := es.SearchOptions{
 				Size:            100,
-				Service:         m.serviceFilter,
-			Resource:        m.filterResource,
+				Service:         m.filterService,
+				Resource:        m.filterResource,
 				Level:           m.levelFilter,
 				SortAsc:         m.sortAscending,
 				SearchFields:    CollectSearchFields(m.displayFields),
@@ -55,8 +55,8 @@ func (m Model) fetchLogs() tea.Cmd {
 		} else {
 			opts := es.TailOptions{
 				Size:            100,
-				Service:         m.serviceFilter,
-			Resource:        m.filterResource,
+				Service:         m.filterService,
+				Resource:        m.filterResource,
 				Level:           m.levelFilter,
 				SortAsc:         m.sortAscending,
 				Lookback:        lookbackRange,
@@ -93,6 +93,8 @@ func (m Model) fetchAggregatedMetrics() tea.Cmd {
 		opts := es.AggregateMetricsOptions{
 			Lookback:   lookbackRange,
 			BucketSize: bucketInterval,
+			Service:    m.filterService,
+			Resource:   m.filterResource,
 		}
 
 		result, err := m.client.AggregateMetrics(ctx, opts)
@@ -111,7 +113,7 @@ func (m Model) fetchTransactionNames() tea.Cmd {
 
 		lookbackRange := m.lookback.ESRange()
 
-		names, err := m.client.GetTransactionNames(ctx, lookbackRange)
+		names, err := m.client.GetTransactionNamesESQL(ctx, lookbackRange, m.filterService, m.filterResource)
 		if err != nil {
 			return transactionNamesMsg{err: err}
 		}

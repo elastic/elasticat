@@ -23,6 +23,7 @@ const (
 	viewMetricDetail     // Full-screen metric chart
 	viewTraceNames       // Aggregated transaction names for traces
 	viewPerspectiveList  // List of services or resources for perspective filtering
+	viewErrorModal       // Error dialog with copy/close options
 )
 
 // MetricsViewMode toggles between aggregated and document views for metrics
@@ -148,7 +149,7 @@ func (l LookbackDuration) ESRange() string {
 	case lookback1w:
 		return "now-1w"
 	default:
-		return "" // No time filter
+		return "now-24h" // Default to 24h if uninitialized
 	}
 }
 

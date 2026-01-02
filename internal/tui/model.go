@@ -17,14 +17,16 @@ type Model struct {
 	logs          []es.LogEntry
 	selectedIndex int
 	mode          viewMode
+	previousMode  viewMode // Store previous mode when showing error modal
 	err           error
 	loading       bool
 	total         int64
 
 	// Filters
-	serviceFilter string
-	levelFilter   string
-	searchQuery   string
+	levelFilter    string
+	searchQuery    string
+	filterService  string // Active service filter (from perspectives or manual)
+	filterResource string // Active resource filter (from perspectives or manual)
 
 	// Auto-refresh
 	autoRefresh   bool
@@ -58,9 +60,10 @@ type Model struct {
 	fieldsSearch     string          // Search filter for fields
 
 	// Components
-	searchInput textinput.Model
-	indexInput  textinput.Model
-	viewport    viewport.Model
+	searchInput   textinput.Model
+	indexInput    textinput.Model
+	viewport      viewport.Model
+	errorViewport viewport.Model // For scrollable error modal
 
 	// Dimensions
 	width  int
@@ -86,12 +89,10 @@ type Model struct {
 	spansLoading       bool                     // Loading spans for trace
 
 	// Perspective filtering state
-	currentPerspective   PerspectiveType   // Current perspective being viewed
-	perspectiveItems     []PerspectiveItem // List of services or resources with counts
-	perspectiveCursor    int               // Cursor in perspective list
-	perspectiveLoading   bool              // Loading perspective data
-	filterService        string            // Active service filter
-	filterResource       string            // Active resource filter
+	currentPerspective PerspectiveType   // Current perspective being viewed
+	perspectiveItems   []PerspectiveItem // List of services or resources with counts
+	perspectiveCursor  int               // Cursor in perspective list
+	perspectiveLoading bool              // Loading perspective data
 }
 
 // Highlighter returns a Highlighter configured with the current search query
@@ -116,6 +117,7 @@ func NewModel(client *es.Client, signal SignalType) Model {
 	ii.SetValue(client.GetIndex())
 
 	vp := viewport.New(80, 20)
+	errorVp := viewport.New(70, 15) // Viewport for error modal
 
 	// Determine initial view mode based on signal type
 	var initialMode viewMode
@@ -139,6 +141,7 @@ func NewModel(client *es.Client, signal SignalType) Model {
 		searchInput:     ti,
 		indexInput:      ii,
 		viewport:        vp,
+		errorViewport:   errorVp,
 		width:           80,
 		height:          24,
 		traceViewLevel:  traceViewNames,        // Start at transaction names for traces
