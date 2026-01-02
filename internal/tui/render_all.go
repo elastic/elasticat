@@ -131,6 +131,12 @@ func (m Model) renderStatusBar() string {
 	if m.serviceFilter != "" {
 		parts = append(parts, StatusKeyStyle.Render("Service: ")+StatusValueStyle.Render(m.serviceFilter))
 	}
+	if m.filterService != "" {
+		parts = append(parts, StatusKeyStyle.Render("🔍Service: ")+StatusValueStyle.Render(m.filterService))
+	}
+	if m.filterResource != "" {
+		parts = append(parts, StatusKeyStyle.Render("🔍Resource: ")+StatusValueStyle.Render(m.filterResource))
+	}
 
 	// Lookback duration
 	parts = append(parts, StatusKeyStyle.Render("Lookback: ")+StatusValueStyle.Render(m.lookback.String()))

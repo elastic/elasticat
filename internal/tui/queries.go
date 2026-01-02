@@ -151,7 +151,7 @@ func (m Model) fetchPerspectiveData() tea.Cmd {
 		}
 
 		if err != nil {
-			return errMsg(err)
+			return perspectiveDataMsg{err: err}
 		}
 
 		// Convert to PerspectiveItem
