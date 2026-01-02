@@ -382,6 +382,23 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Auto-detect the best lookback for the new signal type
 		return m, m.autoDetectLookback()
 
+	case "p":
+		// Cycle through perspectives: Services -> Resources -> Services
+		switch m.currentPerspective {
+		case PerspectiveServices:
+			m.currentPerspective = PerspectiveResources
+		case PerspectiveResources:
+			m.currentPerspective = PerspectiveServices
+		}
+		// Enter perspective list view
+		m.mode = viewPerspectiveList
+		m.perspectiveCursor = 0
+		m.perspectiveItems = []PerspectiveItem{}
+		m.perspectiveLoading = true
+		m.statusMessage = fmt.Sprintf("Loading %s...", m.currentPerspective.String())
+		m.statusTime = time.Now()
+		return m, m.fetchPerspectiveData()
+
 	case "d":
 		// Toggle between document view and aggregated view for metrics
 		if m.signalType == signalMetrics {
