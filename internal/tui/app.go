@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/andrewvc/turbodevlog/internal/es"
+	"github.com/andrewvc/turboelasticat/internal/es"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"

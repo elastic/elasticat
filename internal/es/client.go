@@ -13,7 +13,7 @@ import (
 	"github.com/elastic/go-elasticsearch/v8"
 )
 
-// Client wraps the Elasticsearch client with turbodevlog-specific functionality
+// Client wraps the Elasticsearch client with telasticat-specific functionality
 type Client struct {
 	es    *elasticsearch.Client
 	index string

@@ -1,7 +1,7 @@
 services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:9.2.3
-    container_name: turbodevlog-es
+    container_name: turboelasticat-es
     environment:
       # Single-node discovery
       - discovery.type=single-node
@@ -9,9 +9,9 @@ services:
       - xpack.security.enabled=false
       - xpack.security.enrollment.enabled=false
       # Cluster name
-      - cluster.name=turbodevlog
+      - cluster.name=turboelasticat
       # Node name
-      - node.name=turbodevlog-es01
+      - node.name=turboelasticat-es01
       # Enable ML for semantic search capabilities (optional)
       - xpack.ml.use_auto_machine_memory_percent=true
     # Memory allocation - ES automatically sizes JVM heap based on container memory
@@ -30,7 +30,7 @@ services:
     volumes:
       - esdata:/usr/share/elasticsearch/data
     networks:
-      - turbodevlog
+      - turboelasticat
     healthcheck:
       test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -qE '\"status\":\"(green|yellow)\"'"]
       interval: 10s
@@ -41,7 +41,7 @@ services:
   # EDOT - Elastic Distribution of OpenTelemetry
   otel-collector:
     image: docker.elastic.co/elastic-agent/elastic-agent:9.2.3
-    container_name: turbodevlog-otel
+    container_name: turboelasticat-otel
     environment:
       # Enable OTel mode for Elastic Agent
       - ELASTIC_AGENT_OTEL=true
@@ -57,7 +57,7 @@ services:
       - ./edot-config.yaml:/etc/otel-collector/config.yaml:ro,Z
       # Mount local logs directory - users put their log files here
       # or symlink their app's log directory to ./logs
-      - ${TURBODEVLOG_LOGS_DIR:-./logs}:/var/log/app:ro,Z
+      - ${TURBOELASTICAT_LOGS_DIR:-./logs}:/var/log/app:ro,Z
       # Optional: Mount host filesystem for host metrics (comment out if not needed)
       # - /:/hostfs:ro
       # Optional: Docker-specific mounts for container log collection (Docker only, not Podman)
@@ -67,7 +67,7 @@ services:
       - "4317:4317"   # OTLP gRPC
       - "4318:4318"   # OTLP HTTP
     networks:
-      - turbodevlog
+      - turboelasticat
     depends_on:
       elasticsearch:
         condition: service_healthy
@@ -76,15 +76,15 @@ services:
   # Start with: docker compose --profile kibana up -d
   kibana:
     image: docker.elastic.co/kibana/kibana:9.2.3
-    container_name: turbodevlog-kibana
+    container_name: turboelasticat-kibana
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
       - xpack.security.enabled=false
-      - server.name=turbodevlog-kibana
+      - server.name=turboelasticat-kibana
     ports:
       - "5601:5601"
     networks:
-      - turbodevlog
+      - turboelasticat
     depends_on:
       elasticsearch:
         condition: service_healthy
@@ -95,13 +95,13 @@ services:
   # Start with: docker compose --profile mcp up -d
   mcp-server:
     image: docker.elastic.co/mcp/elasticsearch:latest
-    container_name: turbodevlog-mcp
+    container_name: turboelasticat-mcp
     environment:
       - ELASTICSEARCH_URL=http://elasticsearch:9200
     ports:
       - "3000:3000"
     networks:
-      - turbodevlog
+      - turboelasticat
     depends_on:
       elasticsearch:
         condition: service_healthy
@@ -109,7 +109,7 @@ services:
       - mcp
 
 networks:
-  turbodevlog:
+  turboelasticat:
     driver: bridge
 
 volumes:

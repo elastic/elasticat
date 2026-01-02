@@ -1,6 +1,6 @@
 # Log Files Directory
 
-Place your application log files here (or symlink to them) and TurboDevLog will automatically collect them.
+Place your application log files here (or symlink to them) and TurboElastiCat will automatically collect them.
 
 ## Supported Formats
 
@@ -71,7 +71,7 @@ Parse: JSON or plain text auto-detected
 Extract: service name, log level from filename/content
     │
     ▼
-Elasticsearch (turbodevlog-logs index)
+Elasticsearch (telasticat-logs index)
     │
     ▼
 TUI viewer / Kibana / AI via MCP

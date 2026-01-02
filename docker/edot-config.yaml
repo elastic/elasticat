@@ -193,14 +193,14 @@ processors:
         os.type:
           enabled: true
 
-  # Add turbodevlog resource attributes
+  # Add telasticat resource attributes
   resource:
     attributes:
       - key: deployment.environment
         value: development
         action: upsert
       - key: service.namespace
-        value: turbodevlog
+        value: telasticat
         action: upsert
 
   # Transform for Docker log processing

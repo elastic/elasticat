@@ -10,10 +10,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/andrewvc/turbodevlog/internal/es"
-	"github.com/andrewvc/turbodevlog/internal/otlp"
-	"github.com/andrewvc/turbodevlog/internal/tui"
-	"github.com/andrewvc/turbodevlog/internal/watch"
+	"github.com/andrewvc/turboelasticat/internal/es"
+	"github.com/andrewvc/turboelasticat/internal/otlp"
+	"github.com/andrewvc/turboelasticat/internal/tui"
+	"github.com/andrewvc/turboelasticat/internal/watch"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )
@@ -49,17 +49,17 @@ func main() {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "turbodevlog",
+	Use:   "telasticat",
 	Short: "AI-powered local development log viewer",
-	Long: `TurboDevLog - View and search your local development logs with the power of Elasticsearch.
+	Long: `TurboElasticat - View and search your local development logs with the power of Elasticsearch.
 
-Start the stack with 'turbodevlog up', then view logs with 'turbodevlog logs'.
+Start the stack with 'telasticat up', then view logs with 'telasticat logs'.
 Your AI assistant can query logs via the Elasticsearch MCP server.`,
 }
 
 var upCmd = &cobra.Command{
 	Use:   "up",
-	Short: "Start the TurboDevLog stack (Elasticsearch + OTel Collector)",
+	Short: "Start the TurboElasticat stack (Elasticsearch + OTel Collector)",
 	Long:  `Starts the Docker Compose stack including Elasticsearch and the OpenTelemetry Collector.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runUp()
@@ -68,7 +68,7 @@ var upCmd = &cobra.Command{
 
 var downCmd = &cobra.Command{
 	Use:   "down",
-	Short: "Stop the TurboDevLog stack",
+	Short: "Stop the TurboElasticat stack",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runDown()
 	},
@@ -106,7 +106,7 @@ var searchCmd = &cobra.Command{
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
-	Short: "Check the status of the TurboDevLog stack",
+	Short: "Check the status of the TurboElasticat stack",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runStatus()
 	},
@@ -119,11 +119,11 @@ var watchCmd = &cobra.Command{
 and automatically sending them to Elasticsearch via OTLP.
 
 Examples:
-  turbodevlog watch server.log
-  turbodevlog watch server.log server-err.log
-  turbodevlog watch ./logs/*.log
-  turbodevlog watch -n 50 server.log     # Show last 50 lines
-  turbodevlog watch --no-send server.log # Display only, don't send to ES`,
+  telasticat watch server.log
+  telasticat watch server.log server-err.log
+  telasticat watch ./logs/*.log
+  telasticat watch -n 50 server.log     # Show last 50 lines
+  telasticat watch --no-send server.log # Display only, don't send to ES`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runWatch(args)
@@ -137,8 +137,8 @@ var clearCmd = &cobra.Command{
 when you want a fresh start.
 
 Examples:
-  turbodevlog clear          # Prompts for confirmation
-  turbodevlog clear --force  # Skip confirmation`,
+  telasticat clear          # Prompts for confirmation
+  telasticat clear --force  # Skip confirmation`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runClear()
 	},
@@ -257,7 +257,7 @@ func runUp() error {
 		return err
 	}
 
-	fmt.Println("Starting TurboDevLog stack...")
+	fmt.Println("Starting TurboElasticat stack...")
 	fmt.Printf("Using %s, compose directory: %s\n", runtime, dir)
 	fmt.Println()
 
@@ -292,7 +292,7 @@ func runUp() error {
 		fmt.Println("To configure your AI assistant, add the MCP server endpoint to your config.")
 	}
 	fmt.Println()
-	fmt.Println("Run 'turbodevlog logs' to open the log viewer.")
+	fmt.Println("Run 'telasticat logs' to open the log viewer.")
 
 	return nil
 }
@@ -312,7 +312,7 @@ func runDown() error {
 		return err
 	}
 
-	fmt.Println("Stopping TurboDevLog stack...")
+	fmt.Println("Stopping TurboElasticat stack...")
 
 	cmd := exec.Command(runtime, "compose", "down")
 	cmd.Dir = dir
@@ -339,7 +339,7 @@ func runLogs() error {
 
 	if err := client.Ping(ctx); err != nil {
 		fmt.Println("Warning: Could not connect to Elasticsearch. Is the stack running?")
-		fmt.Println("Run 'turbodevlog up' to start the stack.")
+		fmt.Println("Run 'telasticat up' to start the stack.")
 		fmt.Println()
 	}
 
@@ -448,8 +448,8 @@ func runStatus() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	fmt.Println("TurboDevLog Status")
-	fmt.Println("==================")
+	fmt.Println("TurboElasticat Status")
+	fmt.Println("=====================")
 	fmt.Println()
 
 	// Check Elasticsearch
@@ -477,7 +477,7 @@ func runStatus() error {
 	}
 
 	fmt.Printf("Containers (%s):\n", runtime)
-	cmd := exec.Command(runtime, "ps", "--filter", "name=turbodevlog", "--format", "  {{.Names}}: {{.Status}}")
+	cmd := exec.Command(runtime, "ps", "--filter", "name=turboelasticat", "--format", "  {{.Names}}: {{.Status}}")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -631,7 +631,7 @@ func runClear() error {
 
 	// Check connection first
 	if err := client.Ping(ctx); err != nil {
-		return fmt.Errorf("cannot connect to Elasticsearch: %w\nIs the stack running? Try 'turbodevlog up'", err)
+		return fmt.Errorf("cannot connect to Elasticsearch: %w\nIs the stack running? Try 'telasticat up'", err)
 	}
 
 	// Prompt for confirmation unless --force

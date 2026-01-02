@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 
-	"github.com/andrewvc/turbodevlog/internal/watch"
+	"github.com/andrewvc/turboelasticat/internal/watch"
 )
 
 // Client sends logs to an OTLP endpoint
@@ -65,7 +65,7 @@ func New(cfg Config) (*Client, error) {
 		sdklog.WithResource(res),
 	)
 
-	logger := provider.Logger("turbodevlog")
+	logger := provider.Logger("telasticat")
 
 	return &Client{
 		provider: provider,

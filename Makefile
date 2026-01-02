@@ -1,12 +1,12 @@
 .PHONY: build install clean up down logs test
 
-# Build the turbodevlog binary
+# Build the telasticat binary
 build:
-	go build -o bin/turbodevlog ./cmd/turbodevlog
+	go build -o bin/telasticat ./cmd/telasticat
 
 # Install to GOPATH/bin
 install:
-	go install ./cmd/turbodevlog
+	go install ./cmd/telasticat
 
 # Clean build artifacts
 clean:
@@ -35,15 +35,15 @@ down:
 
 # Open the log viewer
 logs: build
-	./bin/turbodevlog logs
+	./bin/telasticat logs
 
 # Tail logs
 tail: build
-	./bin/turbodevlog tail
+	./bin/telasticat tail
 
 # Check stack status
 status: build
-	./bin/turbodevlog status
+	./bin/telasticat status
 
 # Run tests
 test:
