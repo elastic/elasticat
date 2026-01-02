@@ -1,16 +1,16 @@
-# TurboElastiCat Competitive Analysis
+# ElastiCat Competitive Analysis
 
 ## Executive Summary
 
-TurboElastiCat occupies a unique position in the local development log tooling space: it combines the power of Elasticsearch with the simplicity of purpose-built dev tools, and is the **only solution offering AI assistant integration via MCP Server**.
+ElastiCat occupies a unique position in the local development log tooling space: it combines the power of Elasticsearch with the simplicity of purpose-built dev tools, and is the **only solution offering AI assistant integration via MCP Server**.
 
-**Key differentiator**: While competitors force a choice between "simple but limited" or "powerful but complex," TurboElastiCat delivers both—with AI-native debugging as the standout feature no competitor offers.
+**Key differentiator**: While competitors force a choice between "simple but limited" or "powerful but complex," ElastiCat delivers both—with AI-native debugging as the standout feature no competitor offers.
 
 ---
 
 ## Feature Comparison Matrix
 
-| Feature | TurboElastiCat | Dozzle | otel-tui | Grafana LGTM | SigNoz | docker-elk |
+| Feature | ElastiCat | Dozzle | otel-tui | Grafana LGTM | SigNoz | docker-elk |
 |---------|-------------|--------|----------|--------------|--------|------------|
 | **Setup Complexity** |||||
 | Single command start | Yes | Yes | Yes | Yes | No | No |
@@ -60,13 +60,13 @@ TurboElastiCat occupies a unique position in the local development log tooling s
 - **No AI integration**: Cannot be queried by AI assistants
 - **Browser-only**: No terminal interface
 
-**When to choose Dozzle over TurboElastiCat**:
+**When to choose Dozzle over ElastiCat**:
 - You only need real-time log viewing, not historical search
 - Memory is extremely constrained (<100MB available)
 - You don't use OTel instrumentation
 - You prefer browser UI exclusively
 
-**When TurboElastiCat wins**:
+**When ElastiCat wins**:
 - You need to search historical logs
 - You want AI-assisted debugging
 - You use OpenTelemetry instrumentation
@@ -94,12 +94,12 @@ TurboElastiCat occupies a unique position in the local development log tooling s
 - **No AI integration**: Cannot be queried by AI assistants
 - **Limited scalability**: Memory grows with log volume
 
-**When to choose otel-tui over TurboElastiCat**:
+**When to choose otel-tui over ElastiCat**:
 - You only need real-time OTel viewing
 - You want zero infrastructure overhead
 - Memory and persistence aren't concerns
 
-**When TurboElastiCat wins**:
+**When ElastiCat wins**:
 - You need persistent storage and search
 - You want AI-assisted analysis
 - You need both OTel and Docker log collection
@@ -127,13 +127,13 @@ TurboElastiCat occupies a unique position in the local development log tooling s
 - **Ops-oriented**: Designed for dashboards, not debugging
 - **No Docker log collection OOTB**: Requires additional config
 
-**When to choose Grafana LGTM over TurboElastiCat**:
+**When to choose Grafana LGTM over ElastiCat**:
 - You're already invested in the Grafana ecosystem
 - You need metrics and traces alongside logs
 - You prefer Grafana's dashboard building
 - Team is familiar with LogQL
 
-**When TurboElastiCat wins**:
+**When ElastiCat wins**:
 - You want AI-assisted debugging (MCP Server)
 - You prefer ES Query DSL
 - You want a terminal-native experience
@@ -161,13 +161,13 @@ TurboElastiCat occupies a unique position in the local development log tooling s
 - **No MCP Server**: Cannot be queried by AI assistants
 - **Overkill for local dev**: Designed for production observability
 
-**When to choose SigNoz over TurboElastiCat**:
+**When to choose SigNoz over ElastiCat**:
 - You need full APM with distributed tracing
 - You're deploying to production (not just local dev)
 - You have 8GB+ RAM available
 - You need advanced alerting
 
-**When TurboElastiCat wins**:
+**When ElastiCat wins**:
 - You want quick local development setup
 - You want AI-assisted debugging (MCP Server)
 - You prefer terminal-based workflows
@@ -196,12 +196,12 @@ TurboElastiCat occupies a unique position in the local development log tooling s
 - **Security complexity**: TLS, passwords, etc. required for recent versions
 - **Multi-container**: Not single-command simple
 
-**When to choose docker-elk over TurboElastiCat**:
+**When to choose docker-elk over ElastiCat**:
 - You need full Kibana dashboard capabilities
 - You're already maintaining ELK in production
 - You need Logstash's specific pipeline features
 
-**When TurboElastiCat wins**:
+**When ElastiCat wins**:
 - You want simpler setup with better defaults
 - You want OTel-native collection
 - You want AI-assisted debugging (pre-configured MCP)
@@ -214,17 +214,17 @@ TurboElastiCat occupies a unique position in the local development log tooling s
 #### Stern / Kubetail
 - **Focus**: Kubernetes log tailing
 - **Limitation**: K8s-only, no storage, no AI integration
-- **TurboElastiCat advantage**: Works with plain Docker, persistent search, AI integration
+- **ElastiCat advantage**: Works with plain Docker, persistent search, AI integration
 
 #### Logdy
 - **Focus**: Web-based log viewer/parser
 - **Limitation**: No storage backend, parsing-focused
-- **TurboElastiCat advantage**: Full search/aggregation, AI integration
+- **ElastiCat advantage**: Full search/aggregation, AI integration
 
 #### Vector + Quickwit
 - **Focus**: Log pipeline + lightweight search
 - **Limitation**: Requires manual assembly, no pre-configured MCP
-- **TurboElastiCat advantage**: Integrated solution, AI-native
+- **ElastiCat advantage**: Integrated solution, AI-native
 
 ---
 
@@ -234,7 +234,7 @@ TurboElastiCat occupies a unique position in the local development log tooling s
                     POWERFUL QUERIES
                           │
                           │
-         docker-elk  ●    │    ● TurboElastiCat
+         docker-elk  ●    │    ● ElastiCat
                           │      (unique: AI integration)
          SigNoz     ●     │
                           │
@@ -254,7 +254,7 @@ TurboElastiCat occupies a unique position in the local development log tooling s
 
 ## Competitive Moat: MCP Server Integration
 
-TurboElastiCat's primary competitive advantage is **AI-native debugging via MCP Server**.
+ElastiCat's primary competitive advantage is **AI-native debugging via MCP Server**.
 
 ### Why This Matters
 
@@ -281,7 +281,7 @@ TurboElastiCat's primary competitive advantage is **AI-native debugging via MCP 
 
 ## Target User Comparison
 
-| User Type | Current Tool | Pain Point | TurboElastiCat Value |
+| User Type | Current Tool | Pain Point | ElastiCat Value |
 |-----------|--------------|------------|-------------------|
 | Backend Dev (Node/Python/Go) | grep, docker logs | Manual correlation, no persistence | Search + AI analysis |
 | Full-stack Dev | Dozzle | No search, no OTel | Persistent search, structured logs |
@@ -290,7 +290,7 @@ TurboElastiCat's primary competitive advantage is **AI-native debugging via MCP 
 
 ---
 
-## Summary: Why TurboElastiCat Wins
+## Summary: Why ElastiCat Wins
 
 1. **Simplicity of Dozzle** + **Power of Elasticsearch** = Best of both worlds
 2. **Only solution with AI integration** via MCP Server
@@ -298,4 +298,4 @@ TurboElastiCat's primary competitive advantage is **AI-native debugging via MCP 
 4. **OTel-native** collection with Docker log support
 5. **Right-sized** for local development (not over-engineered)
 
-The competitive landscape is fragmented between "too simple" and "too complex." TurboElastiCat occupies the valuable middle ground—and adds AI integration that no one else offers.
+The competitive landscape is fragmented between "too simple" and "too complex." ElastiCat occupies the valuable middle ground—and adds AI integration that no one else offers.

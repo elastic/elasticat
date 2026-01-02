@@ -1,14 +1,14 @@
 package tui
 
 import (
-	"fmt"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
-	"github.com/andrewvc/turboelasticat/internal/es"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/elastic/elasticat/internal/es"
 )
 
 // getContentHeight returns the available height for main content
@@ -811,7 +811,7 @@ func (m Model) renderMetricsDashboard(listHeight int) string {
 			PadOrTruncate(latestStr, numWidth)
 
 		if selected {
-			lines = append(lines, SelectedLogStyle.Width(m.width - 6).Render(line))
+			lines = append(lines, SelectedLogStyle.Width(m.width-6).Render(line))
 		} else {
 			lines = append(lines, LogEntryStyle.Render(line))
 		}
@@ -1020,7 +1020,7 @@ func (m Model) renderTransactionNames(listHeight int) string {
 			PadOrTruncate(errStr, errWidth)
 
 		if selected {
-			lines = append(lines, SelectedLogStyle.Width(m.width - 6).Render(line))
+			lines = append(lines, SelectedLogStyle.Width(m.width-6).Render(line))
 		} else {
 			lines = append(lines, LogEntryStyle.Render(line))
 		}
@@ -1116,7 +1116,7 @@ func (m Model) renderPerspectiveList(listHeight int) string {
 			PadOrTruncate(metricsStr, metricsWidth)
 
 		if selected {
-			lines = append(lines, SelectedLogStyle.Width(m.width - 6).Render(line))
+			lines = append(lines, SelectedLogStyle.Width(m.width-6).Render(line))
 		} else {
 			lines = append(lines, LogEntryStyle.Render(line))
 		}
@@ -1388,4 +1388,3 @@ func (m Model) renderErrorModal() string {
 }
 
 // Commands
-

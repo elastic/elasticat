@@ -3,11 +3,11 @@ package tui
 import (
 	"time"
 
-	"github.com/andrewvc/turboelasticat/internal/es"
-	"github.com/andrewvc/turboelasticat/internal/es/metrics"
-	"github.com/andrewvc/turboelasticat/internal/es/traces"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
+	"github.com/elastic/elasticat/internal/es"
+	"github.com/elastic/elasticat/internal/es/metrics"
+	"github.com/elastic/elasticat/internal/es/traces"
 )
 
 // Model is the main TUI model containing all application state
@@ -55,12 +55,12 @@ type Model struct {
 	statusTime     time.Time   // When status was set (for auto-clear)
 
 	// Field selection
-	displayFields    []DisplayField  // Currently configured display fields
-	availableFields  []es.FieldInfo  // All fields from field_caps
-	fieldsCursor     int             // Cursor position in field selector
-	fieldsLoading    bool            // Loading field caps
-	fieldsSearchMode bool            // Whether we're in search mode within fields view
-	fieldsSearch     string          // Search filter for fields
+	displayFields    []DisplayField // Currently configured display fields
+	availableFields  []es.FieldInfo // All fields from field_caps
+	fieldsCursor     int            // Cursor position in field selector
+	fieldsLoading    bool           // Loading field caps
+	fieldsSearchMode bool           // Whether we're in search mode within fields view
+	fieldsSearch     string         // Search filter for fields
 
 	// Components
 	searchInput   textinput.Model
@@ -82,14 +82,14 @@ type Model struct {
 	metricsCursor     int // Selected metric in dashboard
 
 	// Traces navigation state
-	traceViewLevel     TraceViewLevel           // Current navigation level
-	transactionNames   []traces.TransactionNameAgg  // Aggregated transaction names
-	traceNamesCursor   int                      // Cursor in transaction names list
-	selectedTxName     string                   // Selected transaction name filter
-	selectedTraceID    string                   // Selected trace_id for spans view
-	tracesLoading      bool                     // Loading transaction names
-	spans              []es.LogEntry            // Child spans for selected trace
-	spansLoading       bool                     // Loading spans for trace
+	traceViewLevel   TraceViewLevel              // Current navigation level
+	transactionNames []traces.TransactionNameAgg // Aggregated transaction names
+	traceNamesCursor int                         // Cursor in transaction names list
+	selectedTxName   string                      // Selected transaction name filter
+	selectedTraceID  string                      // Selected trace_id for spans view
+	tracesLoading    bool                        // Loading transaction names
+	spans            []es.LogEntry               // Child spans for selected trace
+	spansLoading     bool                        // Loading spans for trace
 
 	// Perspective filtering state
 	currentPerspective PerspectiveType   // Current perspective being viewed

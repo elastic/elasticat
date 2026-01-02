@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/andrewvc/turboelasticat/internal/es"
-	"github.com/andrewvc/turboelasticat/internal/es/metrics"
-	"github.com/andrewvc/turboelasticat/internal/es/perspectives"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/elastic/elasticat/internal/es"
+	"github.com/elastic/elasticat/internal/es/metrics"
+	"github.com/elastic/elasticat/internal/es/perspectives"
 )
 
 func (m Model) fetchLogs() tea.Cmd {
@@ -172,7 +172,6 @@ func (m Model) fetchPerspectiveData() tea.Cmd {
 		return perspectiveDataMsg{items: items}
 	}
 }
-
 
 func (m Model) autoDetectLookback() tea.Cmd {
 	return func() tea.Msg {

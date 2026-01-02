@@ -1,15 +1,15 @@
 package tui
 
 import (
-	"fmt"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
-	"github.com/andrewvc/turboelasticat/internal/es"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/elastic/elasticat/internal/es"
 	"golang.design/x/clipboard"
 )
 
@@ -1226,10 +1226,10 @@ func (m Model) handleErrorModalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // Layout constants
 const (
-	statusBarHeight    = 1 // Usually one row (two when ES error)
-	helpBarHeight      = 1
+	statusBarHeight     = 1 // Usually one row (two when ES error)
+	helpBarHeight       = 1
 	compactDetailHeight = 5 // 3 lines of content + 2 for border
-	layoutPadding      = 2  // Top/bottom padding from AppStyle
+	layoutPadding       = 2 // Top/bottom padding from AppStyle
 )
 
 // View renders the TUI

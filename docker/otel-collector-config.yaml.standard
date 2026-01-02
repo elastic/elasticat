@@ -46,7 +46,7 @@ processors:
         value: development
         action: upsert
       - key: log.source
-        value: telasticat
+        value: elasticat
         action: upsert
 
   # Transform to add service name from container labels if available
@@ -62,7 +62,7 @@ exporters:
   elasticsearch:
     endpoints:
       - http://elasticsearch:9200
-    logs_index: telasticat-logs
+    logs_index: elasticat-logs
     logs_dynamic_index:
       enabled: true
     mapping:

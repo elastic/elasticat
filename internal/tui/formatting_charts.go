@@ -3,7 +3,7 @@ package tui
 import (
 	"strings"
 
-	"github.com/andrewvc/turboelasticat/internal/es/metrics"
+	"github.com/elastic/elasticat/internal/es/metrics"
 )
 
 // renderLargeChart renders a large ASCII chart for metric visualization

@@ -22,14 +22,14 @@ const (
 
 // ParsedLog represents a parsed log line
 type ParsedLog struct {
-	Timestamp   time.Time
-	Level       LogLevel
-	Message     string
-	Service     string
-	Source      string // filename
-	Attributes  map[string]interface{}
-	RawLine     string
-	IsJSON      bool
+	Timestamp  time.Time
+	Level      LogLevel
+	Message    string
+	Service    string
+	Source     string // filename
+	Attributes map[string]interface{}
+	RawLine    string
+	IsJSON     bool
 }
 
 // Common timestamp patterns

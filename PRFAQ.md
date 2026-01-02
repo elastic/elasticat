@@ -1,10 +1,10 @@
-# TurboElasticat PRFAQ
+# ElastiCat PRFAQ
 
 ---
 
 ## Press Release
 
-### TurboElasticat: AI-Powered Local Development Log Analysis
+### ElastiCat: AI-Powered Local Development Log Analysis
 
 **The first local development log tool with built-in AI integration via Elasticsearch MCP Server**
 
@@ -12,7 +12,7 @@
 
 **FOR IMMEDIATE RELEASE**
 
-Today we announce TurboElasticat, an open-source tool that transforms how developers debug their local applications. With a single command, developers get a complete log collection and analysis stack—powered by Elasticsearch and OpenTelemetry—with first-class AI assistant integration.
+Today we announce ElastiCat, an open-source tool that transforms how developers debug their local applications. With a single command, developers get a complete log collection and analysis stack—powered by Elasticsearch and OpenTelemetry—with first-class AI assistant integration.
 
 ### The Problem
 
@@ -29,18 +29,18 @@ Most critically, **none of these tools integrate with AI assistants**—even tho
 
 ### The Solution
 
-TurboElasticat provides:
+ElastiCat provides:
 
-1. **One-command setup**: `telasticat up` starts Elasticsearch, OpenTelemetry Collector, and optional Kibana
+1. **One-command setup**: `elasticat up` starts Elasticsearch, OpenTelemetry Collector, and optional Kibana
 2. **Universal log collection**: Captures both OTel SDK instrumented logs and Docker container stdout/stderr
 3. **Powerful TUI**: Vim-like terminal interface with live tailing, full-text search, and ES query DSL support
 4. **AI-Native Debugging**: Built-in Elasticsearch MCP Server allows Claude, Cursor, and VS Code to query your logs directly
 
 ### Key Differentiator: AI-Assisted Debugging
 
-TurboElasticat is the first local development tool to include the [Elasticsearch MCP Server](https://www.elastic.co/docs/solutions/search/agent-builder/mcp-server). This enables a revolutionary debugging workflow:
+ElastiCat is the first local development tool to include the [Elasticsearch MCP Server](https://www.elastic.co/docs/solutions/search/agent-builder/mcp-server). This enables a revolutionary debugging workflow:
 
-**Before TurboElasticat:**
+**Before ElastiCat:**
 ```
 Developer: *sees 500 error in browser*
 Developer: *opens terminal, runs docker logs*
@@ -50,7 +50,7 @@ Developer: *cross-references timestamps manually*
 Developer: *20 minutes later, maybe finds the root cause*
 ```
 
-**With TurboElasticat:**
+**With ElastiCat:**
 ```
 Developer: *sees 500 error in browser*
 Developer: "Hey Claude, find all errors in my payment service
@@ -64,7 +64,7 @@ Claude: "I found 3 related errors. The root cause appears to be
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    TurboElasticat Stack                      │
+│                       ElastiCat Stack                        │
 │                                                              │
 │   Your App ──► OTel Collector ──► Elasticsearch             │
 │   (OTel SDK)      :4317/:4318         :9200                 │
@@ -92,28 +92,28 @@ Claude: "I found 3 related errors. The root cause appears to be
 > "The MCP integration is a game-changer. My AI assistant can now see what's actually happening in my services, not just guess based on my descriptions."
 > — *Marcus Johnson, Full-Stack Developer*
 
-> "We tried Dozzle, it was too basic. We tried the full ELK stack, it was overkill. TurboElastiCat is the Goldilocks solution—powerful enough for real debugging, simple enough for local dev."
+> "We tried Dozzle, it was too basic. We tried the full ELK stack, it was overkill. ElastiCat is the Goldilocks solution—powerful enough for real debugging, simple enough for local dev."
 > — *Alex Rivera, DevOps Lead*
 
 ### Getting Started
 
 ```bash
 # Install the CLI
-brew install telasticat
+brew install elasticat
 
 # Start the stack
-telasticat up
+elasticat up
 
 # Configure your AI assistant (one-time)
-telasticat mcp-config >> ~/.config/claude/config.json
+elasticat mcp-config >> ~/.config/claude/config.json
 
 # Open the TUI
-telasticat logs
+elasticat logs
 ```
 
 ### Availability
 
-TurboElastiCat is open-source under the Apache 2.0 license. Available now at [github.com/andrewvc/telasticat](https://github.com/andrewvc/telasticat).
+ElastiCat is open-source under the Apache 2.0 license. Available now at [github.com/elastic/elasticat](https://github.com/elastic/elasticat).
 
 ---
 
@@ -141,7 +141,7 @@ This is appropriate for modern development machines. For resource-constrained en
 
 **Q: Does this work with my existing OpenTelemetry instrumentation?**
 
-A: Yes. TurboElastiCat exposes standard OTLP endpoints (gRPC on :4317, HTTP on :4318). If your application is already instrumented with the OTel SDK, just point it at `http://localhost:4317` and your logs will appear in TurboElastiCat.
+A: Yes. ElastiCat exposes standard OTLP endpoints (gRPC on :4317, HTTP on :4318). If your application is already instrumented with the OTel SDK, just point it at `http://localhost:4317` and your logs will appear in ElastiCat.
 
 **Q: What about traces and metrics?**
 
@@ -149,7 +149,7 @@ A: The initial release focuses on logs. Traces and metrics support are on the ro
 
 **Q: Can I use this in production?**
 
-A: TurboElastiCat is designed for local development. While the underlying technologies (Elasticsearch, OTel Collector) are production-ready, the default configuration prioritizes simplicity over durability and security. For production, consider Elastic Cloud or a properly configured self-hosted deployment.
+A: ElastiCat is designed for local development. While the underlying technologies (Elasticsearch, OTel Collector) are production-ready, the default configuration prioritizes simplicity over durability and security. For production, consider Elastic Cloud or a properly configured self-hosted deployment.
 
 **Q: How is this different from just running docker-elk?**
 
@@ -213,7 +213,7 @@ Container labels are also captured, enabling service-name filtering based on Doc
 **Q: What's the index strategy in Elasticsearch?**
 
 A: Simple and opinionated for local dev:
-- Single index pattern: `telasticat-logs-*`
+- Single index pattern: `elasticat-logs-*`
 - Daily index rollover
 - 7-day retention by default
 - No index templates or complex mappings—rely on dynamic mapping

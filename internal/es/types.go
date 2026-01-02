@@ -6,7 +6,7 @@ import (
 	"github.com/elastic/go-elasticsearch/v8"
 )
 
-// Client wraps the Elasticsearch client with telasticat-specific functionality
+// Client wraps the Elasticsearch client with elasticat-specific functionality
 type Client struct {
 	es    *elasticsearch.Client
 	index string
@@ -28,7 +28,7 @@ type LogEntry struct {
 	// Trace-specific fields
 	TraceID  string                 `json:"trace_id,omitempty"`
 	SpanID   string                 `json:"span_id,omitempty"`
-	Name     string                 `json:"name,omitempty"` // Span name
+	Name     string                 `json:"name,omitempty"`     // Span name
 	Duration int64                  `json:"duration,omitempty"` // Duration in nanoseconds
 	Kind     string                 `json:"kind,omitempty"`
 	Status   map[string]interface{} `json:"status,omitempty"`
@@ -64,7 +64,7 @@ type TailOptions struct {
 type SearchOptions struct {
 	Size            int
 	Service         string
-	Resource        string   // Filter on resource.attributes.deployment.environment
+	Resource        string // Filter on resource.attributes.deployment.environment
 	Level           string
 	From            time.Time
 	To              time.Time

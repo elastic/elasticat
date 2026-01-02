@@ -1,6 +1,6 @@
 # Log Files Directory
 
-Place your application log files here (or symlink to them) and TurboElastiCat will automatically collect them.
+Place your application log files here (or symlink to them) and ElastiCat will automatically collect them.
 
 ## Supported Formats
 
@@ -46,14 +46,14 @@ ln -s /var/log/myapp/*.log ./logs/
 ```
 
 ### Option 3: Point to a Different Directory
-Set the `TURBODEVLOG_LOGS_DIR` environment variable:
+Set the `ELASTICAT_LOGS_DIR` environment variable:
 ```bash
-TURBODEVLOG_LOGS_DIR=/var/log/myapp docker compose up -d
+ELASTICAT_LOGS_DIR=/var/log/myapp docker compose up -d
 ```
 
 Or in your `.env` file:
 ```
-TURBODEVLOG_LOGS_DIR=/var/log/myapp
+ELASTICAT_LOGS_DIR=/var/log/myapp
 ```
 
 ## Log Flow
@@ -71,7 +71,7 @@ Parse: JSON or plain text auto-detected
 Extract: service name, log level from filename/content
     │
     ▼
-Elasticsearch (telasticat-logs index)
+Elasticsearch (elasticat-logs index)
     │
     ▼
 TUI viewer / Kibana / AI via MCP

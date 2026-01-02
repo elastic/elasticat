@@ -16,27 +16,27 @@ type LogHandler func(log ParsedLog)
 
 // Watcher watches multiple log files and calls handlers for each line
 type Watcher struct {
-	files       []string
-	service     string
-	tailLines   int
-	follow      bool
-	noColor     bool
-	oneshot     bool
-	handlers    []LogHandler
-	tails       []*tail.Tail
-	mu          sync.Mutex
-	ctx         context.Context
-	cancel      context.CancelFunc
+	files     []string
+	service   string
+	tailLines int
+	follow    bool
+	noColor   bool
+	oneshot   bool
+	handlers  []LogHandler
+	tails     []*tail.Tail
+	mu        sync.Mutex
+	ctx       context.Context
+	cancel    context.CancelFunc
 }
 
 // Config holds watcher configuration
 type Config struct {
 	Files     []string
-	Service   string   // Override service name
-	TailLines int      // Number of lines to show initially (0 = all lines in oneshot mode)
-	Follow    bool     // Keep watching for new lines
-	NoColor   bool     // Disable colored output
-	Oneshot   bool     // Read all lines and exit (don't follow)
+	Service   string // Override service name
+	TailLines int    // Number of lines to show initially (0 = all lines in oneshot mode)
+	Follow    bool   // Keep watching for new lines
+	NoColor   bool   // Disable colored output
+	Oneshot   bool   // Read all lines and exit (don't follow)
 }
 
 // New creates a new Watcher

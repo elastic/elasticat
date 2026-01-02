@@ -1,12 +1,12 @@
-.PHONY: build install clean up down logs test
+.PHONY: build install clean up down logs test fmt fmt-check
 
-# Build the telasticat binary
+# Build the elasticat binary
 build:
-	go build -o bin/telasticat ./cmd/telasticat
+	go build -o bin/elasticat ./cmd/elasticat
 
 # Install to GOPATH/bin
 install:
-	go install ./cmd/telasticat
+	go install ./cmd/elasticat
 
 # Clean build artifacts
 clean:
@@ -35,15 +35,15 @@ down:
 
 # Open the log viewer
 logs: build
-	./bin/telasticat logs
+	./bin/elasticat logs
 
 # Tail logs
 tail: build
-	./bin/telasticat tail
+	./bin/elasticat tail
 
 # Check stack status
 status: build
-	./bin/telasticat status
+	./bin/elasticat status
 
 # Run tests
 test:
@@ -51,7 +51,11 @@ test:
 
 # Format code
 fmt:
-	go fmt ./...
+	gofmt -s -w .
+
+# Check formatting (for CI) - fails if files need formatting
+fmt-check:
+	@test -z "$$(gofmt -l .)" || (echo "Files need formatting:"; gofmt -l .; exit 1)
 
 # Lint code
 lint:

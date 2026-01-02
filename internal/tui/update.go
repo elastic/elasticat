@@ -3,8 +3,8 @@ package tui
 import (
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"fmt"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func (m Model) Init() tea.Cmd {
@@ -214,11 +214,10 @@ func (m *Model) showErrorModal() {
 	m.mode = viewErrorModal
 	// Set up error viewport dimensions
 	modalWidth := min(m.width-8, 80)
-	m.errorViewport.Width = modalWidth - 8 // Account for border + padding + margin
+	m.errorViewport.Width = modalWidth - 8        // Account for border + padding + margin
 	m.errorViewport.Height = min(m.height-15, 20) // Leave room for title/actions
 	if m.err != nil {
 		m.errorViewport.SetContent(m.err.Error())
 	}
 	m.errorViewport.GotoTop()
 }
-

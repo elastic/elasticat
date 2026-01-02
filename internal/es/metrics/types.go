@@ -19,9 +19,9 @@ type MetricBucket struct {
 
 // AggregatedMetric represents aggregated statistics for a single metric
 type AggregatedMetric struct {
-	Name      string         // Metric field name
-	ShortName string         // Display name
-	Type      string         // "gauge", "counter", "histogram"
+	Name      string // Metric field name
+	ShortName string // Display name
+	Type      string // "gauge", "counter", "histogram"
 	Min       float64
 	Max       float64
 	Avg       float64

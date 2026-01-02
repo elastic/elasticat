@@ -4,10 +4,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/andrewvc/turboelasticat/internal/es"
-	"github.com/andrewvc/turboelasticat/internal/es/metrics"
-	"github.com/andrewvc/turboelasticat/internal/es/traces"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/elastic/elasticat/internal/es"
+	"github.com/elastic/elasticat/internal/es/metrics"
+	"github.com/elastic/elasticat/internal/es/traces"
 )
 
 // viewMode represents different UI views in the TUI

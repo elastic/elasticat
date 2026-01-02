@@ -2,7 +2,7 @@ package tui
 
 // This package has been refactored into multiple files for better organization:
 // - model.go: Model struct and constructor
-// - types.go: Type definitions, constants, and message types  
+// - types.go: Type definitions, constants, and message types
 // - update.go: Init() and Update() message handling
 // - queries.go: Data fetching commands (fetch*, autoDetect*, etc.)
 // - styles.go: UI styling

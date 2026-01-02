@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/andrewvc/turboelasticat/internal/es/metrics"
+	"github.com/elastic/elasticat/internal/es/metrics"
 )
 
 // generateSparkline creates a sparkline chart from metric buckets

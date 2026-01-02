@@ -13,9 +13,9 @@ import (
 
 	"github.com/elastic/go-elasticsearch/v8"
 
-	"github.com/andrewvc/turboelasticat/internal/es/metrics"
-	"github.com/andrewvc/turboelasticat/internal/es/perspectives"
-	"github.com/andrewvc/turboelasticat/internal/es/traces"
+	"github.com/elastic/elasticat/internal/es/metrics"
+	"github.com/elastic/elasticat/internal/es/perspectives"
+	"github.com/elastic/elasticat/internal/es/traces"
 )
 
 // Type definitions have been organized:

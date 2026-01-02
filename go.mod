@@ -1,4 +1,4 @@
-module github.com/andrewvc/turboelasticat
+module github.com/elastic/elasticat
 
 go 1.25.5
 
