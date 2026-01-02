@@ -220,6 +220,10 @@ var HighlightStyle = lipgloss.NewStyle().
 	Foreground(lipgloss.Color("#000000")).
 	Bold(true)
 
+// SparklineStyle is used for metric chart rendering
+var SparklineStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#61AFEF"))
+
 // ExtractWithHighlight extracts a substring containing the search match and returns
 // the extracted text along with the start/end positions of the match within it.
 // If no match is found, returns the original text truncated normally.

@@ -27,7 +27,30 @@ const (
 	viewIndex
 	viewQuery
 	viewFields
+	viewMetricsDashboard // Aggregated metrics dashboard
+	viewMetricDetail     // Full-screen metric chart
+	viewTraceNames       // Aggregated transaction names for traces
 )
+
+// MetricsViewMode toggles between aggregated and document views for metrics
+type MetricsViewMode int
+
+const (
+	metricsViewAggregated MetricsViewMode = iota // Default: sparklines + stats
+	metricsViewDocuments                         // Legacy: individual documents
+)
+
+// TraceViewLevel represents the navigation level in the traces hierarchy
+type TraceViewLevel int
+
+const (
+	traceViewNames        TraceViewLevel = iota // Aggregated transaction names
+	traceViewTransactions                       // List of transactions with selected name
+	traceViewSpans                              // All spans for a specific trace_id
+)
+
+// Sparkline characters (ordered by height)
+var sparklineChars = []rune{'▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
 
 // Query display format
 type queryFormat int
@@ -36,6 +59,99 @@ const (
 	formatKibana queryFormat = iota
 	formatCurl
 )
+
+// SignalType represents the OTel signal type
+type SignalType int
+
+const (
+	signalLogs SignalType = iota
+	signalTraces
+	signalMetrics
+)
+
+// LookbackDuration represents preset time ranges
+type LookbackDuration int
+
+const (
+	lookback5m LookbackDuration = iota
+	lookback1h
+	lookback24h
+	lookback1w
+	lookbackAll
+)
+
+var lookbackDurations = []LookbackDuration{lookback5m, lookback1h, lookback24h, lookback1w, lookbackAll}
+
+func (l LookbackDuration) String() string {
+	switch l {
+	case lookback5m:
+		return "5m"
+	case lookback1h:
+		return "1h"
+	case lookback24h:
+		return "24h"
+	case lookback1w:
+		return "1w"
+	default:
+		return "all"
+	}
+}
+
+func (l LookbackDuration) Duration() time.Duration {
+	switch l {
+	case lookback5m:
+		return 5 * time.Minute
+	case lookback1h:
+		return time.Hour
+	case lookback24h:
+		return 24 * time.Hour
+	case lookback1w:
+		return 7 * 24 * time.Hour
+	default:
+		return 0 // "all" means no time filter
+	}
+}
+
+func (l LookbackDuration) ESRange() string {
+	switch l {
+	case lookback5m:
+		return "now-5m"
+	case lookback1h:
+		return "now-1h"
+	case lookback24h:
+		return "now-24h"
+	case lookback1w:
+		return "now-1w"
+	default:
+		return "" // No time filter
+	}
+}
+
+func (s SignalType) String() string {
+	switch s {
+	case signalLogs:
+		return "Logs"
+	case signalTraces:
+		return "Traces"
+	case signalMetrics:
+		return "Metrics"
+	default:
+		return "Unknown"
+	}
+}
+
+func (s SignalType) IndexPattern() string {
+	switch s {
+	case signalLogs:
+		return "logs"
+	case signalTraces:
+		return "traces"
+	case signalMetrics:
+		return "metrics"
+	default:
+		return "logs"
+	}
+}
 
 // DisplayField represents a field that can be shown in the log list
 type DisplayField struct {
@@ -157,14 +273,35 @@ func CollectSearchFields(fields []DisplayField) []string {
 	return result
 }
 
-// DefaultFields returns the default field configuration
-func DefaultFields() []DisplayField {
-	return []DisplayField{
-		{Name: "@timestamp", Label: "TIME", Width: 8, Selected: true, SearchFields: nil}, // Not text-searchable
-		{Name: "severity_text", Label: "LEVEL", Width: 7, Selected: true, SearchFields: []string{"severity_text", "level"}},
-		{Name: "_resource", Label: "RESOURCE", Width: 12, Selected: true, SearchFields: []string{"resource.attributes.service.namespace", "resource.attributes.deployment.environment"}},
-		{Name: "service.name", Label: "SERVICE", Width: 15, Selected: true, SearchFields: []string{"resource.attributes.service.name", "service.name"}},
-		{Name: "body.text", Label: "MESSAGE", Width: 0, Selected: true, SearchFields: []string{"body.text", "body", "message", "event_name"}},
+// DefaultFields returns the default field configuration for a signal type
+func DefaultFields(signal SignalType) []DisplayField {
+	switch signal {
+	case signalTraces:
+		return []DisplayField{
+			{Name: "@timestamp", Label: "TIME", Width: 8, Selected: true, SearchFields: nil},
+			{Name: "service.name", Label: "SERVICE", Width: 15, Selected: true, SearchFields: []string{"resource.attributes.service.name", "service.name"}},
+			{Name: "name", Label: "NAME", Width: 25, Selected: true, SearchFields: []string{"name"}},
+			{Name: "duration_ms", Label: "DUR(ms)", Width: 9, Selected: true, SearchFields: nil},
+			{Name: "status.code", Label: "STATUS", Width: 6, Selected: true, SearchFields: []string{"status.code"}},
+			{Name: "kind", Label: "KIND", Width: 8, Selected: true, SearchFields: []string{"kind"}},
+			{Name: "trace_id", Label: "TRACE", Width: 0, Selected: true, SearchFields: []string{"trace_id"}},
+		}
+	case signalMetrics:
+		return []DisplayField{
+			{Name: "@timestamp", Label: "TIME", Width: 8, Selected: true, SearchFields: nil},
+			{Name: "service.name", Label: "SERVICE", Width: 15, Selected: true, SearchFields: []string{"resource.attributes.service.name", "service.name", "attributes.service.name"}},
+			{Name: "scope.name", Label: "SCOPE", Width: 20, Selected: true, SearchFields: []string{"scope.name"}},
+			{Name: "attributes.span.name", Label: "SPAN", Width: 25, Selected: true, SearchFields: []string{"attributes.span.name"}},
+			{Name: "_metrics", Label: "METRICS", Width: 0, Selected: true, SearchFields: nil},
+		}
+	default: // signalLogs
+		return []DisplayField{
+			{Name: "@timestamp", Label: "TIME", Width: 8, Selected: true, SearchFields: nil},
+			{Name: "severity_text", Label: "LEVEL", Width: 7, Selected: true, SearchFields: []string{"severity_text", "level"}},
+			{Name: "_resource", Label: "RESOURCE", Width: 12, Selected: true, SearchFields: []string{"resource.attributes.service.namespace", "resource.attributes.deployment.environment"}},
+			{Name: "service.name", Label: "SERVICE", Width: 15, Selected: true, SearchFields: []string{"resource.attributes.service.name", "service.name"}},
+			{Name: "body.text", Label: "MESSAGE", Width: 0, Selected: true, SearchFields: []string{"body.text", "body", "message", "event_name"}},
+		}
 	}
 }
 
@@ -196,6 +333,12 @@ type Model struct {
 	// Sort order
 	sortAscending bool // false = newest first (desc), true = oldest first (asc)
 
+	// Signal type (logs, traces, metrics)
+	signalType SignalType
+
+	// Lookback duration (time range relative to now)
+	lookback LookbackDuration
+
 	// Query display
 	lastQueryJSON  string      // Last ES query body as JSON
 	lastQueryIndex string      // Index pattern used
@@ -222,6 +365,20 @@ type Model struct {
 
 	// Last refresh time
 	lastRefresh time.Time
+
+	// Metrics dashboard state
+	metricsViewMode   MetricsViewMode
+	aggregatedMetrics *es.MetricsAggResult
+	metricsLoading    bool
+	metricsCursor     int // Selected metric in dashboard
+
+	// Traces navigation state
+	traceViewLevel     TraceViewLevel           // Current navigation level
+	transactionNames   []es.TransactionNameAgg  // Aggregated transaction names
+	traceNamesCursor   int                      // Cursor in transaction names list
+	selectedTxName     string                   // Selected transaction name filter
+	selectedTraceID    string                   // Selected trace_id for spans view
+	tracesLoading      bool                     // Loading transaction names
 }
 
 // Messages
@@ -237,6 +394,19 @@ type (
 		fields []es.FieldInfo
 		err    error
 	}
+	autoDetectMsg struct {
+		lookback LookbackDuration
+		total    int64
+		err      error
+	}
+	metricsAggMsg struct {
+		result *es.MetricsAggResult
+		err    error
+	}
+	transactionNamesMsg struct {
+		names []es.TransactionNameAgg
+		err   error
+	}
 	tickMsg   time.Time
 	errMsg    error
 	statusMsg string
@@ -250,24 +420,28 @@ func (m Model) Highlighter() *Highlighter {
 // NewModel creates a new TUI model
 func NewModel(client *es.Client) Model {
 	ti := textinput.New()
-	ti.Placeholder = "Search logs... (supports ES query syntax)"
+	ti.Placeholder = "Search... (supports ES query syntax)"
 	ti.CharLimit = 256
 	ti.Width = 50
 
 	ii := textinput.New()
-	ii.Placeholder = "Index pattern (e.g., logs, logs-myapp)"
+	ii.Placeholder = "Index pattern (e.g., logs, traces, metrics)"
 	ii.CharLimit = 128
 	ii.Width = 50
 	ii.SetValue(client.GetIndex())
 
 	vp := viewport.New(80, 20)
 
+	signal := signalLogs
+
 	return Model{
 		client:        client,
 		logs:          []es.LogEntry{},
 		mode:          viewLogs,
 		autoRefresh:   true,
-		displayFields: DefaultFields(),
+		signalType:    signal,
+		lookback:      lookback24h,
+		displayFields: DefaultFields(signal),
 		searchInput:   ti,
 		indexInput:    ii,
 		viewport:      vp,
@@ -281,6 +455,7 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.fetchLogs(),
 		m.tickCmd(),
+		func() tea.Msg { return tea.EnableMouseCellMotion() },
 	)
 }
 
@@ -291,6 +466,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		return m.handleKey(msg)
+
+	case tea.MouseMsg:
+		return m.handleMouse(msg)
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -326,6 +504,65 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.err
 		} else {
 			m.availableFields = msg.fields
+		}
+		return m, nil
+
+	case autoDetectMsg:
+		if msg.err != nil {
+			// Auto-detect failed, just use current lookback and fetch
+			m.loading = true
+			// Signal-specific fetch on error
+			switch m.signalType {
+			case signalMetrics:
+				if m.metricsViewMode == metricsViewAggregated {
+					m.metricsLoading = true
+					return m, m.fetchAggregatedMetrics()
+				}
+			case signalTraces:
+				if m.traceViewLevel == traceViewNames {
+					m.tracesLoading = true
+					return m, m.fetchTransactionNames()
+				}
+			}
+			return m, m.fetchLogs()
+		}
+		// Set the detected lookback and fetch
+		m.lookback = msg.lookback
+		m.statusMessage = fmt.Sprintf("Found %d entries in %s", msg.total, msg.lookback.String())
+		m.statusTime = time.Now()
+		// Signal-specific fetch
+		switch m.signalType {
+		case signalMetrics:
+			if m.metricsViewMode == metricsViewAggregated {
+				m.metricsLoading = true
+				return m, m.fetchAggregatedMetrics()
+			}
+		case signalTraces:
+			if m.traceViewLevel == traceViewNames {
+				m.tracesLoading = true
+				return m, m.fetchTransactionNames()
+			}
+		}
+		m.loading = true
+		return m, m.fetchLogs()
+
+	case metricsAggMsg:
+		m.metricsLoading = false
+		if msg.err != nil {
+			m.err = msg.err
+		} else {
+			m.aggregatedMetrics = msg.result
+			m.err = nil
+		}
+		return m, nil
+
+	case transactionNamesMsg:
+		m.tracesLoading = false
+		if msg.err != nil {
+			m.err = msg.err
+		} else {
+			m.transactionNames = msg.names
+			m.err = nil
 		}
 		return m, nil
 
@@ -367,6 +604,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "esc":
+		// Let metric and trace views handle their own escape
+		if m.mode == viewMetricDetail || m.mode == viewMetricsDashboard || m.mode == viewTraceNames {
+			break // Fall through to mode-specific handler
+		}
 		if m.mode != viewLogs {
 			m.mode = viewLogs
 			m.searchInput.Blur()
@@ -388,13 +629,180 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleQueryKey(msg)
 	case viewFields:
 		return m.handleFieldsKey(msg)
+	case viewMetricsDashboard:
+		return m.handleMetricsDashboardKey(msg)
+	case viewMetricDetail:
+		return m.handleMetricDetailKey(msg)
+	case viewTraceNames:
+		return m.handleTraceNamesKey(msg)
 	}
 
 	return m, nil
 }
 
+func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	// Handle mouse wheel scrolling
+	switch msg.Button {
+	case tea.MouseButtonWheelUp:
+		switch m.mode {
+		case viewLogs:
+			// Scroll up in log list (2 items at a time for speed)
+			if m.selectedIndex > 0 {
+				m.selectedIndex -= 2
+				if m.selectedIndex < 0 {
+					m.selectedIndex = 0
+				}
+			}
+		case viewDetail, viewDetailJSON:
+			// Scroll up in detail viewport
+			m.viewport.LineUp(3)
+		case viewFields:
+			// Scroll up in field selector
+			if m.fieldsCursor > 0 {
+				m.fieldsCursor -= 2
+				if m.fieldsCursor < 0 {
+					m.fieldsCursor = 0
+				}
+			}
+		case viewMetricsDashboard:
+			// Scroll up in metrics dashboard
+			if m.metricsCursor > 0 {
+				m.metricsCursor -= 2
+				if m.metricsCursor < 0 {
+					m.metricsCursor = 0
+				}
+			}
+		}
+		return m, nil
+	case tea.MouseButtonWheelDown:
+		switch m.mode {
+		case viewLogs:
+			// Scroll down in log list (2 items at a time for speed)
+			if m.selectedIndex < len(m.logs)-1 {
+				m.selectedIndex += 2
+				if m.selectedIndex >= len(m.logs) {
+					m.selectedIndex = len(m.logs) - 1
+				}
+			}
+		case viewDetail, viewDetailJSON:
+			// Scroll down in detail viewport
+			m.viewport.LineDown(3)
+		case viewFields:
+			// Scroll down in field selector
+			sortedFields := m.getSortedFieldList()
+			if m.fieldsCursor < len(sortedFields)-1 {
+				m.fieldsCursor += 2
+				if m.fieldsCursor >= len(sortedFields) {
+					m.fieldsCursor = len(sortedFields) - 1
+				}
+			}
+		case viewMetricsDashboard:
+			// Scroll down in metrics dashboard
+			if m.aggregatedMetrics != nil && m.metricsCursor < len(m.aggregatedMetrics.Metrics)-1 {
+				m.metricsCursor += 2
+				if m.metricsCursor >= len(m.aggregatedMetrics.Metrics) {
+					m.metricsCursor = len(m.aggregatedMetrics.Metrics) - 1
+				}
+			}
+		}
+		return m, nil
+	}
+
+	// Handle left clicks
+	if msg.Button != tea.MouseButtonLeft || msg.Action != tea.MouseActionRelease {
+		return m, nil
+	}
+
+	// Only handle clicks in log list mode on the first row (status bar)
+	if m.mode == viewLogs && msg.Y == 0 {
+		// Calculate the approximate position of the "Sort:" label in the status bar
+		// The status bar contains: Signal, ES, Idx, Total, [Query], [Level], [Service], Sort, Auto
+		sortStart, sortEnd := m.getSortLabelPosition()
+		if msg.X >= sortStart && msg.X <= sortEnd {
+			// Toggle sort order
+			m.sortAscending = !m.sortAscending
+			m.loading = true
+			return m, m.fetchLogs()
+		}
+	}
+
+	return m, nil
+}
+
+// getSortLabelPosition returns the approximate start and end X positions of the "Sort:" label
+func (m Model) getSortLabelPosition() (start, end int) {
+	// Build the status bar parts to calculate position
+	// Note: This mirrors the logic in renderStatusBar but just calculates lengths
+	pos := 1 // Start after padding
+
+	// Signal: <type>
+	pos += len("Signal: ") + len(m.signalType.String()) + 5 // + separator
+
+	// ES: ok/err
+	if m.err != nil {
+		pos += len("ES: err") + 5
+	} else {
+		pos += len("ES: ok") + 5
+	}
+
+	// Idx: <index>*
+	pos += len("Idx: ") + len(m.client.GetIndex()) + 1 + 5 // +1 for *, +5 for separator
+
+	// Total: <count>
+	pos += len("Total: ") + len(fmt.Sprintf("%d", m.total)) + 5
+
+	// Optional Query filter
+	if m.searchQuery != "" {
+		displayed := TruncateWithEllipsis(m.searchQuery, 20)
+		pos += len("Query: ") + len(displayed) + 5
+	}
+
+	// Optional Level filter
+	if m.levelFilter != "" {
+		pos += len("Level: ") + len(m.levelFilter) + 5
+	}
+
+	// Optional Service filter
+	if m.serviceFilter != "" {
+		pos += len("Service: ") + len(m.serviceFilter) + 5
+	}
+
+	// Lookback
+	pos += len("Lookback: ") + len(m.lookback.String()) + 5
+
+	// Now we're at "Sort: "
+	start = pos
+	sortText := "newest→"
+	if m.sortAscending {
+		sortText = "oldest→"
+	}
+	end = start + len("Sort: ") + len(sortText)
+
+	return start, end
+}
+
 func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
+	case "esc":
+		// For traces, go back up the hierarchy
+		if m.signalType == signalTraces {
+			switch m.traceViewLevel {
+			case traceViewSpans:
+				// Go back to transactions list
+				m.traceViewLevel = traceViewTransactions
+				m.selectedTraceID = ""
+				m.selectedIndex = 0
+				m.loading = true
+				return m, m.fetchLogs()
+			case traceViewTransactions:
+				// Go back to transaction names
+				m.traceViewLevel = traceViewNames
+				m.selectedTxName = ""
+				m.mode = viewTraceNames
+				m.tracesLoading = true
+				return m, m.fetchTransactionNames()
+			}
+		}
 	case "up", "k":
 		if m.selectedIndex > 0 {
 			m.selectedIndex--
@@ -482,6 +890,73 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.sortAscending = !m.sortAscending
 		m.loading = true
 		return m, m.fetchLogs()
+	case "l":
+		// Cycle through lookback durations
+		for i, lb := range lookbackDurations {
+			if lb == m.lookback {
+				m.lookback = lookbackDurations[(i+1)%len(lookbackDurations)]
+				break
+			}
+		}
+		m.loading = true
+		return m, m.fetchLogs()
+	case "m":
+		// Cycle through signal types: logs -> traces -> metrics -> logs
+		switch m.signalType {
+		case signalLogs:
+			m.signalType = signalTraces
+		case signalTraces:
+			m.signalType = signalMetrics
+		case signalMetrics:
+			m.signalType = signalLogs
+		}
+		// Update index pattern and reset fields for new signal type
+		m.client.SetIndex(m.signalType.IndexPattern())
+		m.displayFields = DefaultFields(m.signalType)
+		m.logs = []es.LogEntry{}
+		m.selectedIndex = 0
+		m.statusMessage = "Auto-detecting time range..."
+		m.statusTime = time.Now()
+
+		// Signal-specific view modes
+		switch m.signalType {
+		case signalMetrics:
+			m.metricsViewMode = metricsViewAggregated
+			m.mode = viewMetricsDashboard
+			m.metricsLoading = true
+			m.metricsCursor = 0
+			m.loading = false
+		case signalTraces:
+			m.traceViewLevel = traceViewNames
+			m.mode = viewTraceNames
+			m.tracesLoading = true
+			m.traceNamesCursor = 0
+			m.selectedTxName = ""
+			m.selectedTraceID = ""
+			m.loading = false
+		default:
+			m.mode = viewLogs
+			m.loading = true
+		}
+
+		// Auto-detect the best lookback for the new signal type
+		return m, m.autoDetectLookback()
+
+	case "d":
+		// Toggle between document view and aggregated view for metrics
+		if m.signalType == signalMetrics {
+			if m.metricsViewMode == metricsViewAggregated {
+				m.metricsViewMode = metricsViewDocuments
+				m.mode = viewLogs
+				m.loading = true
+				return m, m.fetchLogs()
+			} else {
+				m.metricsViewMode = metricsViewAggregated
+				m.mode = viewMetricsDashboard
+				m.metricsLoading = true
+				return m, m.fetchAggregatedMetrics()
+			}
+		}
 	}
 
 	return m, nil
@@ -577,6 +1052,20 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mode = viewLogs
 		m.statusMessage = ""
 		return m, nil
+	case "left", "h":
+		// Navigate to previous entry
+		if m.selectedIndex > 0 {
+			m.selectedIndex--
+			m.updateDetailContent()
+		}
+		return m, nil
+	case "right", "l":
+		// Navigate to next entry
+		if m.selectedIndex < len(m.logs)-1 {
+			m.selectedIndex++
+			m.updateDetailContent()
+		}
+		return m, nil
 	case "enter":
 		// Toggle between detail and JSON view
 		if m.mode == viewDetail {
@@ -614,11 +1103,38 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.statusTime = time.Now()
 		}
 		return m, nil
+	case "s":
+		// Show spans for this trace (only for traces)
+		if m.signalType == signalTraces && len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
+			log := m.logs[m.selectedIndex]
+			if log.TraceID != "" {
+				m.selectedTraceID = log.TraceID
+				m.traceViewLevel = traceViewSpans
+				m.mode = viewLogs
+				m.selectedIndex = 0
+				m.loading = true
+				return m, m.fetchLogs()
+			}
+		}
+		return m, nil
 	}
 
 	var cmd tea.Cmd
 	m.viewport, cmd = m.viewport.Update(msg)
 	return m, cmd
+}
+
+// updateDetailContent refreshes the detail view content for the current selection
+func (m *Model) updateDetailContent() {
+	if len(m.logs) == 0 || m.selectedIndex >= len(m.logs) {
+		return
+	}
+	if m.mode == viewDetailJSON {
+		m.viewport.SetContent(m.logs[m.selectedIndex].RawJSON)
+	} else {
+		m.viewport.SetContent(m.renderLogDetail(m.logs[m.selectedIndex]))
+	}
+	m.viewport.GotoTop()
 }
 
 func (m Model) handleFieldsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -687,8 +1203,8 @@ func (m Model) handleFieldsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.fieldsSearchMode = true
 		m.fieldsSearch = ""
 	case "r":
-		// Reset to defaults
-		m.displayFields = DefaultFields()
+		// Reset to defaults for current signal type
+		m.displayFields = DefaultFields(m.signalType)
 	}
 
 	return m, nil
@@ -819,28 +1335,217 @@ func (m Model) getSortedFieldList() []es.FieldInfo {
 	return result
 }
 
+func (m Model) handleMetricsDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "up", "k":
+		if m.metricsCursor > 0 {
+			m.metricsCursor--
+		}
+	case "down", "j":
+		if m.aggregatedMetrics != nil && m.metricsCursor < len(m.aggregatedMetrics.Metrics)-1 {
+			m.metricsCursor++
+		}
+	case "home", "g":
+		m.metricsCursor = 0
+	case "end", "G":
+		if m.aggregatedMetrics != nil && len(m.aggregatedMetrics.Metrics) > 0 {
+			m.metricsCursor = len(m.aggregatedMetrics.Metrics) - 1
+		}
+	case "pgup":
+		m.metricsCursor -= 10
+		if m.metricsCursor < 0 {
+			m.metricsCursor = 0
+		}
+	case "pgdown":
+		m.metricsCursor += 10
+		if m.aggregatedMetrics != nil && m.metricsCursor >= len(m.aggregatedMetrics.Metrics) {
+			m.metricsCursor = len(m.aggregatedMetrics.Metrics) - 1
+			if m.metricsCursor < 0 {
+				m.metricsCursor = 0
+			}
+		}
+	case "enter":
+		// Enter detail view for the selected metric
+		if m.aggregatedMetrics != nil && m.metricsCursor < len(m.aggregatedMetrics.Metrics) {
+			m.mode = viewMetricDetail
+		}
+	case "r":
+		m.metricsLoading = true
+		return m, m.fetchAggregatedMetrics()
+	case "d":
+		// Switch to document view
+		m.metricsViewMode = metricsViewDocuments
+		m.mode = viewLogs
+		m.loading = true
+		return m, m.fetchLogs()
+	case "l":
+		// Cycle lookback duration
+		for i, lb := range lookbackDurations {
+			if lb == m.lookback {
+				m.lookback = lookbackDurations[(i+1)%len(lookbackDurations)]
+				break
+			}
+		}
+		m.metricsLoading = true
+		return m, m.fetchAggregatedMetrics()
+	case "m":
+		// Switch signal type
+		m.signalType = signalLogs
+		m.client.SetIndex(m.signalType.IndexPattern())
+		m.displayFields = DefaultFields(m.signalType)
+		m.logs = []es.LogEntry{}
+		m.selectedIndex = 0
+		m.mode = viewLogs
+		m.loading = true
+		m.statusMessage = "Auto-detecting time range..."
+		m.statusTime = time.Now()
+		return m, m.autoDetectLookback()
+	case "/":
+		m.mode = viewSearch
+		m.searchInput.Focus()
+		return m, textinput.Blink
+	case "q":
+		return m, tea.Quit
+	}
+
+	return m, nil
+}
+
+func (m Model) handleMetricDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "backspace", "q":
+		// Return to metrics dashboard
+		m.mode = viewMetricsDashboard
+	case "left", "h":
+		// Previous metric
+		if m.metricsCursor > 0 {
+			m.metricsCursor--
+		}
+	case "right", "l":
+		// Next metric
+		if m.aggregatedMetrics != nil && m.metricsCursor < len(m.aggregatedMetrics.Metrics)-1 {
+			m.metricsCursor++
+		}
+	case "r":
+		// Refresh
+		m.metricsLoading = true
+		return m, m.fetchAggregatedMetrics()
+	}
+
+	return m, nil
+}
+
+func (m Model) handleTraceNamesKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "up", "k":
+		if m.traceNamesCursor > 0 {
+			m.traceNamesCursor--
+		}
+	case "down", "j":
+		if m.traceNamesCursor < len(m.transactionNames)-1 {
+			m.traceNamesCursor++
+		}
+	case "home", "g":
+		m.traceNamesCursor = 0
+	case "end", "G":
+		if len(m.transactionNames) > 0 {
+			m.traceNamesCursor = len(m.transactionNames) - 1
+		}
+	case "pgup":
+		m.traceNamesCursor -= 10
+		if m.traceNamesCursor < 0 {
+			m.traceNamesCursor = 0
+		}
+	case "pgdown":
+		m.traceNamesCursor += 10
+		if m.traceNamesCursor >= len(m.transactionNames) {
+			m.traceNamesCursor = len(m.transactionNames) - 1
+			if m.traceNamesCursor < 0 {
+				m.traceNamesCursor = 0
+			}
+		}
+	case "enter":
+		// Select transaction name and show transactions
+		if len(m.transactionNames) > 0 && m.traceNamesCursor < len(m.transactionNames) {
+			m.selectedTxName = m.transactionNames[m.traceNamesCursor].Name
+			m.traceViewLevel = traceViewTransactions
+			m.mode = viewLogs
+			m.selectedIndex = 0
+			m.loading = true
+			return m, m.fetchLogs()
+		}
+	case "r":
+		m.tracesLoading = true
+		return m, m.fetchTransactionNames()
+	case "l":
+		// Cycle lookback duration
+		for i, lb := range lookbackDurations {
+			if lb == m.lookback {
+				m.lookback = lookbackDurations[(i+1)%len(lookbackDurations)]
+				break
+			}
+		}
+		m.tracesLoading = true
+		return m, m.fetchTransactionNames()
+	case "m":
+		// Switch to next signal type (logs)
+		m.signalType = signalLogs
+		m.client.SetIndex(m.signalType.IndexPattern())
+		m.displayFields = DefaultFields(m.signalType)
+		m.logs = []es.LogEntry{}
+		m.selectedIndex = 0
+		m.mode = viewLogs
+		m.loading = true
+		m.statusMessage = "Auto-detecting time range..."
+		m.statusTime = time.Now()
+		return m, m.autoDetectLookback()
+	case "/":
+		m.mode = viewSearch
+		m.searchInput.Focus()
+		return m, textinput.Blink
+	case "q":
+		return m, tea.Quit
+	}
+
+	return m, nil
+}
+
+// Layout constants
+const (
+	statusBarHeight    = 1
+	helpBarHeight      = 1
+	compactDetailHeight = 5 // 3 lines of content + 2 for border
+	layoutPadding      = 2  // Top/bottom padding from AppStyle
+)
+
 // View renders the TUI
 func (m Model) View() string {
 	if m.width == 0 {
 		return "Loading..."
 	}
 
+	// Calculate heights
+	// Total available: m.height
+	// Fixed elements: status bar (1) + help bar (1) + compact detail (5) + padding (2) + newlines (3)
+	fixedHeight := statusBarHeight + helpBarHeight + compactDetailHeight + layoutPadding + 3
+	logListHeight := m.height - fixedHeight
+	if logListHeight < 3 {
+		logListHeight = 3
+	}
+
 	var b strings.Builder
 
-	// Header
-	header := HeaderStyle.Render("TurboDevLog")
-	b.WriteString(header)
-	b.WriteString("\n")
-
-	// Status bar
+	// Status bar (top)
 	b.WriteString(m.renderStatusBar())
 	b.WriteString("\n")
 
 	// Main content based on mode
 	switch m.mode {
 	case viewLogs, viewSearch, viewIndex, viewQuery:
-		b.WriteString(m.renderLogList())
+		// Log list (fills available space)
+		b.WriteString(m.renderLogListWithHeight(logListHeight))
 		b.WriteString("\n")
+		// Compact detail (anchored to bottom, fixed height)
 		b.WriteString(m.renderCompactDetail())
 		if m.mode == viewSearch {
 			b.WriteString("\n")
@@ -858,9 +1563,17 @@ func (m Model) View() string {
 		b.WriteString(m.renderDetailView())
 	case viewFields:
 		b.WriteString(m.renderFieldSelector())
+	case viewMetricsDashboard:
+		b.WriteString(m.renderMetricsDashboard(logListHeight))
+		b.WriteString("\n")
+		b.WriteString(m.renderMetricsCompactDetail())
+	case viewMetricDetail:
+		b.WriteString(m.renderMetricDetail())
+	case viewTraceNames:
+		b.WriteString(m.renderTransactionNames(logListHeight))
 	}
 
-	// Help bar
+	// Help bar (bottom)
 	b.WriteString("\n")
 	b.WriteString(m.renderHelpBar())
 
@@ -870,15 +1583,18 @@ func (m Model) View() string {
 func (m Model) renderStatusBar() string {
 	var parts []string
 
+	// Signal type
+	parts = append(parts, StatusKeyStyle.Render("Signal: ")+StatusValueStyle.Render(m.signalType.String()))
+
 	// Connection status
 	if m.err != nil {
-		parts = append(parts, ErrorStyle.Render("ES: disconnected"))
+		parts = append(parts, ErrorStyle.Render("ES: err"))
 	} else {
-		parts = append(parts, StatusKeyStyle.Render("ES: ")+StatusValueStyle.Render("connected"))
+		parts = append(parts, StatusKeyStyle.Render("ES: ")+StatusValueStyle.Render("ok"))
 	}
 
 	// Current index
-	parts = append(parts, StatusKeyStyle.Render("Index: ")+StatusValueStyle.Render(m.client.GetIndex()+"*"))
+	parts = append(parts, StatusKeyStyle.Render("Idx: ")+StatusValueStyle.Render(m.client.GetIndex()+"*"))
 
 	// Total logs
 	parts = append(parts, StatusKeyStyle.Render("Total: ")+StatusValueStyle.Render(fmt.Sprintf("%d", m.total)))
@@ -893,6 +1609,9 @@ func (m Model) renderStatusBar() string {
 	if m.serviceFilter != "" {
 		parts = append(parts, StatusKeyStyle.Render("Service: ")+StatusValueStyle.Render(m.serviceFilter))
 	}
+
+	// Lookback duration
+	parts = append(parts, StatusKeyStyle.Render("Lookback: ")+StatusValueStyle.Render(m.lookback.String()))
 
 	// Sort order
 	if m.sortAscending {
@@ -917,12 +1636,23 @@ func (m Model) renderStatusBar() string {
 }
 
 func (m Model) renderLogList() string {
+	// Default height calculation for backwards compatibility
+	defaultHeight := m.height - statusBarHeight - helpBarHeight - compactDetailHeight - layoutPadding - 3
+	if defaultHeight < 3 {
+		defaultHeight = 3
+	}
+	return m.renderLogListWithHeight(defaultHeight)
+}
+
+func (m Model) renderLogListWithHeight(listHeight int) string {
 	if m.err != nil {
-		return ErrorStyle.Render(fmt.Sprintf("Error: %v", m.err))
+		return LogListStyle.Width(m.width - 4).Height(listHeight).Render(
+			ErrorStyle.Render(fmt.Sprintf("Error: %v", m.err)))
 	}
 
 	if len(m.logs) == 0 {
-		return LoadingStyle.Render("No logs found. Waiting for data...")
+		return LogListStyle.Width(m.width - 4).Height(listHeight).Render(
+			LoadingStyle.Render("No logs found. Waiting for data..."))
 	}
 
 	// Calculate flexible column width first (needed for both header and content)
@@ -953,11 +1683,11 @@ func (m Model) renderLogList() string {
 	}
 	header := HeaderRowStyle.Render(strings.Join(headerParts, " "))
 
-	// Calculate visible range (account for header row + detail panel at bottom)
-	detailPanelHeight := 6
-	visibleHeight := m.height - 9 - detailPanelHeight
-	if visibleHeight < 5 {
-		visibleHeight = 5
+	// Calculate visible range based on provided height
+	// Subtract 3 for header row and borders
+	visibleHeight := listHeight - 3
+	if visibleHeight < 1 {
+		visibleHeight = 1
 	}
 
 	startIdx := m.selectedIndex - visibleHeight/2
@@ -982,7 +1712,7 @@ func (m Model) renderLogList() string {
 	}
 
 	content := strings.Join(lines, "\n")
-	return LogListStyle.Width(m.width - 4).Render(content)
+	return LogListStyle.Width(m.width - 4).Height(listHeight).Render(content)
 }
 
 func (m Model) renderLogEntry(log es.LogEntry, selected bool) string {
@@ -1134,7 +1864,7 @@ func formatRelativeTime(t time.Time) string {
 func (m Model) renderCompactDetail() string {
 	if len(m.logs) == 0 || m.selectedIndex >= len(m.logs) {
 		return CompactDetailStyle.Width(m.width - 4).Height(4).Render(
-			DetailMutedStyle.Render("No log selected"),
+			DetailMutedStyle.Render("No entry selected"),
 		)
 	}
 
@@ -1142,60 +1872,168 @@ func (m Model) renderCompactDetail() string {
 	hl := m.Highlighter()
 	var b strings.Builder
 
-	// First line: timestamp, level, service, resource
+	// First line varies by signal type
 	ts := log.Timestamp.Format("2006-01-02 15:04:05.000")
-	level := log.GetLevel()
 	service := log.ServiceName
 	if service == "" {
 		service = "unknown"
 	}
-	resource := log.GetResource()
 
 	b.WriteString(DetailKeyStyle.Render("Time: "))
 	b.WriteString(DetailValueStyle.Render(ts))
 	b.WriteString("  ")
-	b.WriteString(DetailKeyStyle.Render("Level: "))
-	b.WriteString(hl.ApplyToField(level, LevelStyle(level)))
-	b.WriteString("  ")
 	b.WriteString(DetailKeyStyle.Render("Service: "))
 	b.WriteString(hl.ApplyToField(service, DetailValueStyle))
-	if resource != "" {
-		b.WriteString("  ")
-		b.WriteString(DetailKeyStyle.Render("Resource: "))
-		b.WriteString(hl.ApplyToField(resource, DetailValueStyle))
-	}
-	b.WriteString("\n")
 
-	// Second line: full message with highlighting
-	msg := log.GetMessage()
-	msg = strings.ReplaceAll(msg, "\n", " ") // Flatten newlines
-	maxMsgLen := m.width - 10
-	b.WriteString(DetailKeyStyle.Render("Message: "))
-	b.WriteString(hl.Apply(msg, maxMsgLen, DetailValueStyle))
-	b.WriteString("\n")
-
-	// Third line: key attributes (if any)
-	if len(log.Attributes) > 0 {
-		b.WriteString(DetailKeyStyle.Render("Attrs: "))
-		attrParts := []string{}
-		maxAttrs := 5
-		count := 0
-		for k, v := range log.Attributes {
-			if count >= maxAttrs {
-				attrParts = append(attrParts, "...")
-				break
+	switch m.signalType {
+	case signalTraces:
+		// Trace-specific first line
+		if log.Kind != "" {
+			b.WriteString("  ")
+			b.WriteString(DetailKeyStyle.Render("Kind: "))
+			b.WriteString(DetailValueStyle.Render(log.Kind))
+		}
+		if log.Duration > 0 {
+			ms := float64(log.Duration) / 1_000_000.0
+			b.WriteString("  ")
+			b.WriteString(DetailKeyStyle.Render("Duration: "))
+			if ms < 1 {
+				b.WriteString(DetailValueStyle.Render(fmt.Sprintf("%.3fms", ms)))
+			} else {
+				b.WriteString(DetailValueStyle.Render(fmt.Sprintf("%.2fms", ms)))
 			}
-			attrParts = append(attrParts, fmt.Sprintf("%s=%v", k, v))
-			count++
 		}
-		attrStr := strings.Join(attrParts, ", ")
-		if len(attrStr) > m.width-15 {
-			attrStr = attrStr[:m.width-18] + "..."
+		if log.Status != nil {
+			if code, ok := log.Status["code"].(string); ok {
+				b.WriteString("  ")
+				b.WriteString(DetailKeyStyle.Render("Status: "))
+				b.WriteString(DetailValueStyle.Render(code))
+			}
 		}
-		b.WriteString(hl.ApplyToField(attrStr, DetailMutedStyle))
+	case signalMetrics:
+		// Metrics-specific first line - show scope
+		if log.Scope != nil {
+			if scopeName, ok := log.Scope["name"].(string); ok && scopeName != "" {
+				b.WriteString("  ")
+				b.WriteString(DetailKeyStyle.Render("Scope: "))
+				b.WriteString(DetailValueStyle.Render(scopeName))
+			}
+		}
+	default:
+		// Log-specific first line
+		level := log.GetLevel()
+		b.WriteString("  ")
+		b.WriteString(DetailKeyStyle.Render("Level: "))
+		b.WriteString(hl.ApplyToField(level, LevelStyle(level)))
+		resource := log.GetResource()
+		if resource != "" {
+			b.WriteString("  ")
+			b.WriteString(DetailKeyStyle.Render("Resource: "))
+			b.WriteString(hl.ApplyToField(resource, DetailValueStyle))
+		}
+	}
+	b.WriteString("\n")
+
+	// Second line: varies by signal type
+	switch m.signalType {
+	case signalTraces:
+		msg := log.Name
+		if msg == "" {
+			msg = log.GetMessage()
+		}
+		b.WriteString(DetailKeyStyle.Render("Name: "))
+		msg = strings.ReplaceAll(msg, "\n", " ")
+		maxMsgLen := (m.width - 10) * 2
+		if len(msg) > maxMsgLen {
+			msg = msg[:maxMsgLen-3] + "..."
+		}
+		b.WriteString(hl.ApplyToField(msg, DetailValueStyle))
+	case signalMetrics:
+		// Show metrics on second line
+		if len(log.Metrics) > 0 {
+			b.WriteString(DetailKeyStyle.Render("Metrics: "))
+			metricParts := []string{}
+			for k, v := range log.Metrics {
+				metricParts = append(metricParts, fmt.Sprintf("%s=%v", k, v))
+			}
+			metricsStr := strings.Join(metricParts, ", ")
+			maxLen := m.width - 15
+			if len(metricsStr) > maxLen {
+				metricsStr = metricsStr[:maxLen-3] + "..."
+			}
+			b.WriteString(hl.ApplyToField(metricsStr, DetailValueStyle))
+		} else {
+			b.WriteString(DetailMutedStyle.Render("No metrics data"))
+		}
+	default:
+		msg := log.GetMessage()
+		b.WriteString(DetailKeyStyle.Render("Message: "))
+		msg = strings.ReplaceAll(msg, "\n", " ")
+		maxMsgLen := (m.width - 10) * 2
+		if len(msg) > maxMsgLen {
+			msg = msg[:maxMsgLen-3] + "..."
+		}
+		b.WriteString(hl.ApplyToField(msg, DetailValueStyle))
+	}
+	b.WriteString("\n")
+
+	// Third line: signal-specific details
+	switch m.signalType {
+	case signalTraces:
+		if log.TraceID != "" {
+			b.WriteString(DetailKeyStyle.Render("Trace: "))
+			b.WriteString(DetailMutedStyle.Render(log.TraceID))
+			if log.SpanID != "" {
+				b.WriteString("  ")
+				b.WriteString(DetailKeyStyle.Render("Span: "))
+				b.WriteString(DetailMutedStyle.Render(log.SpanID))
+			}
+		}
+	case signalMetrics:
+		// Show attributes for metrics (often contains span info)
+		if len(log.Attributes) > 0 {
+			b.WriteString(DetailKeyStyle.Render("Attrs: "))
+			attrParts := []string{}
+			maxAttrs := 5
+			count := 0
+			for k, v := range log.Attributes {
+				if count >= maxAttrs {
+					attrParts = append(attrParts, "...")
+					break
+				}
+				attrParts = append(attrParts, fmt.Sprintf("%s=%v", k, v))
+				count++
+			}
+			attrStr := strings.Join(attrParts, ", ")
+			if len(attrStr) > m.width-15 {
+				attrStr = attrStr[:m.width-18] + "..."
+			}
+			b.WriteString(hl.ApplyToField(attrStr, DetailMutedStyle))
+		}
+	default:
+		// Logs - show attributes
+		if len(log.Attributes) > 0 {
+			b.WriteString(DetailKeyStyle.Render("Attrs: "))
+			attrParts := []string{}
+			maxAttrs := 5
+			count := 0
+			for k, v := range log.Attributes {
+				if count >= maxAttrs {
+					attrParts = append(attrParts, "...")
+					break
+				}
+				attrParts = append(attrParts, fmt.Sprintf("%s=%v", k, v))
+				count++
+			}
+			attrStr := strings.Join(attrParts, ", ")
+			if len(attrStr) > m.width-15 {
+				attrStr = attrStr[:m.width-18] + "..."
+			}
+			b.WriteString(hl.ApplyToField(attrStr, DetailMutedStyle))
+		}
 	}
 
-	return CompactDetailStyle.Width(m.width - 4).Render(b.String())
+	return CompactDetailStyle.Width(m.width - 4).Height(compactDetailHeight).Render(b.String())
 }
 
 func (m Model) renderSearchInput() string {
@@ -1265,22 +2103,32 @@ func (m Model) renderQueryOverlay() string {
 }
 
 func (m Model) renderDetailView() string {
-	var headerText string
-	if m.mode == viewDetailJSON {
-		headerText = "Raw JSON"
-	} else {
-		headerText = "Log Details"
+	// Minimal header with position and status
+	var parts []string
+
+	// Position indicator
+	if len(m.logs) > 0 {
+		parts = append(parts, DetailMutedStyle.Render(fmt.Sprintf("%d/%d", m.selectedIndex+1, len(m.logs))))
 	}
 
-	header := DetailKeyStyle.Render(headerText)
+	// View mode indicator
+	if m.mode == viewDetailJSON {
+		parts = append(parts, DetailKeyStyle.Render("JSON"))
+	}
 
 	// Show status message if recent (within 2 seconds)
 	if m.statusMessage != "" && time.Since(m.statusTime) < 2*time.Second {
-		header += "  " + lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")).Bold(true).Render(m.statusMessage)
+		parts = append(parts, lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")).Bold(true).Render(m.statusMessage))
 	}
 
+	header := strings.Join(parts, "  ")
 	content := m.viewport.View()
-	return DetailStyle.Width(m.width - 4).Height(m.height - 6).Render(header + "\n\n" + content)
+
+	// Only add header line if we have something to show
+	if header != "" {
+		return DetailStyle.Width(m.width - 4).Height(m.height - 6).Render(header + "\n" + content)
+	}
+	return DetailStyle.Width(m.width - 4).Height(m.height - 6).Render(content)
 }
 
 func (m Model) renderFieldSelector() string {
@@ -1387,17 +2235,466 @@ func (m Model) renderFieldSelector() string {
 	return DetailStyle.Width(m.width - 4).Height(m.height - 6).Render(b.String())
 }
 
+func (m Model) renderMetricsDashboard(listHeight int) string {
+	if m.metricsLoading {
+		return LogListStyle.Width(m.width - 4).Height(listHeight).Render(
+			LoadingStyle.Render("Loading metrics..."))
+	}
+
+	if m.err != nil {
+		return LogListStyle.Width(m.width - 4).Height(listHeight).Render(
+			ErrorStyle.Render(fmt.Sprintf("Error: %v", m.err)))
+	}
+
+	if m.aggregatedMetrics == nil || len(m.aggregatedMetrics.Metrics) == 0 {
+		return LogListStyle.Width(m.width - 4).Height(listHeight).Render(
+			LoadingStyle.Render("No metrics found. Press 'd' for document view."))
+	}
+
+	// Calculate column widths
+	// METRIC (flex) | SPARKLINE (20) | MIN (10) | MAX (10) | AVG (10) | LATEST (10)
+	sparklineWidth := 20
+	numWidth := 10
+	fixedWidth := sparklineWidth + (numWidth * 4) + 6 // 6 for separators
+	metricWidth := m.width - fixedWidth - 10          // padding
+	if metricWidth < 20 {
+		metricWidth = 20
+	}
+
+	// Header
+	header := HeaderRowStyle.Render(
+		PadOrTruncate("METRIC", metricWidth) + " " +
+			PadOrTruncate("TREND", sparklineWidth) + " " +
+			PadOrTruncate("MIN", numWidth) + " " +
+			PadOrTruncate("MAX", numWidth) + " " +
+			PadOrTruncate("AVG", numWidth) + " " +
+			PadOrTruncate("LATEST", numWidth))
+
+	// Calculate visible range
+	contentHeight := listHeight - 4 // Account for borders and header
+	if contentHeight < 3 {
+		contentHeight = 3
+	}
+
+	metrics := m.aggregatedMetrics.Metrics
+	startIdx := m.metricsCursor - contentHeight/2
+	if startIdx < 0 {
+		startIdx = 0
+	}
+	endIdx := startIdx + contentHeight
+	if endIdx > len(metrics) {
+		endIdx = len(metrics)
+		startIdx = endIdx - contentHeight
+		if startIdx < 0 {
+			startIdx = 0
+		}
+	}
+
+	var lines []string
+	lines = append(lines, header)
+
+	for i := startIdx; i < endIdx; i++ {
+		metric := metrics[i]
+		selected := i == m.metricsCursor
+
+		// Generate sparkline
+		sparkline := generateSparkline(metric.Buckets, sparklineWidth)
+
+		// Format numbers
+		minStr := formatMetricValue(metric.Min)
+		maxStr := formatMetricValue(metric.Max)
+		avgStr := formatMetricValue(metric.Avg)
+		latestStr := formatMetricValue(metric.Latest)
+
+		// Build line
+		line := PadOrTruncate(metric.ShortName, metricWidth) + " " +
+			sparkline + " " +
+			PadOrTruncate(minStr, numWidth) + " " +
+			PadOrTruncate(maxStr, numWidth) + " " +
+			PadOrTruncate(avgStr, numWidth) + " " +
+			PadOrTruncate(latestStr, numWidth)
+
+		if selected {
+			lines = append(lines, SelectedLogStyle.Width(m.width - 6).Render(line))
+		} else {
+			lines = append(lines, LogEntryStyle.Render(line))
+		}
+	}
+
+	content := strings.Join(lines, "\n")
+	return LogListStyle.Width(m.width - 4).Height(listHeight).Render(content)
+}
+
+func (m Model) renderMetricsCompactDetail() string {
+	if m.aggregatedMetrics == nil || len(m.aggregatedMetrics.Metrics) == 0 {
+		return CompactDetailStyle.Width(m.width - 4).Height(compactDetailHeight).Render(
+			DetailMutedStyle.Render("No metric selected"))
+	}
+
+	if m.metricsCursor >= len(m.aggregatedMetrics.Metrics) {
+		return CompactDetailStyle.Width(m.width - 4).Height(compactDetailHeight).Render(
+			DetailMutedStyle.Render("No metric selected"))
+	}
+
+	metric := m.aggregatedMetrics.Metrics[m.metricsCursor]
+
+	var b strings.Builder
+
+	// First line: Full metric name and type
+	b.WriteString(DetailKeyStyle.Render("Metric: "))
+	b.WriteString(DetailValueStyle.Render(metric.Name))
+	if metric.Type != "" {
+		b.WriteString("  ")
+		b.WriteString(DetailKeyStyle.Render("Type: "))
+		b.WriteString(DetailValueStyle.Render(metric.Type))
+	}
+	b.WriteString("\n")
+
+	// Second line: Stats
+	b.WriteString(DetailKeyStyle.Render("Min: "))
+	b.WriteString(DetailValueStyle.Render(fmt.Sprintf("%.4f", metric.Min)))
+	b.WriteString("  ")
+	b.WriteString(DetailKeyStyle.Render("Max: "))
+	b.WriteString(DetailValueStyle.Render(fmt.Sprintf("%.4f", metric.Max)))
+	b.WriteString("  ")
+	b.WriteString(DetailKeyStyle.Render("Avg: "))
+	b.WriteString(DetailValueStyle.Render(fmt.Sprintf("%.4f", metric.Avg)))
+	b.WriteString("  ")
+	b.WriteString(DetailKeyStyle.Render("Latest: "))
+	b.WriteString(DetailValueStyle.Render(fmt.Sprintf("%.4f", metric.Latest)))
+	b.WriteString("\n")
+
+	// Third line: Bucket info
+	b.WriteString(DetailKeyStyle.Render("Buckets: "))
+	b.WriteString(DetailMutedStyle.Render(fmt.Sprintf("%d @ %s intervals",
+		len(metric.Buckets), m.aggregatedMetrics.BucketSize)))
+
+	return CompactDetailStyle.Width(m.width - 4).Height(compactDetailHeight).Render(b.String())
+}
+
+// generateSparkline creates a Unicode sparkline from time series buckets
+func generateSparkline(buckets []es.MetricBucket, width int) string {
+	if len(buckets) == 0 {
+		return strings.Repeat("-", width)
+	}
+
+	// Get min/max for scaling
+	var minVal, maxVal float64 = buckets[0].Value, buckets[0].Value
+	for _, b := range buckets {
+		if b.Value < minVal {
+			minVal = b.Value
+		}
+		if b.Value > maxVal {
+			maxVal = b.Value
+		}
+	}
+
+	// Handle constant values
+	valRange := maxVal - minVal
+	if valRange == 0 {
+		valRange = 1
+	}
+
+	// Sample or interpolate to fit width
+	var result strings.Builder
+	step := float64(len(buckets)) / float64(width)
+
+	for i := 0; i < width; i++ {
+		idx := int(float64(i) * step)
+		if idx >= len(buckets) {
+			idx = len(buckets) - 1
+		}
+
+		// Normalize to 0-7 range for sparkline chars
+		normalized := (buckets[idx].Value - minVal) / valRange
+		charIdx := int(normalized * 7)
+		if charIdx > 7 {
+			charIdx = 7
+		}
+		if charIdx < 0 {
+			charIdx = 0
+		}
+
+		result.WriteRune(sparklineChars[charIdx])
+	}
+
+	return result.String()
+}
+
+// formatMetricValue formats a float64 for compact display
+func formatMetricValue(v float64) string {
+	if v != v { // NaN check
+		return "-"
+	}
+
+	absV := v
+	if absV < 0 {
+		absV = -absV
+	}
+
+	switch {
+	case absV == 0:
+		return "0"
+	case absV >= 1_000_000_000:
+		return fmt.Sprintf("%.1fG", v/1_000_000_000)
+	case absV >= 1_000_000:
+		return fmt.Sprintf("%.1fM", v/1_000_000)
+	case absV >= 1_000:
+		return fmt.Sprintf("%.1fK", v/1_000)
+	case absV >= 1:
+		return fmt.Sprintf("%.1f", v)
+	case absV >= 0.01:
+		return fmt.Sprintf("%.2f", v)
+	default:
+		return fmt.Sprintf("%.3f", v)
+	}
+}
+
+// renderMetricDetail renders a full-screen view of a single metric with a large chart
+func (m Model) renderMetricDetail() string {
+	if m.aggregatedMetrics == nil || m.metricsCursor >= len(m.aggregatedMetrics.Metrics) {
+		return DetailStyle.Width(m.width - 4).Height(m.height - 4).Render(
+			DetailMutedStyle.Render("No metric selected"))
+	}
+
+	metric := m.aggregatedMetrics.Metrics[m.metricsCursor]
+	var b strings.Builder
+
+	// Header: Metric name and type
+	b.WriteString(DetailKeyStyle.Render("Metric: "))
+	b.WriteString(DetailValueStyle.Render(metric.Name))
+	if metric.Type != "" {
+		b.WriteString("  ")
+		b.WriteString(DetailMutedStyle.Render(fmt.Sprintf("(%s)", metric.Type)))
+	}
+	b.WriteString("\n\n")
+
+	// Stats line
+	b.WriteString(DetailKeyStyle.Render("Min: "))
+	b.WriteString(DetailValueStyle.Render(fmt.Sprintf("%.6f", metric.Min)))
+	b.WriteString("  ")
+	b.WriteString(DetailKeyStyle.Render("Max: "))
+	b.WriteString(DetailValueStyle.Render(fmt.Sprintf("%.6f", metric.Max)))
+	b.WriteString("  ")
+	b.WriteString(DetailKeyStyle.Render("Avg: "))
+	b.WriteString(DetailValueStyle.Render(fmt.Sprintf("%.6f", metric.Avg)))
+	b.WriteString("  ")
+	b.WriteString(DetailKeyStyle.Render("Latest: "))
+	b.WriteString(DetailValueStyle.Render(fmt.Sprintf("%.6f", metric.Latest)))
+	b.WriteString("\n\n")
+
+	// Time range info
+	if len(metric.Buckets) > 0 {
+		b.WriteString(DetailKeyStyle.Render("Time Range: "))
+		b.WriteString(DetailMutedStyle.Render(fmt.Sprintf(
+			"%s → %s (%d buckets @ %s intervals)",
+			metric.Buckets[0].Timestamp.Format("15:04:05"),
+			metric.Buckets[len(metric.Buckets)-1].Timestamp.Format("15:04:05"),
+			len(metric.Buckets),
+			m.aggregatedMetrics.BucketSize)))
+		b.WriteString("\n\n")
+	}
+
+	// Render the large chart
+	chartHeight := m.height - 14 // Leave room for header, stats, and help bar
+	if chartHeight < 5 {
+		chartHeight = 5
+	}
+	chartWidth := m.width - 10
+	if chartWidth < 20 {
+		chartWidth = 20
+	}
+
+	chart := m.renderLargeChart(metric.Buckets, metric.Min, metric.Max, chartWidth, chartHeight)
+	b.WriteString(chart)
+
+	return DetailStyle.Width(m.width - 4).Height(m.height - 4).Render(b.String())
+}
+
+// renderLargeChart creates a multi-line ASCII chart from metric buckets
+func (m Model) renderLargeChart(buckets []es.MetricBucket, minVal, maxVal float64, width, height int) string {
+	if len(buckets) == 0 {
+		return DetailMutedStyle.Render("No data points")
+	}
+
+	var b strings.Builder
+
+	// Y-axis labels width
+	yLabelWidth := 10
+
+	// Chart area dimensions
+	chartWidth := width - yLabelWidth - 2
+	if chartWidth < 10 {
+		chartWidth = 10
+	}
+
+	// Handle constant values
+	valRange := maxVal - minVal
+	if valRange == 0 {
+		valRange = 1
+		minVal = minVal - 0.5
+		maxVal = maxVal + 0.5
+	}
+
+	// Sample buckets to fit chart width
+	sampleBuckets := make([]float64, chartWidth)
+	step := float64(len(buckets)) / float64(chartWidth)
+	for i := 0; i < chartWidth; i++ {
+		idx := int(float64(i) * step)
+		if idx >= len(buckets) {
+			idx = len(buckets) - 1
+		}
+		sampleBuckets[i] = buckets[idx].Value
+	}
+
+	// Render chart rows (top to bottom)
+	for row := height - 1; row >= 0; row-- {
+		// Y-axis label
+		rowValue := minVal + (valRange * float64(row) / float64(height-1))
+		yLabel := formatMetricValue(rowValue)
+		b.WriteString(DetailMutedStyle.Render(PadLeft(yLabel, yLabelWidth)))
+		b.WriteString(" │")
+
+		// Chart row
+		for col := 0; col < chartWidth; col++ {
+			val := sampleBuckets[col]
+			// Normalize to 0..height-1
+			normalized := (val - minVal) / valRange * float64(height-1)
+			valRow := int(normalized)
+
+			if valRow == row {
+				// This is the data point
+				b.WriteString(SparklineStyle.Render("█"))
+			} else if valRow > row {
+				// Value is above this row - show bar
+				b.WriteString(SparklineStyle.Render("│"))
+			} else {
+				// Value is below this row - empty
+				b.WriteString(" ")
+			}
+		}
+		b.WriteString("\n")
+	}
+
+	// X-axis
+	b.WriteString(strings.Repeat(" ", yLabelWidth))
+	b.WriteString(" └")
+	b.WriteString(strings.Repeat("─", chartWidth))
+	b.WriteString("\n")
+
+	// X-axis labels (start and end times)
+	if len(buckets) > 0 {
+		startTime := buckets[0].Timestamp.Format("15:04:05")
+		endTime := buckets[len(buckets)-1].Timestamp.Format("15:04:05")
+		padding := chartWidth - len(startTime) - len(endTime)
+		if padding < 0 {
+			padding = 0
+		}
+		b.WriteString(strings.Repeat(" ", yLabelWidth+2))
+		b.WriteString(DetailMutedStyle.Render(startTime))
+		b.WriteString(strings.Repeat(" ", padding))
+		b.WriteString(DetailMutedStyle.Render(endTime))
+	}
+
+	return b.String()
+}
+
+// PadLeft pads a string to the left to reach the specified width
+func PadLeft(s string, width int) string {
+	if len(s) >= width {
+		return s[:width]
+	}
+	return strings.Repeat(" ", width-len(s)) + s
+}
+
+func (m Model) renderTransactionNames(listHeight int) string {
+	if m.tracesLoading {
+		return LogListStyle.Width(m.width - 4).Height(listHeight).Render(
+			LoadingStyle.Render("Loading transaction names..."))
+	}
+
+	if m.err != nil {
+		return LogListStyle.Width(m.width - 4).Height(listHeight).Render(
+			ErrorStyle.Render(fmt.Sprintf("Error: %v", m.err)))
+	}
+
+	if len(m.transactionNames) == 0 {
+		return LogListStyle.Width(m.width - 4).Height(listHeight).Render(
+			LoadingStyle.Render("No transactions found in the selected time range."))
+	}
+
+	// Calculate column widths
+	// TRANSACTION NAME (flex) | COUNT (10) | AVG(ms) (12) | ERR% (8)
+	countWidth := 10
+	avgWidth := 12
+	errWidth := 8
+	fixedWidth := countWidth + avgWidth + errWidth + 4 // separators
+	nameWidth := m.width - fixedWidth - 10
+	if nameWidth < 20 {
+		nameWidth = 20
+	}
+
+	// Header
+	header := HeaderRowStyle.Render(
+		PadOrTruncate("TRANSACTION NAME", nameWidth) + " " +
+			PadOrTruncate("COUNT", countWidth) + " " +
+			PadOrTruncate("AVG(ms)", avgWidth) + " " +
+			PadOrTruncate("ERR%", errWidth))
+
+	// Calculate visible range
+	contentHeight := listHeight - 4
+	if contentHeight < 3 {
+		contentHeight = 3
+	}
+
+	startIdx := m.traceNamesCursor - contentHeight/2
+	if startIdx < 0 {
+		startIdx = 0
+	}
+	endIdx := startIdx + contentHeight
+	if endIdx > len(m.transactionNames) {
+		endIdx = len(m.transactionNames)
+		startIdx = endIdx - contentHeight
+		if startIdx < 0 {
+			startIdx = 0
+		}
+	}
+
+	var lines []string
+	lines = append(lines, header)
+
+	for i := startIdx; i < endIdx; i++ {
+		tx := m.transactionNames[i]
+		selected := i == m.traceNamesCursor
+
+		// Format values
+		countStr := fmt.Sprintf("%d", tx.Count)
+		avgStr := fmt.Sprintf("%.2f", tx.AvgDuration)
+		errStr := fmt.Sprintf("%.1f%%", tx.ErrorRate)
+
+		line := PadOrTruncate(tx.Name, nameWidth) + " " +
+			PadOrTruncate(countStr, countWidth) + " " +
+			PadOrTruncate(avgStr, avgWidth) + " " +
+			PadOrTruncate(errStr, errWidth)
+
+		if selected {
+			lines = append(lines, SelectedLogStyle.Width(m.width - 6).Render(line))
+		} else {
+			lines = append(lines, LogEntryStyle.Render(line))
+		}
+	}
+
+	content := strings.Join(lines, "\n")
+	return LogListStyle.Width(m.width - 4).Height(listHeight).Render(content)
+}
+
 func (m Model) renderLogDetail(log es.LogEntry) string {
 	hl := m.Highlighter()
 	var b strings.Builder
 
-	// Basic fields
+	// Common fields
 	b.WriteString(DetailKeyStyle.Render("Timestamp: "))
 	b.WriteString(DetailValueStyle.Render(log.Timestamp.Format(time.RFC3339Nano)))
-	b.WriteString("\n\n")
-
-	b.WriteString(DetailKeyStyle.Render("Level: "))
-	b.WriteString(hl.ApplyToField(log.GetLevel(), LevelStyle(log.GetLevel())))
 	b.WriteString("\n\n")
 
 	if log.ServiceName != "" {
@@ -1406,18 +2703,91 @@ func (m Model) renderLogDetail(log es.LogEntry) string {
 		b.WriteString("\n\n")
 	}
 
-	if log.ContainerID != "" {
-		b.WriteString(DetailKeyStyle.Render("Container: "))
-		b.WriteString(hl.ApplyToField(log.ContainerID, DetailValueStyle))
+	// Signal-specific fields
+	switch m.signalType {
+	case signalMetrics:
+		// Scope
+		if log.Scope != nil {
+			if scopeName, ok := log.Scope["name"].(string); ok && scopeName != "" {
+				b.WriteString(DetailKeyStyle.Render("Scope: "))
+				b.WriteString(DetailValueStyle.Render(scopeName))
+				b.WriteString("\n\n")
+			}
+		}
+
+		// Metrics values
+		if len(log.Metrics) > 0 {
+			b.WriteString(DetailKeyStyle.Render("Metrics:"))
+			b.WriteString("\n")
+			for k, v := range log.Metrics {
+				b.WriteString(fmt.Sprintf("  %s: %v\n", k, v))
+			}
+			b.WriteString("\n")
+		}
+
+	case signalTraces:
+		// Trace-specific fields
+		if log.Name != "" {
+			b.WriteString(DetailKeyStyle.Render("Span Name: "))
+			b.WriteString(hl.ApplyToField(log.Name, DetailValueStyle))
+			b.WriteString("\n\n")
+		}
+
+		if log.Kind != "" {
+			b.WriteString(DetailKeyStyle.Render("Kind: "))
+			b.WriteString(DetailValueStyle.Render(log.Kind))
+			b.WriteString("\n\n")
+		}
+
+		if log.Duration > 0 {
+			ms := float64(log.Duration) / 1_000_000.0
+			b.WriteString(DetailKeyStyle.Render("Duration: "))
+			if ms < 1 {
+				b.WriteString(DetailValueStyle.Render(fmt.Sprintf("%.3fms", ms)))
+			} else {
+				b.WriteString(DetailValueStyle.Render(fmt.Sprintf("%.2fms", ms)))
+			}
+			b.WriteString("\n\n")
+		}
+
+		if log.Status != nil {
+			if code, ok := log.Status["code"].(string); ok {
+				b.WriteString(DetailKeyStyle.Render("Status: "))
+				b.WriteString(DetailValueStyle.Render(code))
+				b.WriteString("\n\n")
+			}
+		}
+
+		if log.TraceID != "" {
+			b.WriteString(DetailKeyStyle.Render("Trace ID: "))
+			b.WriteString(DetailValueStyle.Render(log.TraceID))
+			b.WriteString("\n\n")
+		}
+
+		if log.SpanID != "" {
+			b.WriteString(DetailKeyStyle.Render("Span ID: "))
+			b.WriteString(DetailValueStyle.Render(log.SpanID))
+			b.WriteString("\n\n")
+		}
+
+	default: // Logs
+		b.WriteString(DetailKeyStyle.Render("Level: "))
+		b.WriteString(hl.ApplyToField(log.GetLevel(), LevelStyle(log.GetLevel())))
+		b.WriteString("\n\n")
+
+		if log.ContainerID != "" {
+			b.WriteString(DetailKeyStyle.Render("Container: "))
+			b.WriteString(hl.ApplyToField(log.ContainerID, DetailValueStyle))
+			b.WriteString("\n\n")
+		}
+
+		b.WriteString(DetailKeyStyle.Render("Message:"))
+		b.WriteString("\n")
+		b.WriteString(hl.ApplyToField(log.GetMessage(), DetailValueStyle))
 		b.WriteString("\n\n")
 	}
 
-	b.WriteString(DetailKeyStyle.Render("Message:"))
-	b.WriteString("\n")
-	b.WriteString(hl.ApplyToField(log.GetMessage(), DetailValueStyle))
-	b.WriteString("\n\n")
-
-	// Attributes
+	// Attributes (common to all signal types)
 	if len(log.Attributes) > 0 {
 		b.WriteString(DetailKeyStyle.Render("Attributes:"))
 		b.WriteString("\n")
@@ -1428,7 +2798,7 @@ func (m Model) renderLogDetail(log es.LogEntry) string {
 		b.WriteString("\n")
 	}
 
-	// Resource
+	// Resource (common to all signal types)
 	if len(log.Resource) > 0 {
 		b.WriteString(DetailKeyStyle.Render("Resource:"))
 		b.WriteString("\n")
@@ -1447,19 +2817,24 @@ func (m Model) renderHelpBar() string {
 	switch m.mode {
 	case viewLogs:
 		keys = []string{
+			HelpKeyStyle.Render("m") + HelpDescStyle.Render(" signal"),
+			HelpKeyStyle.Render("l") + HelpDescStyle.Render(" lookback"),
 			HelpKeyStyle.Render("j/k") + HelpDescStyle.Render(" scroll"),
 			HelpKeyStyle.Render("/") + HelpDescStyle.Render(" search"),
 			HelpKeyStyle.Render("enter") + HelpDescStyle.Render(" details"),
-			HelpKeyStyle.Render("r") + HelpDescStyle.Render(" refresh"),
 			HelpKeyStyle.Render("s") + HelpDescStyle.Render(" sort"),
-			HelpKeyStyle.Render("a") + HelpDescStyle.Render(" auto"),
-			HelpKeyStyle.Render("t") + HelpDescStyle.Render(" time"),
-			HelpKeyStyle.Render("1-4") + HelpDescStyle.Render(" level"),
-			HelpKeyStyle.Render("c") + HelpDescStyle.Render(" clear"),
-			HelpKeyStyle.Render("i") + HelpDescStyle.Render(" index"),
 			HelpKeyStyle.Render("f") + HelpDescStyle.Render(" fields"),
+			HelpKeyStyle.Render("c") + HelpDescStyle.Render(" clear"),
 			HelpKeyStyle.Render("Q") + HelpDescStyle.Render(" query"),
 			HelpKeyStyle.Render("q") + HelpDescStyle.Render(" quit"),
+		}
+		// Add 'd' for dashboard when viewing metrics documents
+		if m.signalType == signalMetrics && m.metricsViewMode == metricsViewDocuments {
+			keys = append([]string{HelpKeyStyle.Render("d") + HelpDescStyle.Render(" dashboard")}, keys...)
+		}
+		// Add 'esc' for trace navigation
+		if m.signalType == signalTraces && (m.traceViewLevel == traceViewTransactions || m.traceViewLevel == traceViewSpans) {
+			keys = append([]string{HelpKeyStyle.Render("esc") + HelpDescStyle.Render(" back")}, keys...)
 		}
 	case viewSearch:
 		keys = []string{
@@ -1488,17 +2863,48 @@ func (m Model) renderHelpBar() string {
 		}
 	case viewDetail:
 		keys = []string{
-			HelpKeyStyle.Render("up/dn") + HelpDescStyle.Render(" scroll"),
+			HelpKeyStyle.Render("←/→") + HelpDescStyle.Render(" prev/next"),
+			HelpKeyStyle.Render("↑/↓") + HelpDescStyle.Render(" scroll"),
 			HelpKeyStyle.Render("j") + HelpDescStyle.Render(" JSON"),
 			HelpKeyStyle.Render("y") + HelpDescStyle.Render(" copy"),
 			HelpKeyStyle.Render("esc") + HelpDescStyle.Render(" close"),
 		}
+		// Add 's' for viewing spans when in traces
+		if m.signalType == signalTraces {
+			keys = append([]string{HelpKeyStyle.Render("s") + HelpDescStyle.Render(" spans")}, keys...)
+		}
 	case viewDetailJSON:
 		keys = []string{
-			HelpKeyStyle.Render("up/dn") + HelpDescStyle.Render(" scroll"),
+			HelpKeyStyle.Render("←/→") + HelpDescStyle.Render(" prev/next"),
+			HelpKeyStyle.Render("↑/↓") + HelpDescStyle.Render(" scroll"),
 			HelpKeyStyle.Render("enter") + HelpDescStyle.Render(" details"),
 			HelpKeyStyle.Render("y") + HelpDescStyle.Render(" copy"),
 			HelpKeyStyle.Render("esc") + HelpDescStyle.Render(" close"),
+		}
+	case viewMetricsDashboard:
+		keys = []string{
+			HelpKeyStyle.Render("j/k") + HelpDescStyle.Render(" scroll"),
+			HelpKeyStyle.Render("enter") + HelpDescStyle.Render(" detail"),
+			HelpKeyStyle.Render("l") + HelpDescStyle.Render(" lookback"),
+			HelpKeyStyle.Render("d") + HelpDescStyle.Render(" documents"),
+			HelpKeyStyle.Render("r") + HelpDescStyle.Render(" refresh"),
+			HelpKeyStyle.Render("m") + HelpDescStyle.Render(" signal"),
+			HelpKeyStyle.Render("q") + HelpDescStyle.Render(" quit"),
+		}
+	case viewMetricDetail:
+		keys = []string{
+			HelpKeyStyle.Render("←/→") + HelpDescStyle.Render(" prev/next metric"),
+			HelpKeyStyle.Render("r") + HelpDescStyle.Render(" refresh"),
+			HelpKeyStyle.Render("esc") + HelpDescStyle.Render(" back to dashboard"),
+		}
+	case viewTraceNames:
+		keys = []string{
+			HelpKeyStyle.Render("j/k") + HelpDescStyle.Render(" scroll"),
+			HelpKeyStyle.Render("enter") + HelpDescStyle.Render(" select"),
+			HelpKeyStyle.Render("l") + HelpDescStyle.Render(" lookback"),
+			HelpKeyStyle.Render("r") + HelpDescStyle.Render(" refresh"),
+			HelpKeyStyle.Render("m") + HelpDescStyle.Render(" signal"),
+			HelpKeyStyle.Render("q") + HelpDescStyle.Render(" quit"),
 		}
 	}
 
@@ -1517,22 +2923,49 @@ func (m Model) fetchLogs() tea.Cmd {
 		var queryJSON string
 		index := m.client.GetIndex()
 
+		lookbackRange := m.lookback.ESRange()
+
+		// For traces, determine processor event filter based on view level
+		processorEvent := ""
+		transactionName := ""
+		traceID := ""
+		if m.signalType == signalTraces {
+			switch m.traceViewLevel {
+			case traceViewTransactions:
+				processorEvent = "transaction"
+				transactionName = m.selectedTxName
+			case traceViewSpans:
+				// When viewing spans, show all events for the trace (no processor filter)
+				traceID = m.selectedTraceID
+			default:
+				processorEvent = "transaction"
+			}
+		}
+
 		if m.searchQuery != "" {
 			opts := es.SearchOptions{
-				Size:         100,
-				Service:      m.serviceFilter,
-				Level:        m.levelFilter,
-				SortAsc:      m.sortAscending,
-				SearchFields: CollectSearchFields(m.displayFields),
+				Size:            100,
+				Service:         m.serviceFilter,
+				Level:           m.levelFilter,
+				SortAsc:         m.sortAscending,
+				SearchFields:    CollectSearchFields(m.displayFields),
+				Lookback:        lookbackRange,
+				ProcessorEvent:  processorEvent,
+				TransactionName: transactionName,
+				TraceID:         traceID,
 			}
 			result, err = m.client.Search(ctx, m.searchQuery, opts)
 			queryJSON, _ = m.client.GetSearchQueryJSON(m.searchQuery, opts)
 		} else {
 			opts := es.TailOptions{
-				Size:    100,
-				Service: m.serviceFilter,
-				Level:   m.levelFilter,
-				SortAsc: m.sortAscending,
+				Size:            100,
+				Service:         m.serviceFilter,
+				Level:           m.levelFilter,
+				SortAsc:         m.sortAscending,
+				Lookback:        lookbackRange,
+				ProcessorEvent:  processorEvent,
+				TransactionName: transactionName,
+				TraceID:         traceID,
 			}
 			result, err = m.client.Tail(ctx, opts)
 			queryJSON, _ = m.client.GetTailQueryJSON(opts)
@@ -1550,6 +2983,96 @@ func (m Model) tickCmd() tea.Cmd {
 	return tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
+}
+
+func (m Model) fetchAggregatedMetrics() tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		lookbackRange := m.lookback.ESRange()
+		bucketInterval := es.LookbackToBucketInterval(lookbackRange)
+
+		opts := es.AggregateMetricsOptions{
+			Lookback:   lookbackRange,
+			BucketSize: bucketInterval,
+		}
+
+		result, err := m.client.AggregateMetrics(ctx, opts)
+		if err != nil {
+			return metricsAggMsg{err: err}
+		}
+
+		return metricsAggMsg{result: result}
+	}
+}
+
+func (m Model) fetchTransactionNames() tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		lookbackRange := m.lookback.ESRange()
+
+		names, err := m.client.GetTransactionNames(ctx, lookbackRange)
+		if err != nil {
+			return transactionNamesMsg{err: err}
+		}
+
+		return transactionNamesMsg{names: names}
+	}
+}
+
+func (m Model) autoDetectLookback() tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		// For traces, filter to only count transactions
+		processorEvent := ""
+		if m.signalType == signalTraces {
+			processorEvent = "transaction"
+		}
+
+		// Try progressively larger time windows until we find enough data
+		// Stop at first one with >= 10,000 entries (or use the one with most data)
+		targetCount := int64(10000)
+		bestLookback := lookback5m
+		bestTotal := int64(0)
+
+		for _, lb := range lookbackDurations {
+			opts := es.TailOptions{
+				Size:           1, // We only need count, not actual results
+				Lookback:       lb.ESRange(),
+				ProcessorEvent: processorEvent,
+			}
+
+			result, err := m.client.Tail(ctx, opts)
+			if err != nil {
+				continue
+			}
+
+			// Track the best option we've found
+			if result.Total > bestTotal {
+				bestLookback = lb
+				bestTotal = result.Total
+			}
+
+			// If we found enough data, stop here and use this lookback
+			if result.Total >= targetCount {
+				return autoDetectMsg{
+					lookback: lb,
+					total:    result.Total,
+				}
+			}
+		}
+
+		// Return the best we found (even if < target)
+		return autoDetectMsg{
+			lookback: bestLookback,
+			total:    bestTotal,
+		}
+	}
 }
 
 func (m Model) fetchFieldCaps() tea.Cmd {

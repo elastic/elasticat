@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/log"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
@@ -33,9 +34,7 @@ func New(cfg Config) (*Client, error) {
 	if cfg.Endpoint == "" {
 		cfg.Endpoint = "localhost:4318"
 	}
-	if cfg.ServiceName == "" {
-		cfg.ServiceName = "turbodevlog-watch"
-	}
+	// Don't default service name - let it come from the parsed log
 
 	ctx := context.Background()
 
@@ -52,13 +51,13 @@ func New(cfg Config) (*Client, error) {
 		return nil, fmt.Errorf("failed to create OTLP exporter: %w", err)
 	}
 
-	// Create resource with service name
-	// Note: We don't merge with resource.Default() to avoid schema URL conflicts
-	res := resource.NewWithAttributes(
-		semconv.SchemaURL,
-		semconv.ServiceName(cfg.ServiceName),
-		semconv.ServiceNamespace("turbodevlog"),
-	)
+	// Create resource - only set service name if explicitly provided
+	// The per-log service name is set as an attribute in SendLog
+	var attrs []attribute.KeyValue
+	if cfg.ServiceName != "" {
+		attrs = append(attrs, semconv.ServiceName(cfg.ServiceName))
+	}
+	res := resource.NewWithAttributes(semconv.SchemaURL, attrs...)
 
 	// Create logger provider
 	provider := sdklog.NewLoggerProvider(
@@ -66,7 +65,7 @@ func New(cfg Config) (*Client, error) {
 		sdklog.WithResource(res),
 	)
 
-	logger := provider.Logger("turbodevlog-watch")
+	logger := provider.Logger("turbodevlog")
 
 	return &Client{
 		provider: provider,

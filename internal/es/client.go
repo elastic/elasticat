@@ -19,7 +19,7 @@ type Client struct {
 	index string
 }
 
-// LogEntry represents a single log entry from Elasticsearch
+// LogEntry represents a single log/trace/metric entry from Elasticsearch
 type LogEntry struct {
 	Timestamp   time.Time              `json:"@timestamp"`
 	Body        string                 `json:"body,omitempty"`
@@ -31,6 +31,18 @@ type LogEntry struct {
 	Attributes  map[string]interface{} `json:"attributes,omitempty"`
 	Resource    map[string]interface{} `json:"resource,omitempty"`
 	RawJSON     string                 `json:"-"` // Original JSON from ES (not serialized)
+
+	// Trace-specific fields
+	TraceID    string                 `json:"trace_id,omitempty"`
+	SpanID     string                 `json:"span_id,omitempty"`
+	Name       string                 `json:"name,omitempty"` // Span name
+	Duration   int64                  `json:"duration,omitempty"` // Duration in nanoseconds
+	Kind       string                 `json:"kind,omitempty"`
+	Status     map[string]interface{} `json:"status,omitempty"`
+
+	// Metrics-specific fields
+	Metrics map[string]interface{} `json:"metrics,omitempty"`
+	Scope   map[string]interface{} `json:"scope,omitempty"`
 }
 
 // SearchResult contains the results of a log search
@@ -38,6 +50,53 @@ type SearchResult struct {
 	Logs     []LogEntry
 	Total    int64
 	ScrollID string
+}
+
+// MetricFieldInfo represents a discovered metric field from field_caps
+type MetricFieldInfo struct {
+	Name           string // Full field path (e.g., "metrics.raradio.session.active")
+	ShortName      string // Display name (e.g., "raradio.session.active")
+	Type           string // ES type: "long", "double", "histogram"
+	TimeSeriesType string // "gauge", "counter", or ""
+}
+
+// MetricBucket represents a single time bucket for a metric
+type MetricBucket struct {
+	Timestamp time.Time
+	Value     float64 // Aggregated value for this bucket
+	Count     int64   // Number of data points in bucket
+}
+
+// AggregatedMetric represents aggregated statistics for a single metric
+type AggregatedMetric struct {
+	Name      string         // Metric field name
+	ShortName string         // Display name
+	Type      string         // "gauge", "counter", "histogram"
+	Min       float64
+	Max       float64
+	Avg       float64
+	Latest    float64
+	Buckets   []MetricBucket // Time series data for sparkline
+}
+
+// MetricsAggResult contains all aggregated metrics
+type MetricsAggResult struct {
+	Metrics    []AggregatedMetric
+	BucketSize string // ES interval (e.g., "10s", "1m")
+}
+
+// AggregateMetricsOptions configures the metrics aggregation query
+type AggregateMetricsOptions struct {
+	Lookback   string // ES time range (e.g., "now-5m", "now-1h")
+	BucketSize string // ES interval (e.g., "10s", "1m", "5m")
+}
+
+// TransactionNameAgg represents aggregated statistics for a transaction name
+type TransactionNameAgg struct {
+	Name        string  // Transaction name (e.g., "GET /api/users")
+	Count       int64   // Number of transactions
+	AvgDuration float64 // Average duration in milliseconds
+	ErrorRate   float64 // Percentage of errors (0-100)
 }
 
 // New creates a new Elasticsearch client
@@ -177,23 +236,31 @@ func (c *Client) Search(ctx context.Context, queryStr string, opts SearchOptions
 
 // TailOptions configures the tail query
 type TailOptions struct {
-	Size        int
-	Service     string
-	Level       string
-	Since       time.Time
-	ContainerID string
-	SortAsc     bool // true = oldest first, false = newest first (default)
+	Size            int
+	Service         string
+	Level           string
+	Since           time.Time
+	ContainerID     string
+	SortAsc         bool   // true = oldest first, false = newest first (default)
+	Lookback        string // ES time range string like "now-1h", "now-24h", or "" for no filter
+	ProcessorEvent  string // Filter on attributes.processor.event (e.g., "transaction" for traces)
+	TransactionName string // Filter on transaction name (for traces)
+	TraceID         string // Filter on trace_id (for viewing spans)
 }
 
 // SearchOptions configures the search query
 type SearchOptions struct {
-	Size         int
-	Service      string
-	Level        string
-	From         time.Time
-	To           time.Time
-	SortAsc      bool     // true = oldest first, false = newest first (default)
-	SearchFields []string // ES fields to search (if empty, uses default body/message fields)
+	Size            int
+	Service         string
+	Level           string
+	From            time.Time
+	To              time.Time
+	SortAsc         bool     // true = oldest first, false = newest first (default)
+	SearchFields    []string // ES fields to search (if empty, uses default body/message fields)
+	Lookback        string   // ES time range string like "now-1h", "now-24h", or "" for no filter
+	ProcessorEvent  string   // Filter on attributes.processor.event (e.g., "transaction" for traces)
+	TransactionName string   // Filter on transaction name (for traces)
+	TraceID         string   // Filter on trace_id (for viewing spans)
 }
 
 // buildTailQuery constructs an ES query for tailing logs.
@@ -206,18 +273,21 @@ type SearchOptions struct {
 func buildTailQuery(opts TailOptions) map[string]interface{} {
 	must := []map[string]interface{}{}
 
-	// Time range filter
-	timeRange := map[string]interface{}{
-		"gte": "now-1h",
+	// Time range filter - use Lookback if set, otherwise Since, otherwise default 1h
+	if opts.Lookback != "" || !opts.Since.IsZero() {
+		timeRange := map[string]interface{}{}
+		if opts.Lookback != "" {
+			timeRange["gte"] = opts.Lookback
+		} else if !opts.Since.IsZero() {
+			timeRange["gte"] = opts.Since.Format(time.RFC3339)
+		}
+		must = append(must, map[string]interface{}{
+			"range": map[string]interface{}{
+				"@timestamp": timeRange,
+			},
+		})
 	}
-	if !opts.Since.IsZero() {
-		timeRange["gte"] = opts.Since.Format(time.RFC3339)
-	}
-	must = append(must, map[string]interface{}{
-		"range": map[string]interface{}{
-			"@timestamp": timeRange,
-		},
-	})
+	// If both Lookback is empty and Since is zero, no time filter is applied (query all time)
 
 	// Service filter - check both OTel format (resource.attributes.service.name) and flat format
 	if opts.Service != "" {
@@ -250,6 +320,37 @@ func buildTailQuery(opts TailOptions) map[string]interface{} {
 		must = append(must, map[string]interface{}{
 			"prefix": map[string]interface{}{
 				"container_id": opts.ContainerID,
+			},
+		})
+	}
+
+	// Processor event filter (e.g., "transaction" for traces)
+	if opts.ProcessorEvent != "" {
+		must = append(must, map[string]interface{}{
+			"term": map[string]interface{}{
+				"attributes.processor.event": opts.ProcessorEvent,
+			},
+		})
+	}
+
+	// Transaction name filter (for traces)
+	if opts.TransactionName != "" {
+		must = append(must, map[string]interface{}{
+			"bool": map[string]interface{}{
+				"should": []map[string]interface{}{
+					{"term": map[string]interface{}{"transaction.name": opts.TransactionName}},
+					{"term": map[string]interface{}{"name": opts.TransactionName}},
+				},
+				"minimum_should_match": 1,
+			},
+		})
+	}
+
+	// Trace ID filter (for viewing all spans in a trace)
+	if opts.TraceID != "" {
+		must = append(must, map[string]interface{}{
+			"term": map[string]interface{}{
+				"trace_id": opts.TraceID,
 			},
 		})
 	}
@@ -299,9 +400,11 @@ func buildSearchQuery(queryStr string, opts SearchOptions) map[string]interface{
 		})
 	}
 
-	// Time range
+	// Time range - prefer Lookback, then From/To
 	timeRange := map[string]interface{}{}
-	if !opts.From.IsZero() {
+	if opts.Lookback != "" {
+		timeRange["gte"] = opts.Lookback
+	} else if !opts.From.IsZero() {
 		timeRange["gte"] = opts.From.Format(time.RFC3339)
 	}
 	if !opts.To.IsZero() {
@@ -337,6 +440,37 @@ func buildSearchQuery(queryStr string, opts SearchOptions) map[string]interface{
 					{"term": map[string]interface{}{"level": opts.Level}},
 				},
 				"minimum_should_match": 1,
+			},
+		})
+	}
+
+	// Processor event filter (e.g., "transaction" for traces)
+	if opts.ProcessorEvent != "" {
+		must = append(must, map[string]interface{}{
+			"term": map[string]interface{}{
+				"attributes.processor.event": opts.ProcessorEvent,
+			},
+		})
+	}
+
+	// Transaction name filter (for traces)
+	if opts.TransactionName != "" {
+		must = append(must, map[string]interface{}{
+			"bool": map[string]interface{}{
+				"should": []map[string]interface{}{
+					{"term": map[string]interface{}{"transaction.name": opts.TransactionName}},
+					{"term": map[string]interface{}{"name": opts.TransactionName}},
+				},
+				"minimum_should_match": 1,
+			},
+		})
+	}
+
+	// Trace ID filter (for viewing all spans in a trace)
+	if opts.TraceID != "" {
+		must = append(must, map[string]interface{}{
+			"term": map[string]interface{}{
+				"trace_id": opts.TraceID,
 			},
 		})
 	}
@@ -549,6 +683,36 @@ func extractLogEntry(raw map[string]interface{}) LogEntry {
 		entry.Attributes = attrs
 	}
 
+	// === TRACE-SPECIFIC FIELDS ===
+	if traceID, ok := raw["trace_id"].(string); ok {
+		entry.TraceID = traceID
+	}
+	if spanID, ok := raw["span_id"].(string); ok {
+		entry.SpanID = spanID
+	}
+	if name, ok := raw["name"].(string); ok {
+		entry.Name = name
+	}
+	if kind, ok := raw["kind"].(string); ok {
+		entry.Kind = kind
+	}
+	// Duration can be float64 or int
+	if dur, ok := raw["duration"].(float64); ok {
+		entry.Duration = int64(dur)
+	}
+	// Status is a nested object
+	if status, ok := raw["status"].(map[string]interface{}); ok {
+		entry.Status = status
+	}
+
+	// === METRICS-SPECIFIC FIELDS ===
+	if metrics, ok := raw["metrics"].(map[string]interface{}); ok {
+		entry.Metrics = metrics
+	}
+	if scope, ok := raw["scope"].(map[string]interface{}); ok {
+		entry.Scope = scope
+	}
+
 	return entry
 }
 
@@ -562,6 +726,10 @@ func (l *LogEntry) GetMessage() string {
 	}
 	if l.EventName != "" {
 		return l.EventName
+	}
+	// For traces, use span name
+	if l.Name != "" {
+		return l.Name
 	}
 	return ""
 }
@@ -780,6 +948,57 @@ func (l *LogEntry) GetFieldValue(fieldPath string) string {
 		return l.GetMessage()
 	case "container_id", "container.id":
 		return l.ContainerID
+	// Trace-specific fields
+	case "trace_id":
+		return l.TraceID
+	case "span_id":
+		return l.SpanID
+	case "name":
+		if l.Name != "" {
+			return l.Name
+		}
+		return l.GetMessage() // Fallback to message for logs
+	case "duration":
+		if l.Duration > 0 {
+			return fmt.Sprintf("%d", l.Duration)
+		}
+		return ""
+	case "duration_ms":
+		if l.Duration > 0 {
+			// Duration is in nanoseconds, convert to milliseconds
+			ms := float64(l.Duration) / 1_000_000.0
+			if ms < 1 {
+				return fmt.Sprintf("%.3f", ms)
+			}
+			return fmt.Sprintf("%.1f", ms)
+		}
+		return ""
+	case "kind":
+		return l.Kind
+	case "status.code":
+		if l.Status != nil {
+			if code, ok := l.Status["code"].(string); ok {
+				return code
+			}
+		}
+		return ""
+	case "scope.name":
+		if l.Scope != nil {
+			if name, ok := l.Scope["name"].(string); ok {
+				return name
+			}
+		}
+		return ""
+	case "_metrics":
+		// Format metrics as key=value pairs
+		if len(l.Metrics) == 0 {
+			return ""
+		}
+		var parts []string
+		for k, v := range l.Metrics {
+			parts = append(parts, fmt.Sprintf("%s=%v", k, v))
+		}
+		return strings.Join(parts, ", ")
 	}
 
 	// Check attributes - try multiple approaches
@@ -896,4 +1115,445 @@ func (c *Client) Clear(ctx context.Context) (int64, error) {
 	}
 
 	return response.Deleted, nil
+}
+
+// LookbackToBucketInterval returns an appropriate ES interval for date_histogram
+// based on the lookback duration
+func LookbackToBucketInterval(lookback string) string {
+	switch lookback {
+	case "now-5m":
+		return "10s" // 5 min / 30 buckets = 10s
+	case "now-1h":
+		return "1m" // 1 hour / 60 buckets = 1m
+	case "now-24h":
+		return "5m" // 24 hours / 288 buckets = 5m
+	case "now-1w":
+		return "30m" // 1 week / 336 buckets = 30m
+	default:
+		return "1h" // All time = hourly buckets
+	}
+}
+
+// GetMetricFieldNames discovers metric field names from field_caps API
+// Returns only aggregatable numeric fields under the "metrics.*" namespace
+func (c *Client) GetMetricFieldNames(ctx context.Context) ([]MetricFieldInfo, error) {
+	res, err := c.es.FieldCaps(
+		c.es.FieldCaps.WithContext(ctx),
+		c.es.FieldCaps.WithIndex(c.index+"*"),
+		c.es.FieldCaps.WithFields("metrics.*"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get metric field caps: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		body, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("field caps failed: %s - %s", res.Status(), string(body))
+	}
+
+	var response struct {
+		Fields map[string]map[string]struct {
+			Type             string `json:"type"`
+			Aggregatable     bool   `json:"aggregatable"`
+			TimeSeriesMetric string `json:"time_series_metric,omitempty"`
+		} `json:"fields"`
+	}
+
+	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("failed to decode field caps: %w", err)
+	}
+
+	var metrics []MetricFieldInfo
+	for name, typeMap := range response.Fields {
+		for _, info := range typeMap {
+			// Skip object types (not actual metric values)
+			if info.Type == "object" {
+				continue
+			}
+			// Only include aggregatable numeric types
+			if !info.Aggregatable {
+				continue
+			}
+			// Filter to long, double, float, histogram, aggregate_metric_double types
+			switch info.Type {
+			case "long", "double", "float", "half_float", "scaled_float", "histogram", "aggregate_metric_double":
+				shortName := name
+				if strings.HasPrefix(name, "metrics.") {
+					shortName = name[8:] // Remove "metrics." prefix
+				}
+				metrics = append(metrics, MetricFieldInfo{
+					Name:           name,
+					ShortName:      shortName,
+					Type:           info.Type,
+					TimeSeriesType: info.TimeSeriesMetric,
+				})
+			}
+			break // Only process first type
+		}
+	}
+
+	// Sort by name for consistent display
+	sortMetricFields(metrics)
+
+	return metrics, nil
+}
+
+// sortMetricFields sorts metric fields by short name
+func sortMetricFields(fields []MetricFieldInfo) {
+	for i := 0; i < len(fields)-1; i++ {
+		for j := i + 1; j < len(fields); j++ {
+			if fields[i].ShortName > fields[j].ShortName {
+				fields[i], fields[j] = fields[j], fields[i]
+			}
+		}
+	}
+}
+
+// AggregateMetrics retrieves aggregated statistics for all discovered metrics
+func (c *Client) AggregateMetrics(ctx context.Context, opts AggregateMetricsOptions) (*MetricsAggResult, error) {
+	// Discover metrics
+	metricFields, err := c.GetMetricFieldNames(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(metricFields) == 0 {
+		return &MetricsAggResult{Metrics: []AggregatedMetric{}, BucketSize: opts.BucketSize}, nil
+	}
+
+	// Limit to 50 metrics to avoid huge queries
+	maxMetrics := 50
+	if len(metricFields) > maxMetrics {
+		metricFields = metricFields[:maxMetrics]
+	}
+
+	// Build aggregation query
+	aggs := make(map[string]interface{})
+	for i, mf := range metricFields {
+		aggName := fmt.Sprintf("m%d", i)
+		aggs[aggName] = map[string]interface{}{
+			"filter": map[string]interface{}{
+				"exists": map[string]interface{}{
+					"field": mf.Name,
+				},
+			},
+			"aggs": map[string]interface{}{
+				"stats": map[string]interface{}{
+					"extended_stats": map[string]interface{}{
+						"field": mf.Name,
+					},
+				},
+				"over_time": map[string]interface{}{
+					"date_histogram": map[string]interface{}{
+						"field":          "@timestamp",
+						"fixed_interval": opts.BucketSize,
+					},
+					"aggs": map[string]interface{}{
+						"value": map[string]interface{}{
+							"avg": map[string]interface{}{
+								"field": mf.Name,
+							},
+						},
+					},
+				},
+				"latest": map[string]interface{}{
+					"top_hits": map[string]interface{}{
+						"size": 1,
+						"sort": []map[string]interface{}{
+							{"@timestamp": "desc"},
+						},
+						"_source": []string{mf.Name},
+					},
+				},
+			},
+		}
+	}
+
+	query := map[string]interface{}{
+		"size": 0,
+		"aggs": aggs,
+	}
+
+	// Add time range filter if specified
+	if opts.Lookback != "" {
+		query["query"] = map[string]interface{}{
+			"range": map[string]interface{}{
+				"@timestamp": map[string]interface{}{
+					"gte": opts.Lookback,
+				},
+			},
+		}
+	}
+
+	queryJSON, err := json.Marshal(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal aggregation query: %w", err)
+	}
+
+	res, err := c.es.Search(
+		c.es.Search.WithContext(ctx),
+		c.es.Search.WithIndex(c.index+"*"),
+		c.es.Search.WithBody(bytes.NewReader(queryJSON)),
+		c.es.Search.WithSize(0),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute aggregation: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		body, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("aggregation failed: %s - %s", res.Status(), string(body))
+	}
+
+	return parseMetricsAggResponse(res.Body, metricFields, opts.BucketSize)
+}
+
+func parseMetricsAggResponse(body io.Reader, fields []MetricFieldInfo, bucketSize string) (*MetricsAggResult, error) {
+	// Parse the complex nested aggregation response
+	var raw map[string]interface{}
+	if err := json.NewDecoder(body).Decode(&raw); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	aggs, ok := raw["aggregations"].(map[string]interface{})
+	if !ok {
+		return &MetricsAggResult{Metrics: []AggregatedMetric{}, BucketSize: bucketSize}, nil
+	}
+
+	result := &MetricsAggResult{
+		Metrics:    make([]AggregatedMetric, 0, len(fields)),
+		BucketSize: bucketSize,
+	}
+
+	for i, mf := range fields {
+		aggName := fmt.Sprintf("m%d", i)
+		metricAgg, ok := aggs[aggName].(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		am := AggregatedMetric{
+			Name:      mf.Name,
+			ShortName: mf.ShortName,
+			Type:      mf.TimeSeriesType,
+		}
+
+		// Extract stats
+		if stats, ok := metricAgg["stats"].(map[string]interface{}); ok {
+			if min, ok := stats["min"].(float64); ok {
+				am.Min = min
+			}
+			if max, ok := stats["max"].(float64); ok {
+				am.Max = max
+			}
+			if avg, ok := stats["avg"].(float64); ok {
+				am.Avg = avg
+			}
+		}
+
+		// Extract time series buckets
+		if overTime, ok := metricAgg["over_time"].(map[string]interface{}); ok {
+			if buckets, ok := overTime["buckets"].([]interface{}); ok {
+				am.Buckets = make([]MetricBucket, 0, len(buckets))
+				for _, b := range buckets {
+					bucket, ok := b.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					mb := MetricBucket{}
+					if keyMs, ok := bucket["key"].(float64); ok {
+						mb.Timestamp = time.UnixMilli(int64(keyMs))
+					}
+					if count, ok := bucket["doc_count"].(float64); ok {
+						mb.Count = int64(count)
+					}
+					if value, ok := bucket["value"].(map[string]interface{}); ok {
+						if v, ok := value["value"].(float64); ok {
+							mb.Value = v
+						}
+					}
+					am.Buckets = append(am.Buckets, mb)
+				}
+			}
+		}
+
+		// Extract latest value from top_hits
+		if latest, ok := metricAgg["latest"].(map[string]interface{}); ok {
+			if hits, ok := latest["hits"].(map[string]interface{}); ok {
+				if hitsList, ok := hits["hits"].([]interface{}); ok && len(hitsList) > 0 {
+					if hit, ok := hitsList[0].(map[string]interface{}); ok {
+						if source, ok := hit["_source"].(map[string]interface{}); ok {
+							am.Latest = extractNestedFloat(source, mf.Name)
+						}
+					}
+				}
+			}
+		}
+
+		result.Metrics = append(result.Metrics, am)
+	}
+
+	return result, nil
+}
+
+// extractNestedFloat extracts a float64 from a nested map using dot notation
+func extractNestedFloat(data map[string]interface{}, path string) float64 {
+	parts := strings.Split(path, ".")
+	current := interface{}(data)
+
+	for _, part := range parts {
+		if m, ok := current.(map[string]interface{}); ok {
+			current = m[part]
+		} else {
+			return 0
+		}
+	}
+
+	if f, ok := current.(float64); ok {
+		return f
+	}
+	return 0
+}
+
+// GetTransactionNames returns aggregated transaction names with statistics
+func (c *Client) GetTransactionNames(ctx context.Context, lookback string) ([]TransactionNameAgg, error) {
+	// Build the aggregation query
+	query := map[string]interface{}{
+		"size": 0,
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
+				"filter": []map[string]interface{}{
+					{
+						"term": map[string]interface{}{
+							"attributes.processor.event": "transaction",
+						},
+					},
+				},
+			},
+		},
+		"aggs": map[string]interface{}{
+			"tx_names": map[string]interface{}{
+				"terms": map[string]interface{}{
+					"field": "name",
+					"size":  100,
+					"order": map[string]interface{}{
+						"_count": "desc",
+					},
+				},
+				"aggs": map[string]interface{}{
+					"avg_duration": map[string]interface{}{
+						"avg": map[string]interface{}{
+							"field": "duration",
+						},
+					},
+					"errors": map[string]interface{}{
+						"filter": map[string]interface{}{
+							"bool": map[string]interface{}{
+								"should": []map[string]interface{}{
+									{"term": map[string]interface{}{"status.code": "Error"}},
+									{"term": map[string]interface{}{"status.code": "STATUS_CODE_ERROR"}},
+									{"range": map[string]interface{}{"status.code": map[string]interface{}{"gte": 2}}},
+								},
+								"minimum_should_match": 1,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Add time range filter if specified
+	if lookback != "" {
+		filters := query["query"].(map[string]interface{})["bool"].(map[string]interface{})["filter"].([]map[string]interface{})
+		filters = append(filters, map[string]interface{}{
+			"range": map[string]interface{}{
+				"@timestamp": map[string]interface{}{
+					"gte": lookback,
+				},
+			},
+		})
+		query["query"].(map[string]interface{})["bool"].(map[string]interface{})["filter"] = filters
+	}
+
+	queryJSON, err := json.Marshal(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal query: %w", err)
+	}
+
+	res, err := c.es.Search(
+		c.es.Search.WithContext(ctx),
+		c.es.Search.WithIndex(c.index+"*"),
+		c.es.Search.WithBody(bytes.NewReader(queryJSON)),
+		c.es.Search.WithSize(0),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute aggregation: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		body, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("aggregation failed: %s - %s", res.Status(), string(body))
+	}
+
+	// Parse response
+	var raw map[string]interface{}
+	if err := json.NewDecoder(res.Body).Decode(&raw); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	aggs, ok := raw["aggregations"].(map[string]interface{})
+	if !ok {
+		return []TransactionNameAgg{}, nil
+	}
+
+	txNames, ok := aggs["tx_names"].(map[string]interface{})
+	if !ok {
+		return []TransactionNameAgg{}, nil
+	}
+
+	buckets, ok := txNames["buckets"].([]interface{})
+	if !ok {
+		return []TransactionNameAgg{}, nil
+	}
+
+	result := make([]TransactionNameAgg, 0, len(buckets))
+	for _, b := range buckets {
+		bucket, ok := b.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		agg := TransactionNameAgg{}
+
+		if name, ok := bucket["key"].(string); ok {
+			agg.Name = name
+		}
+		if count, ok := bucket["doc_count"].(float64); ok {
+			agg.Count = int64(count)
+		}
+
+		// Extract average duration (convert from nanoseconds to milliseconds)
+		if avgDur, ok := bucket["avg_duration"].(map[string]interface{}); ok {
+			if v, ok := avgDur["value"].(float64); ok {
+				agg.AvgDuration = v / 1_000_000 // nano to ms
+			}
+		}
+
+		// Calculate error rate
+		if errors, ok := bucket["errors"].(map[string]interface{}); ok {
+			if errorCount, ok := errors["doc_count"].(float64); ok {
+				if agg.Count > 0 {
+					agg.ErrorRate = (errorCount / float64(agg.Count)) * 100
+				}
+			}
+		}
+
+		result = append(result, agg)
+	}
+
+	return result, nil
 }
