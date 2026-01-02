@@ -34,6 +34,12 @@ var (
 			Padding(0, 1).
 			MarginBottom(1)
 
+	// Title header with cat ASCII art
+	TitleHeaderStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(primaryColor).
+				Padding(0, 1)
+
 	// Status bar
 	StatusBarStyle = lipgloss.NewStyle().
 			Foreground(fgColor).

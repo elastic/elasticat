@@ -64,9 +64,16 @@ const (
 type SignalType int
 
 const (
-	signalLogs SignalType = iota
-	signalTraces
-	signalMetrics
+	SignalLogs SignalType = iota
+	SignalTraces
+	SignalMetrics
+)
+
+// Unexported aliases for backward compatibility within this package
+const (
+	signalLogs    = SignalLogs
+	signalTraces  = SignalTraces
+	signalMetrics = SignalMetrics
 )
 
 // LookbackDuration represents preset time ranges
@@ -143,13 +150,13 @@ func (s SignalType) String() string {
 func (s SignalType) IndexPattern() string {
 	switch s {
 	case signalLogs:
-		return "logs"
+		return "logs-*"
 	case signalTraces:
-		return "traces"
+		return "traces-*"
 	case signalMetrics:
-		return "metrics"
+		return "metrics-*"
 	default:
-		return "logs"
+		return "logs-*"
 	}
 }
 
@@ -379,6 +386,8 @@ type Model struct {
 	selectedTxName     string                   // Selected transaction name filter
 	selectedTraceID    string                   // Selected trace_id for spans view
 	tracesLoading      bool                     // Loading transaction names
+	spans              []es.LogEntry            // Child spans for selected trace
+	spansLoading       bool                     // Loading spans for trace
 }
 
 // Messages
@@ -407,8 +416,12 @@ type (
 		names []es.TransactionNameAgg
 		err   error
 	}
-	tickMsg   time.Time
-	errMsg    error
+	spansMsg struct {
+		spans []es.LogEntry
+		err   error
+	}
+	tickMsg time.Time
+	errMsg  error
 	statusMsg string
 )
 
@@ -418,7 +431,7 @@ func (m Model) Highlighter() *Highlighter {
 }
 
 // NewModel creates a new TUI model
-func NewModel(client *es.Client) Model {
+func NewModel(client *es.Client, signal SignalType) Model {
 	ti := textinput.New()
 	ti.Placeholder = "Search... (supports ES query syntax)"
 	ti.CharLimit = 256
@@ -428,32 +441,46 @@ func NewModel(client *es.Client) Model {
 	ii.Placeholder = "Index pattern (e.g., logs, traces, metrics)"
 	ii.CharLimit = 128
 	ii.Width = 50
+
+	// Set the client's index pattern based on the signal type
+	client.SetIndex(signal.IndexPattern())
 	ii.SetValue(client.GetIndex())
 
 	vp := viewport.New(80, 20)
 
-	signal := signalLogs
+	// Determine initial view mode based on signal type
+	var initialMode viewMode
+	switch signal {
+	case SignalTraces:
+		initialMode = viewTraceNames
+	case SignalMetrics:
+		initialMode = viewMetricsDashboard
+	default:
+		initialMode = viewLogs
+	}
 
 	return Model{
-		client:        client,
-		logs:          []es.LogEntry{},
-		mode:          viewLogs,
-		autoRefresh:   true,
-		signalType:    signal,
-		lookback:      lookback24h,
-		displayFields: DefaultFields(signal),
-		searchInput:   ti,
-		indexInput:    ii,
-		viewport:      vp,
-		width:         80,
-		height:        24,
+		client:          client,
+		logs:            []es.LogEntry{},
+		mode:            initialMode,
+		autoRefresh:     true,
+		signalType:      signal,
+		lookback:        lookback24h,
+		displayFields:   DefaultFields(signal),
+		searchInput:     ti,
+		indexInput:      ii,
+		viewport:        vp,
+		width:           80,
+		height:          24,
+		traceViewLevel:  traceViewNames,        // Start at transaction names for traces
+		metricsViewMode: metricsViewAggregated, // Start at aggregated view for metrics
 	}
 }
 
 // Init initializes the model
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
-		m.fetchLogs(),
+		m.autoDetectLookback(),
 		m.tickCmd(),
 		func() tea.Msg { return tea.EnableMouseCellMotion() },
 	)
@@ -488,6 +515,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = nil
 			m.lastQueryJSON = msg.queryJSON
 			m.lastQueryIndex = msg.index
+
+			// Fetch spans for the selected trace when logs first load
+			if m.signalType == signalTraces && len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
+				traceID := m.logs[m.selectedIndex].TraceID
+				if traceID != "" {
+					m.spansLoading = true
+					return m, m.fetchSpans(traceID)
+				}
+			}
 		}
 		return m, nil
 
@@ -562,6 +598,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.err
 		} else {
 			m.transactionNames = msg.names
+			m.err = nil
+		}
+		return m, nil
+
+	case spansMsg:
+		m.spansLoading = false
+		if msg.err != nil {
+			m.err = msg.err
+		} else {
+			m.spans = msg.spans
 			m.err = nil
 		}
 		return m, nil
@@ -806,10 +852,26 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "up", "k":
 		if m.selectedIndex > 0 {
 			m.selectedIndex--
+			// Fetch spans for traces when selection changes
+			if m.signalType == signalTraces && len(m.logs) > 0 {
+				traceID := m.logs[m.selectedIndex].TraceID
+				if traceID != "" {
+					m.spansLoading = true
+					return m, m.fetchSpans(traceID)
+				}
+			}
 		}
 	case "down", "j":
 		if m.selectedIndex < len(m.logs)-1 {
 			m.selectedIndex++
+			// Fetch spans for traces when selection changes
+			if m.signalType == signalTraces && len(m.logs) > 0 {
+				traceID := m.logs[m.selectedIndex].TraceID
+				if traceID != "" {
+					m.spansLoading = true
+					return m, m.fetchSpans(traceID)
+				}
+			}
 		}
 	case "home", "g":
 		m.selectedIndex = 0
@@ -1526,8 +1588,9 @@ func (m Model) View() string {
 
 	// Calculate heights
 	// Total available: m.height
-	// Fixed elements: status bar (1) + help bar (1) + compact detail (5) + padding (2) + newlines (3)
-	fixedHeight := statusBarHeight + helpBarHeight + compactDetailHeight + layoutPadding + 3
+	// Fixed elements: title header (1) + status bar (1) + help bar (1) + compact detail (5) + padding (2) + newlines (4)
+	const titleHeaderHeight = 1
+	fixedHeight := titleHeaderHeight + statusBarHeight + helpBarHeight + compactDetailHeight + layoutPadding + 4
 	logListHeight := m.height - fixedHeight
 	if logListHeight < 3 {
 		logListHeight = 3
@@ -1535,7 +1598,11 @@ func (m Model) View() string {
 
 	var b strings.Builder
 
-	// Status bar (top)
+	// Title header (top)
+	b.WriteString(m.renderTitleHeader())
+	b.WriteString("\n")
+
+	// Status bar
 	b.WriteString(m.renderStatusBar())
 	b.WriteString("\n")
 
@@ -1578,6 +1645,27 @@ func (m Model) View() string {
 	b.WriteString(m.renderHelpBar())
 
 	return AppStyle.Render(b.String())
+}
+
+// renderTitleHeader renders the title header with cat ASCII art and frame line
+func (m Model) renderTitleHeader() string {
+	title := " =^..^= 𝓣𝑬𝓵𝓪𝓼𝓽𝓲𝓒𝓪𝓽 =^..^= "
+
+	// Calculate how many characters we need for the line to fill the width
+	// Account for padding in the style (2 chars)
+	availableWidth := m.width - 2
+	titleLen := len([]rune(title)) // Use rune length for Unicode
+
+	if titleLen >= availableWidth {
+		return TitleHeaderStyle.Width(m.width).Render(title)
+	}
+
+	// Fill the rest with box drawing characters
+	lineChars := availableWidth - titleLen
+	line := strings.Repeat("═", lineChars)
+
+	fullHeader := title + line
+	return TitleHeaderStyle.Width(m.width).Render(fullHeader)
 }
 
 func (m Model) renderStatusBar() string {
@@ -1988,6 +2076,39 @@ func (m Model) renderCompactDetail() string {
 				b.WriteString(DetailKeyStyle.Render("Span: "))
 				b.WriteString(DetailMutedStyle.Render(log.SpanID))
 			}
+		}
+		// Fourth line: Show child spans
+		b.WriteString("\n")
+		if m.spansLoading {
+			b.WriteString(DetailKeyStyle.Render("Spans: "))
+			b.WriteString(LoadingStyle.Render("Loading..."))
+		} else if len(m.spans) > 0 {
+			b.WriteString(DetailKeyStyle.Render(fmt.Sprintf("Spans (%d): ", len(m.spans))))
+			// Show first 5 span names
+			spanNames := []string{}
+			for i, span := range m.spans {
+				if i >= 5 {
+					spanNames = append(spanNames, "…")
+					break
+				}
+				name := span.Name
+				if name == "" {
+					name = span.GetMessage()
+				}
+				if name == "" {
+					name = "unnamed"
+				}
+				spanNames = append(spanNames, name)
+			}
+			spansStr := strings.Join(spanNames, " → ")
+			maxLen := m.width - 20
+			if len(spansStr) > maxLen {
+				spansStr = spansStr[:maxLen-3] + "..."
+			}
+			b.WriteString(DetailValueStyle.Render(spansStr))
+		} else if log.TraceID != "" {
+			b.WriteString(DetailKeyStyle.Render("Spans: "))
+			b.WriteString(DetailMutedStyle.Render("No child spans"))
 		}
 	case signalMetrics:
 		// Show attributes for metrics (often contains span info)
@@ -2770,6 +2891,46 @@ func (m Model) renderLogDetail(log es.LogEntry) string {
 			b.WriteString("\n\n")
 		}
 
+		// Child spans
+		if m.spansLoading {
+			b.WriteString(DetailKeyStyle.Render("Child Spans: "))
+			b.WriteString(LoadingStyle.Render("Loading..."))
+			b.WriteString("\n\n")
+		} else if len(m.spans) > 0 {
+			b.WriteString(DetailKeyStyle.Render(fmt.Sprintf("Child Spans (%d):", len(m.spans))))
+			b.WriteString("\n")
+			// Show all spans in a simple waterfall-like view
+			for i, span := range m.spans {
+				name := span.Name
+				if name == "" {
+					name = span.GetMessage()
+				}
+				if name == "" {
+					name = "unnamed"
+				}
+
+				// Add indentation to show hierarchy (basic waterfall approximation)
+				indent := "  "
+				if i > 0 {
+					indent = "    "
+				}
+
+				// Duration
+				durationStr := ""
+				if span.Duration > 0 {
+					ms := float64(span.Duration) / 1_000_000.0
+					if ms < 1 {
+						durationStr = fmt.Sprintf(" (%.3fms)", ms)
+					} else {
+						durationStr = fmt.Sprintf(" (%.2fms)", ms)
+					}
+				}
+
+				b.WriteString(fmt.Sprintf("%s%d. %s%s\n", indent, i+1, name, durationStr))
+			}
+			b.WriteString("\n")
+		}
+
 	default: // Logs
 		b.WriteString(DetailKeyStyle.Render("Level: "))
 		b.WriteString(hl.ApplyToField(log.GetLevel(), LevelStyle(log.GetLevel())))
@@ -3020,6 +3181,21 @@ func (m Model) fetchTransactionNames() tea.Cmd {
 		}
 
 		return transactionNamesMsg{names: names}
+	}
+}
+
+// fetchSpans fetches all child spans for a given trace ID
+func (m Model) fetchSpans(traceID string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		result, err := m.client.GetSpansByTraceID(ctx, traceID)
+		if err != nil {
+			return spansMsg{err: err}
+		}
+
+		return spansMsg{spans: result.Logs}
 	}
 }
 

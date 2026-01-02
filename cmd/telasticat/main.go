@@ -78,7 +78,23 @@ var logsCmd = &cobra.Command{
 	Use:   "logs",
 	Short: "Open the interactive log viewer TUI",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runLogs()
+		return runTUI(tui.SignalLogs)
+	},
+}
+
+var metricsCmd = &cobra.Command{
+	Use:   "metrics",
+	Short: "Open the interactive metrics viewer TUI",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runTUI(tui.SignalMetrics)
+	},
+}
+
+var tracesCmd = &cobra.Command{
+	Use:   "traces",
+	Short: "Open the interactive traces viewer TUI",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runTUI(tui.SignalTraces)
 	},
 }
 
@@ -147,7 +163,7 @@ Examples:
 func init() {
 	// Global flags
 	rootCmd.PersistentFlags().StringVar(&esURL, "es-url", "http://localhost:9200", "Elasticsearch URL")
-	rootCmd.PersistentFlags().StringVar(&esIndex, "index", "logs", "Elasticsearch index/data stream pattern (e.g., 'logs', 'logs-myapp')")
+	rootCmd.PersistentFlags().StringVar(&esIndex, "index", "logs-*", "Elasticsearch index/data stream pattern (e.g., 'logs-*', 'logs-myapp-*')")
 
 	// Up command flags
 	upCmd.Flags().StringVar(&dockerDir, "dir", "", "Docker compose directory (default: auto-detect)")
@@ -178,6 +194,8 @@ func init() {
 	rootCmd.AddCommand(upCmd)
 	rootCmd.AddCommand(downCmd)
 	rootCmd.AddCommand(logsCmd)
+	rootCmd.AddCommand(metricsCmd)
+	rootCmd.AddCommand(tracesCmd)
 	rootCmd.AddCommand(tailCmd)
 	rootCmd.AddCommand(searchCmd)
 	rootCmd.AddCommand(statusCmd)
@@ -327,7 +345,7 @@ func runDown() error {
 	return nil
 }
 
-func runLogs() error {
+func runTUI(signal tui.SignalType) error {
 	client, err := es.New([]string{esURL}, esIndex)
 	if err != nil {
 		return fmt.Errorf("failed to create ES client: %w", err)
@@ -343,7 +361,7 @@ func runLogs() error {
 		fmt.Println()
 	}
 
-	model := tui.NewModel(client)
+	model := tui.NewModel(client, signal)
 	p := tea.NewProgram(model, tea.WithAltScreen())
 
 	if _, err := p.Run(); err != nil {

@@ -200,6 +200,18 @@ func (c *Client) Tail(ctx context.Context, opts TailOptions) (*SearchResult, err
 	return parseSearchResponse(res.Body)
 }
 
+// GetSpansByTraceID fetches all spans for a given trace ID
+func (c *Client) GetSpansByTraceID(ctx context.Context, traceID string) (*SearchResult, error) {
+	opts := TailOptions{
+		Size:           1000, // Get up to 1000 spans per trace (should be enough for most traces)
+		TraceID:        traceID,
+		ProcessorEvent: "span", // Only get spans, not transactions
+		SortAsc:        true,   // Sort by timestamp ascending to show chronological order
+	}
+
+	return c.Tail(ctx, opts)
+}
+
 // Search performs a full-text search on logs
 func (c *Client) Search(ctx context.Context, queryStr string, opts SearchOptions) (*SearchResult, error) {
 	query := buildSearchQuery(queryStr, opts)
