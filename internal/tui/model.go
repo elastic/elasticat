@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/andrewvc/turboelasticat/internal/es"
+	"github.com/andrewvc/turboelasticat/internal/es/metrics"
+	"github.com/andrewvc/turboelasticat/internal/es/traces"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 )
@@ -14,13 +16,14 @@ type Model struct {
 	client *es.Client
 
 	// State
-	logs          []es.LogEntry
-	selectedIndex int
-	mode          viewMode
-	previousMode  viewMode // Store previous mode when showing error modal
-	err           error
-	loading       bool
-	total         int64
+	logs            []es.LogEntry
+	selectedIndex   int
+	userHasScrolled bool // Track if user manually scrolled (for tail -f behavior)
+	mode            viewMode
+	previousMode    viewMode // Store previous mode when showing error modal
+	err             error
+	loading         bool
+	total           int64
 
 	// Filters
 	levelFilter    string
@@ -74,13 +77,13 @@ type Model struct {
 
 	// Metrics dashboard state
 	metricsViewMode   MetricsViewMode
-	aggregatedMetrics *es.MetricsAggResult
+	aggregatedMetrics *metrics.MetricsAggResult
 	metricsLoading    bool
 	metricsCursor     int // Selected metric in dashboard
 
 	// Traces navigation state
 	traceViewLevel     TraceViewLevel           // Current navigation level
-	transactionNames   []es.TransactionNameAgg  // Aggregated transaction names
+	transactionNames   []traces.TransactionNameAgg  // Aggregated transaction names
 	traceNamesCursor   int                      // Cursor in transaction names list
 	selectedTxName     string                   // Selected transaction name filter
 	selectedTraceID    string                   // Selected trace_id for spans view

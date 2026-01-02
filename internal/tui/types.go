@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/andrewvc/turboelasticat/internal/es"
+	"github.com/andrewvc/turboelasticat/internal/es/metrics"
+	"github.com/andrewvc/turboelasticat/internal/es/traces"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -358,11 +360,11 @@ type (
 		err      error
 	}
 	metricsAggMsg struct {
-		result *es.MetricsAggResult
+		result *metrics.MetricsAggResult
 		err    error
 	}
 	transactionNamesMsg struct {
-		names []es.TransactionNameAgg
+		names []traces.TransactionNameAgg
 		err   error
 	}
 	spansMsg struct {

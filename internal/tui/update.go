@@ -46,6 +46,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.lastQueryJSON = msg.queryJSON
 			m.lastQueryIndex = msg.index
 
+			// Tail -f behavior: auto-select newest log unless user has manually scrolled
+			if !m.userHasScrolled && len(m.logs) > 0 {
+				if m.sortAscending {
+					// Oldest first (asc) → newest is at the end
+					m.selectedIndex = len(m.logs) - 1
+				} else {
+					// Newest first (desc) → newest is at the beginning
+					m.selectedIndex = 0
+				}
+			}
+
+			// Ensure selectedIndex is valid
+			if m.selectedIndex >= len(m.logs) {
+				m.selectedIndex = len(m.logs) - 1
+			}
+			if m.selectedIndex < 0 && len(m.logs) > 0 {
+				m.selectedIndex = 0
+			}
+
 			// Fetch spans for the selected trace when logs first load
 			if m.signalType == signalTraces && len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
 				traceID := m.logs[m.selectedIndex].TraceID

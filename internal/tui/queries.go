@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/andrewvc/turboelasticat/internal/es"
+	"github.com/andrewvc/turboelasticat/internal/es/metrics"
+	"github.com/andrewvc/turboelasticat/internal/es/perspectives"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -90,7 +92,7 @@ func (m Model) fetchAggregatedMetrics() tea.Cmd {
 		lookbackRange := m.lookback.ESRange()
 		bucketInterval := es.LookbackToBucketInterval(lookbackRange)
 
-		opts := es.AggregateMetricsOptions{
+		opts := metrics.AggregateMetricsOptions{
 			Lookback:   lookbackRange,
 			BucketSize: bucketInterval,
 			Service:    m.filterService,
@@ -142,7 +144,7 @@ func (m Model) fetchPerspectiveData() tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		var aggs []es.PerspectiveAgg
+		var aggs []perspectives.PerspectiveAgg
 		var err error
 
 		switch m.currentPerspective {

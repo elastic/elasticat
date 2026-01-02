@@ -238,6 +238,7 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "up", "k":
 		if m.selectedIndex > 0 {
 			m.selectedIndex--
+			m.userHasScrolled = true // User manually scrolled
 			// Fetch spans for traces when selection changes
 			if m.signalType == signalTraces && len(m.logs) > 0 {
 				traceID := m.logs[m.selectedIndex].TraceID
@@ -250,6 +251,7 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "down", "j":
 		if m.selectedIndex < len(m.logs)-1 {
 			m.selectedIndex++
+			m.userHasScrolled = true // User manually scrolled
 			// Fetch spans for traces when selection changes
 			if m.signalType == signalTraces && len(m.logs) > 0 {
 				traceID := m.logs[m.selectedIndex].TraceID
@@ -261,20 +263,24 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "home", "g":
 		m.selectedIndex = 0
+		m.userHasScrolled = true // User manually scrolled
 	case "end", "G":
 		if len(m.logs) > 0 {
 			m.selectedIndex = len(m.logs) - 1
 		}
+		m.userHasScrolled = true // User manually scrolled
 	case "pgup":
 		m.selectedIndex -= 10
 		if m.selectedIndex < 0 {
 			m.selectedIndex = 0
 		}
+		m.userHasScrolled = true // User manually scrolled
 	case "pgdown":
 		m.selectedIndex += 10
 		if m.selectedIndex >= len(m.logs) {
 			m.selectedIndex = len(m.logs) - 1
 		}
+		m.userHasScrolled = true // User manually scrolled
 	case "/":
 		m.mode = viewSearch
 		m.searchInput.Focus()
@@ -296,26 +302,32 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.filterService = ""
 		m.filterResource = ""
 		m.levelFilter = ""
+		m.userHasScrolled = false // Reset for tail -f behavior
 		m.loading = true
 		return m, m.fetchLogs()
 	case "1":
 		m.levelFilter = "ERROR"
+		m.userHasScrolled = false // Reset for tail -f behavior
 		m.loading = true
 		return m, m.fetchLogs()
 	case "2":
 		m.levelFilter = "WARN"
+		m.userHasScrolled = false // Reset for tail -f behavior
 		m.loading = true
 		return m, m.fetchLogs()
 	case "3":
 		m.levelFilter = "INFO"
+		m.userHasScrolled = false // Reset for tail -f behavior
 		m.loading = true
 		return m, m.fetchLogs()
 	case "4":
 		m.levelFilter = "DEBUG"
+		m.userHasScrolled = false // Reset for tail -f behavior
 		m.loading = true
 		return m, m.fetchLogs()
 	case "0":
 		m.levelFilter = ""
+		m.userHasScrolled = false // Reset for tail -f behavior
 		m.loading = true
 		return m, m.fetchLogs()
 	case "i":
@@ -475,6 +487,7 @@ func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
 		m.searchQuery = m.searchInput.Value()
+		m.userHasScrolled = false // Reset for tail -f behavior
 		m.mode = viewLogs
 		m.searchInput.Blur()
 		m.loading = true
@@ -1081,6 +1094,7 @@ func (m Model) handlePerspectiveListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					m.filterService = selected.Name
 					m.statusMessage = fmt.Sprintf("Filtered to service: %s", selected.Name)
 				}
+				m.userHasScrolled = false // Reset for tail -f behavior
 			case PerspectiveResources:
 				if m.filterResource == selected.Name {
 					// Unset if already active
@@ -1091,6 +1105,7 @@ func (m Model) handlePerspectiveListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					m.filterResource = selected.Name
 					m.statusMessage = fmt.Sprintf("Filtered to resource: %s", selected.Name)
 				}
+				m.userHasScrolled = false // Reset for tail -f behavior
 			}
 			m.statusTime = time.Now()
 
@@ -1101,6 +1116,7 @@ func (m Model) handlePerspectiveListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Clear filters
 		m.filterService = ""
 		m.filterResource = ""
+		m.userHasScrolled = false // Reset for tail -f behavior
 		m.statusMessage = "Filters cleared"
 		m.statusTime = time.Now()
 		m.mode = viewLogs

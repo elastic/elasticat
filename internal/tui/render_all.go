@@ -126,102 +126,21 @@ func (m Model) View() string {
 }
 
 // renderTitleHeader renders the title header with cat ASCII art and frame line
-func (m Model) renderTitleHeader() string {
-	title := "\\ =^..^= 𝓣𝑬𝓵𝓪𝓼𝓽𝓲𝓒𝓪𝓽 =^..^= /"
-
-	// Add perspective indicator when in perspective view
-	if m.mode == viewPerspectiveList {
-		title = "\\ =^..^= 𝓣𝑬𝓵𝓪𝓼𝓽𝓲𝓒𝓪𝓽 [" + m.currentPerspective.String() + "] =^..^= /"
-	}
-
-	// Build operational info for right side
-	var infoParts []string
-	infoParts = append(infoParts, "Lookback: "+m.lookback.String())
-
-	if m.sortAscending {
-		infoParts = append(infoParts, "Sort: oldest→")
-	} else {
-		infoParts = append(infoParts, "Sort: newest→")
-	}
-
-	if m.autoRefresh {
-		infoParts = append(infoParts, "Auto: ON")
-	} else {
-		infoParts = append(infoParts, "Auto: OFF")
-	}
-
-	// Make entire operational info white
-	rightInfo := lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Render("[ " + strings.Join(infoParts, " │ ") + " ]")
-
-	// Calculate how many characters we need for the line to fill the width
-	// Account for padding in the style (2 chars)
-	// Use lipgloss.Width to get actual rendered width (ignoring ANSI codes)
-	availableWidth := m.width - 2
-	titleLen := lipgloss.Width(title)
-	rightInfoLen := lipgloss.Width(rightInfo)
-
-	// Check if everything fits
-	if titleLen+rightInfoLen >= availableWidth {
-		// Not enough space, just show title with line
-		lineChars := availableWidth - titleLen
-		if lineChars < 0 {
-			lineChars = 0
-		}
-		line := strings.Repeat("═", lineChars)
-		return TitleHeaderStyle.Width(m.width).Render(title + line)
-	}
-
-	// Fill the middle with box drawing characters
-	lineChars := availableWidth - titleLen - rightInfoLen
-	line := strings.Repeat("═", lineChars)
-
-	fullHeader := title + line + rightInfo
-	return TitleHeaderStyle.Width(m.width).Render(fullHeader)
-}
-
-func (m Model) renderStatusBar() string {
-	// Row 1: Signal, Index, Total, Filters, Loading
-	var row1Parts []string
-
-	// Signal type
-	row1Parts = append(row1Parts, StatusKeyStyle.Render("Signal: ")+StatusValueStyle.Render(m.signalType.String()))
-
-	// Current index
-	row1Parts = append(row1Parts, StatusKeyStyle.Render("Idx: ")+StatusValueStyle.Render(m.client.GetIndex()+"*"))
-
-	// Total logs
-	row1Parts = append(row1Parts, StatusKeyStyle.Render("Total: ")+StatusValueStyle.Render(fmt.Sprintf("%d", m.total)))
-
-	// Filters (with visual indicator when active)
-	if m.searchQuery != "" {
-		row1Parts = append(row1Parts, StatusKeyStyle.Render("Query: ")+StatusValueStyle.Render(TruncateWithEllipsis(m.searchQuery, 20)))
-	}
-	if m.levelFilter != "" {
-		row1Parts = append(row1Parts, StatusKeyStyle.Render("Level: ")+StatusValueStyle.Render(m.levelFilter))
-	}
-	if m.filterService != "" {
-		row1Parts = append(row1Parts, lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")).Bold(true).Render("⚡ Service: ")+StatusValueStyle.Render(m.filterService))
-	}
-	if m.filterResource != "" {
-		row1Parts = append(row1Parts, lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")).Bold(true).Render("⚡ Resource: ")+StatusValueStyle.Render(m.filterResource))
-	}
-
-	// Loading indicator
-	if m.loading {
-		row1Parts = append(row1Parts, LoadingStyle.Render("loading..."))
-	}
-
-	row1 := strings.Join(row1Parts, "  │  ")
-
-	// Row 2: Only ES status if there's an error
-	var row2 string
-	if m.err != nil {
-		row2 = "\n" + ErrorStyle.Render("ES: err")
-	}
-
-	// Combine rows (row2 only if it has content)
-	return StatusBarStyle.Width(m.width - 2).Render(row1 + row2)
-}
+// Component render functions have been extracted to separate files:
+// - renderTitleHeader() → header.go
+// - renderStatusBar() → statusbar.go
+// - renderSearchInput() → inputs.go
+// - renderIndexInput() → inputs.go
+// - renderHelpBar() → helpbar.go
+//
+// Formatting functions have been extracted to separate files:
+// - formatRelativeTime() → formatting_time.go
+// - generateSparkline() → formatting_metrics.go
+// - formatMetricValue() → formatting_metrics.go
+// - renderLargeChart() → formatting_charts.go
+// - PadLeft() → formatting_text.go
+// - TruncateWithEllipsis() → formatting_text.go (was in styles.go)
+// - PadOrTruncate() → formatting_text.go (was in styles.go)
 
 func (m Model) renderLogList() string {
 	// Default height calculation for backwards compatibility
@@ -412,42 +331,6 @@ func (m Model) renderLogEntry(log es.LogEntry, selected bool) string {
 }
 
 // formatRelativeTime returns a human-readable relative time string
-func formatRelativeTime(t time.Time) string {
-	now := time.Now()
-	diff := now.Sub(t)
-
-	if diff < 0 {
-		diff = -diff
-		// Future time
-		if diff < time.Minute {
-			return fmt.Sprintf("+%ds", int(diff.Seconds()))
-		}
-		if diff < time.Hour {
-			return fmt.Sprintf("+%dm", int(diff.Minutes()))
-		}
-		return fmt.Sprintf("+%dh", int(diff.Hours()))
-	}
-
-	switch {
-	case diff < time.Second:
-		return "now"
-	case diff < time.Minute:
-		return fmt.Sprintf("%ds ago", int(diff.Seconds()))
-	case diff < time.Hour:
-		return fmt.Sprintf("%dm ago", int(diff.Minutes()))
-	case diff < 24*time.Hour:
-		return fmt.Sprintf("%dh ago", int(diff.Hours()))
-	case diff < 7*24*time.Hour:
-		return fmt.Sprintf("%dd ago", int(diff.Hours()/24))
-	case diff < 30*24*time.Hour:
-		return fmt.Sprintf("%dw ago", int(diff.Hours()/(24*7)))
-	case diff < 365*24*time.Hour:
-		return fmt.Sprintf("%dmo ago", int(diff.Hours()/(24*30)))
-	default:
-		return fmt.Sprintf("%dy ago", int(diff.Hours()/(24*365)))
-	}
-}
-
 // renderCompactDetail renders a compact detail view of the selected log at the bottom
 func (m Model) renderCompactDetail() string {
 	if len(m.logs) == 0 || m.selectedIndex >= len(m.logs) {
@@ -655,18 +538,6 @@ func (m Model) renderCompactDetail() string {
 	}
 
 	return CompactDetailStyle.Width(m.width - 4).Height(compactDetailHeight).Render(b.String())
-}
-
-func (m Model) renderSearchInput() string {
-	prompt := SearchPromptStyle.Render("Search: ")
-	input := m.searchInput.View()
-	return SearchStyle.Width(m.width - 4).Render(prompt + input)
-}
-
-func (m Model) renderIndexInput() string {
-	prompt := SearchPromptStyle.Render("Index: ")
-	input := m.indexInput.View()
-	return SearchStyle.Width(m.width - 4).Render(prompt + input)
 }
 
 // renderQueryOverlay renders a floating window with the ES query
@@ -998,83 +869,6 @@ func (m Model) renderMetricsCompactDetail() string {
 }
 
 // generateSparkline creates a Unicode sparkline from time series buckets
-func generateSparkline(buckets []es.MetricBucket, width int) string {
-	if len(buckets) == 0 {
-		return strings.Repeat("-", width)
-	}
-
-	// Get min/max for scaling
-	var minVal, maxVal float64 = buckets[0].Value, buckets[0].Value
-	for _, b := range buckets {
-		if b.Value < minVal {
-			minVal = b.Value
-		}
-		if b.Value > maxVal {
-			maxVal = b.Value
-		}
-	}
-
-	// Handle constant values
-	valRange := maxVal - minVal
-	if valRange == 0 {
-		valRange = 1
-	}
-
-	// Sample or interpolate to fit width
-	var result strings.Builder
-	step := float64(len(buckets)) / float64(width)
-
-	for i := 0; i < width; i++ {
-		idx := int(float64(i) * step)
-		if idx >= len(buckets) {
-			idx = len(buckets) - 1
-		}
-
-		// Normalize to 0-7 range for sparkline chars
-		normalized := (buckets[idx].Value - minVal) / valRange
-		charIdx := int(normalized * 7)
-		if charIdx > 7 {
-			charIdx = 7
-		}
-		if charIdx < 0 {
-			charIdx = 0
-		}
-
-		result.WriteRune(sparklineChars[charIdx])
-	}
-
-	return result.String()
-}
-
-// formatMetricValue formats a float64 for compact display
-func formatMetricValue(v float64) string {
-	if v != v { // NaN check
-		return "-"
-	}
-
-	absV := v
-	if absV < 0 {
-		absV = -absV
-	}
-
-	switch {
-	case absV == 0:
-		return "0"
-	case absV >= 1_000_000_000:
-		return fmt.Sprintf("%.1fG", v/1_000_000_000)
-	case absV >= 1_000_000:
-		return fmt.Sprintf("%.1fM", v/1_000_000)
-	case absV >= 1_000:
-		return fmt.Sprintf("%.1fK", v/1_000)
-	case absV >= 1:
-		return fmt.Sprintf("%.1f", v)
-	case absV >= 0.01:
-		return fmt.Sprintf("%.2f", v)
-	default:
-		return fmt.Sprintf("%.3f", v)
-	}
-}
-
 // renderMetricDetail renders a full-screen view of a single metric with a large chart
 func (m Model) renderMetricDetail() string {
 	contentHeight := m.getFullScreenHeight()
@@ -1139,101 +933,6 @@ func (m Model) renderMetricDetail() string {
 }
 
 // renderLargeChart creates a multi-line ASCII chart from metric buckets
-func (m Model) renderLargeChart(buckets []es.MetricBucket, minVal, maxVal float64, width, height int) string {
-	if len(buckets) == 0 {
-		return DetailMutedStyle.Render("No data points")
-	}
-
-	var b strings.Builder
-
-	// Y-axis labels width
-	yLabelWidth := 10
-
-	// Chart area dimensions
-	chartWidth := width - yLabelWidth - 2
-	if chartWidth < 10 {
-		chartWidth = 10
-	}
-
-	// Handle constant values
-	valRange := maxVal - minVal
-	if valRange == 0 {
-		valRange = 1
-		minVal = minVal - 0.5
-		maxVal = maxVal + 0.5
-	}
-
-	// Sample buckets to fit chart width
-	sampleBuckets := make([]float64, chartWidth)
-	step := float64(len(buckets)) / float64(chartWidth)
-	for i := 0; i < chartWidth; i++ {
-		idx := int(float64(i) * step)
-		if idx >= len(buckets) {
-			idx = len(buckets) - 1
-		}
-		sampleBuckets[i] = buckets[idx].Value
-	}
-
-	// Render chart rows (top to bottom)
-	for row := height - 1; row >= 0; row-- {
-		// Y-axis label
-		rowValue := minVal + (valRange * float64(row) / float64(height-1))
-		yLabel := formatMetricValue(rowValue)
-		b.WriteString(DetailMutedStyle.Render(PadLeft(yLabel, yLabelWidth)))
-		b.WriteString(" │")
-
-		// Chart row
-		for col := 0; col < chartWidth; col++ {
-			val := sampleBuckets[col]
-			// Normalize to 0..height-1
-			normalized := (val - minVal) / valRange * float64(height-1)
-			valRow := int(normalized)
-
-			if valRow == row {
-				// This is the data point
-				b.WriteString(SparklineStyle.Render("█"))
-			} else if valRow > row {
-				// Value is above this row - show bar
-				b.WriteString(SparklineStyle.Render("│"))
-			} else {
-				// Value is below this row - empty
-				b.WriteString(" ")
-			}
-		}
-		b.WriteString("\n")
-	}
-
-	// X-axis
-	b.WriteString(strings.Repeat(" ", yLabelWidth))
-	b.WriteString(" └")
-	b.WriteString(strings.Repeat("─", chartWidth))
-	b.WriteString("\n")
-
-	// X-axis labels (start and end times)
-	if len(buckets) > 0 {
-		startTime := buckets[0].Timestamp.Format("15:04:05")
-		endTime := buckets[len(buckets)-1].Timestamp.Format("15:04:05")
-		padding := chartWidth - len(startTime) - len(endTime)
-		if padding < 0 {
-			padding = 0
-		}
-		b.WriteString(strings.Repeat(" ", yLabelWidth+2))
-		b.WriteString(DetailMutedStyle.Render(startTime))
-		b.WriteString(strings.Repeat(" ", padding))
-		b.WriteString(DetailMutedStyle.Render(endTime))
-	}
-
-	return b.String()
-}
-
-// PadLeft pads a string to the left to reach the specified width
-func PadLeft(s string, width int) string {
-	if len(s) >= width {
-		return s[:width]
-	}
-	return strings.Repeat(" ", width-len(s)) + s
-}
-
 func (m Model) renderTransactionNames(listHeight int) string {
 	if m.tracesLoading {
 		return LogListStyle.Width(m.width - 4).Height(listHeight).Render(
@@ -1686,120 +1385,6 @@ func (m Model) renderErrorModal() string {
 	}
 
 	return b.String()
-}
-
-func (m Model) renderHelpBar() string {
-	var keys []string
-
-	switch m.mode {
-	case viewLogs:
-		keys = []string{
-			HelpKeyStyle.Render("m") + HelpDescStyle.Render(" signal"),
-			HelpKeyStyle.Render("p") + HelpDescStyle.Render(" perspective"),
-			HelpKeyStyle.Render("l") + HelpDescStyle.Render(" lookback"),
-			HelpKeyStyle.Render("j/k") + HelpDescStyle.Render(" scroll"),
-			HelpKeyStyle.Render("/") + HelpDescStyle.Render(" search"),
-			HelpKeyStyle.Render("enter") + HelpDescStyle.Render(" details"),
-			HelpKeyStyle.Render("s") + HelpDescStyle.Render(" sort"),
-			HelpKeyStyle.Render("f") + HelpDescStyle.Render(" fields"),
-			HelpKeyStyle.Render("c") + HelpDescStyle.Render(" clear"),
-			HelpKeyStyle.Render("Q") + HelpDescStyle.Render(" query"),
-			HelpKeyStyle.Render("q") + HelpDescStyle.Render(" quit"),
-		}
-		// Add 'd' for dashboard when viewing metrics documents
-		if m.signalType == signalMetrics && m.metricsViewMode == metricsViewDocuments {
-			keys = append([]string{HelpKeyStyle.Render("d") + HelpDescStyle.Render(" dashboard")}, keys...)
-		}
-		// Add 'esc' for trace navigation
-		if m.signalType == signalTraces && (m.traceViewLevel == traceViewTransactions || m.traceViewLevel == traceViewSpans) {
-			keys = append([]string{HelpKeyStyle.Render("esc") + HelpDescStyle.Render(" back")}, keys...)
-		}
-	case viewSearch:
-		keys = []string{
-			HelpKeyStyle.Render("enter") + HelpDescStyle.Render(" search"),
-			HelpKeyStyle.Render("esc") + HelpDescStyle.Render(" cancel"),
-		}
-	case viewIndex:
-		keys = []string{
-			HelpKeyStyle.Render("enter") + HelpDescStyle.Render(" apply"),
-			HelpKeyStyle.Render("esc") + HelpDescStyle.Render(" cancel"),
-		}
-	case viewQuery:
-		keys = []string{
-			HelpKeyStyle.Render("y") + HelpDescStyle.Render(" copy"),
-			HelpKeyStyle.Render("k") + HelpDescStyle.Render(" Kibana"),
-			HelpKeyStyle.Render("c") + HelpDescStyle.Render(" curl"),
-			HelpKeyStyle.Render("esc") + HelpDescStyle.Render(" close"),
-		}
-	case viewFields:
-		keys = []string{
-			HelpKeyStyle.Render("j/k") + HelpDescStyle.Render(" scroll"),
-			HelpKeyStyle.Render("space") + HelpDescStyle.Render(" toggle"),
-			HelpKeyStyle.Render("/") + HelpDescStyle.Render(" search"),
-			HelpKeyStyle.Render("r") + HelpDescStyle.Render(" reset"),
-			HelpKeyStyle.Render("esc") + HelpDescStyle.Render(" close"),
-		}
-	case viewDetail:
-		keys = []string{
-			HelpKeyStyle.Render("←/→") + HelpDescStyle.Render(" prev/next"),
-			HelpKeyStyle.Render("↑/↓") + HelpDescStyle.Render(" scroll"),
-			HelpKeyStyle.Render("j") + HelpDescStyle.Render(" JSON"),
-			HelpKeyStyle.Render("y") + HelpDescStyle.Render(" copy"),
-			HelpKeyStyle.Render("esc") + HelpDescStyle.Render(" close"),
-		}
-		// Add 's' for viewing spans when in traces
-		if m.signalType == signalTraces {
-			keys = append([]string{HelpKeyStyle.Render("s") + HelpDescStyle.Render(" spans")}, keys...)
-		}
-	case viewDetailJSON:
-		keys = []string{
-			HelpKeyStyle.Render("←/→") + HelpDescStyle.Render(" prev/next"),
-			HelpKeyStyle.Render("↑/↓") + HelpDescStyle.Render(" scroll"),
-			HelpKeyStyle.Render("enter") + HelpDescStyle.Render(" details"),
-			HelpKeyStyle.Render("y") + HelpDescStyle.Render(" copy"),
-			HelpKeyStyle.Render("esc") + HelpDescStyle.Render(" close"),
-		}
-	case viewMetricsDashboard:
-		keys = []string{
-			HelpKeyStyle.Render("j/k") + HelpDescStyle.Render(" scroll"),
-			HelpKeyStyle.Render("enter") + HelpDescStyle.Render(" detail"),
-			HelpKeyStyle.Render("p") + HelpDescStyle.Render(" perspective"),
-			HelpKeyStyle.Render("l") + HelpDescStyle.Render(" lookback"),
-			HelpKeyStyle.Render("d") + HelpDescStyle.Render(" documents"),
-			HelpKeyStyle.Render("r") + HelpDescStyle.Render(" refresh"),
-			HelpKeyStyle.Render("m") + HelpDescStyle.Render(" signal"),
-			HelpKeyStyle.Render("q") + HelpDescStyle.Render(" quit"),
-		}
-	case viewMetricDetail:
-		keys = []string{
-			HelpKeyStyle.Render("←/→") + HelpDescStyle.Render(" prev/next metric"),
-			HelpKeyStyle.Render("r") + HelpDescStyle.Render(" refresh"),
-			HelpKeyStyle.Render("esc") + HelpDescStyle.Render(" back to dashboard"),
-		}
-	case viewTraceNames:
-		keys = []string{
-			HelpKeyStyle.Render("j/k") + HelpDescStyle.Render(" scroll"),
-			HelpKeyStyle.Render("enter") + HelpDescStyle.Render(" select"),
-			HelpKeyStyle.Render("p") + HelpDescStyle.Render(" perspective"),
-			HelpKeyStyle.Render("l") + HelpDescStyle.Render(" lookback"),
-			HelpKeyStyle.Render("r") + HelpDescStyle.Render(" refresh"),
-			HelpKeyStyle.Render("m") + HelpDescStyle.Render(" signal"),
-			HelpKeyStyle.Render("q") + HelpDescStyle.Render(" quit"),
-		}
-	case viewPerspectiveList:
-		keys = []string{
-			HelpKeyStyle.Render("j/k") + HelpDescStyle.Render(" scroll"),
-			HelpKeyStyle.Render("enter") + HelpDescStyle.Render(" toggle filter"),
-			HelpKeyStyle.Render("p") + HelpDescStyle.Render(" cycle"),
-			HelpKeyStyle.Render("l") + HelpDescStyle.Render(" lookback"),
-			HelpKeyStyle.Render("c") + HelpDescStyle.Render(" clear all"),
-			HelpKeyStyle.Render("r") + HelpDescStyle.Render(" refresh"),
-			HelpKeyStyle.Render("esc") + HelpDescStyle.Render(" back"),
-			HelpKeyStyle.Render("q") + HelpDescStyle.Render(" quit"),
-		}
-	}
-
-	return HelpStyle.Render(strings.Join(keys, "  "))
 }
 
 // Commands

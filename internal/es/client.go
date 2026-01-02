@@ -12,113 +12,17 @@ import (
 	"time"
 
 	"github.com/elastic/go-elasticsearch/v8"
+
+	"github.com/andrewvc/turboelasticat/internal/es/metrics"
+	"github.com/andrewvc/turboelasticat/internal/es/perspectives"
+	"github.com/andrewvc/turboelasticat/internal/es/traces"
 )
 
-// Client wraps the Elasticsearch client with telasticat-specific functionality
-type Client struct {
-	es    *elasticsearch.Client
-	index string
-}
-
-// LogEntry represents a single log/trace/metric entry from Elasticsearch
-type LogEntry struct {
-	Timestamp   time.Time              `json:"@timestamp"`
-	Body        string                 `json:"body,omitempty"`
-	Message     string                 `json:"message,omitempty"`
-	EventName   string                 `json:"event_name,omitempty"`
-	Level       string                 `json:"level,omitempty"`
-	ServiceName string                 `json:"service.name,omitempty"`
-	ContainerID string                 `json:"container_id,omitempty"`
-	Attributes  map[string]interface{} `json:"attributes,omitempty"`
-	Resource    map[string]interface{} `json:"resource,omitempty"`
-	RawJSON     string                 `json:"-"` // Original JSON from ES (not serialized)
-
-	// Trace-specific fields
-	TraceID    string                 `json:"trace_id,omitempty"`
-	SpanID     string                 `json:"span_id,omitempty"`
-	Name       string                 `json:"name,omitempty"` // Span name
-	Duration   int64                  `json:"duration,omitempty"` // Duration in nanoseconds
-	Kind       string                 `json:"kind,omitempty"`
-	Status     map[string]interface{} `json:"status,omitempty"`
-
-	// Metrics-specific fields
-	Metrics map[string]interface{} `json:"metrics,omitempty"`
-	Scope   map[string]interface{} `json:"scope,omitempty"`
-}
-
-// SearchResult contains the results of a log search
-type SearchResult struct {
-	Logs     []LogEntry
-	Total    int64
-	ScrollID string
-}
-
-// MetricFieldInfo represents a discovered metric field from field_caps
-type MetricFieldInfo struct {
-	Name           string // Full field path (e.g., "metrics.raradio.session.active")
-	ShortName      string // Display name (e.g., "raradio.session.active")
-	Type           string // ES type: "long", "double", "histogram"
-	TimeSeriesType string // "gauge", "counter", or ""
-}
-
-// MetricBucket represents a single time bucket for a metric
-type MetricBucket struct {
-	Timestamp time.Time
-	Value     float64 // Aggregated value for this bucket
-	Count     int64   // Number of data points in bucket
-}
-
-// AggregatedMetric represents aggregated statistics for a single metric
-type AggregatedMetric struct {
-	Name      string         // Metric field name
-	ShortName string         // Display name
-	Type      string         // "gauge", "counter", "histogram"
-	Min       float64
-	Max       float64
-	Avg       float64
-	Latest    float64
-	Buckets   []MetricBucket // Time series data for sparkline
-}
-
-// MetricsAggResult contains all aggregated metrics
-type MetricsAggResult struct {
-	Metrics    []AggregatedMetric
-	BucketSize string // ES interval (e.g., "10s", "1m")
-}
-
-// AggregateMetricsOptions configures the metrics aggregation query
-type AggregateMetricsOptions struct {
-	Lookback   string // ES time range (e.g., "now-5m", "now-1h")
-	BucketSize string // ES interval (e.g., "10s", "1m", "5m")
-	Service    string // Filter by service name
-	Resource   string // Filter by resource environment
-}
-
-// TransactionNameAgg represents aggregated statistics for a transaction name
-type TransactionNameAgg struct {
-	Name        string  // Transaction name (e.g., "GET /api/users")
-	Count       int64   // Number of transactions
-	AvgDuration float64 // Average duration in milliseconds
-	MinDuration float64 // Minimum duration in milliseconds
-	MaxDuration float64 // Maximum duration in milliseconds
-	TraceCount  int64   // Number of unique traces
-	AvgSpans    float64 // Average number of spans per trace
-	ErrorRate   float64 // Percentage of errors (0-100)
-}
-
-// ESQLResult represents the response from an ES|QL query
-type ESQLResult struct {
-	Columns   []ESQLColumn    `json:"columns"`
-	Values    [][]interface{} `json:"values"`
-	Took      int             `json:"took"`
-	IsPartial bool            `json:"is_partial"`
-}
-
-// ESQLColumn describes a column in an ES|QL result
-type ESQLColumn struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
-}
+// Type definitions have been organized:
+// - Core types: types.go (Client, LogEntry, SearchResult, TailOptions, SearchOptions, FieldInfo)
+// - Trace types: traces/types.go (TransactionNameAgg, ESQLResult, ESQLColumn)
+// - Metric types: metrics/types.go (MetricFieldInfo, MetricBucket, AggregatedMetric, etc.)
+// - Perspective types: perspectives/types.go (PerspectiveAgg)
 
 // New creates a new Elasticsearch client
 func New(addresses []string, index string) (*Client, error) {
@@ -271,37 +175,6 @@ func (c *Client) Search(ctx context.Context, queryStr string, opts SearchOptions
 	}
 
 	return parseSearchResponse(res.Body)
-}
-
-// TailOptions configures the tail query
-type TailOptions struct {
-	Size            int
-	Service         string
-	Resource        string // Filter on resource.attributes.deployment.environment
-	Level           string
-	Since           time.Time
-	ContainerID     string
-	SortAsc         bool   // true = oldest first, false = newest first (default)
-	Lookback        string // ES time range string like "now-1h", "now-24h", or "" for no filter
-	ProcessorEvent  string // Filter on attributes.processor.event (e.g., "transaction" for traces)
-	TransactionName string // Filter on transaction name (for traces)
-	TraceID         string // Filter on trace_id (for viewing spans)
-}
-
-// SearchOptions configures the search query
-type SearchOptions struct {
-	Size            int
-	Service         string
-	Resource        string   // Filter on resource.attributes.deployment.environment
-	Level           string
-	From            time.Time
-	To              time.Time
-	SortAsc         bool     // true = oldest first, false = newest first (default)
-	SearchFields    []string // ES fields to search (if empty, uses default body/message fields)
-	Lookback        string   // ES time range string like "now-1h", "now-24h", or "" for no filter
-	ProcessorEvent  string   // Filter on attributes.processor.event (e.g., "transaction" for traces)
-	TransactionName string   // Filter on transaction name (for traces)
-	TraceID         string   // Filter on trace_id (for viewing spans)
 }
 
 // buildTailQuery constructs an ES query for tailing logs.
@@ -849,15 +722,6 @@ func (l *LogEntry) GetResource() string {
 	return ""
 }
 
-// FieldInfo represents metadata about a field from field_caps API
-type FieldInfo struct {
-	Name         string // Field name (e.g., "body.text", "severity_text")
-	Type         string // Field type (e.g., "keyword", "text", "long")
-	Searchable   bool   // Whether the field is searchable
-	Aggregatable bool   // Whether the field can be aggregated
-	DocCount     int64  // Number of documents with this field (0 = unknown)
-}
-
 // GetFieldCaps retrieves available fields from the index using the field_caps API
 // and enriches them with document counts
 func (c *Client) GetFieldCaps(ctx context.Context) ([]FieldInfo, error) {
@@ -1195,7 +1059,7 @@ func LookbackToBucketInterval(lookback string) string {
 
 // GetMetricFieldNames discovers metric field names from field_caps API
 // Returns only aggregatable numeric fields under the "metrics.*" namespace
-func (c *Client) GetMetricFieldNames(ctx context.Context) ([]MetricFieldInfo, error) {
+func (c *Client) GetMetricFieldNames(ctx context.Context) ([]metrics.MetricFieldInfo, error) {
 	res, err := c.es.FieldCaps(
 		c.es.FieldCaps.WithContext(ctx),
 		c.es.FieldCaps.WithIndex(c.index+"*"),
@@ -1223,7 +1087,7 @@ func (c *Client) GetMetricFieldNames(ctx context.Context) ([]MetricFieldInfo, er
 		return nil, fmt.Errorf("failed to decode field caps: %w", err)
 	}
 
-	var metrics []MetricFieldInfo
+	var metricFields []metrics.MetricFieldInfo
 	for name, typeMap := range response.Fields {
 		for _, info := range typeMap {
 			// Skip object types (not actual metric values)
@@ -1241,7 +1105,7 @@ func (c *Client) GetMetricFieldNames(ctx context.Context) ([]MetricFieldInfo, er
 				if strings.HasPrefix(name, "metrics.") {
 					shortName = name[8:] // Remove "metrics." prefix
 				}
-				metrics = append(metrics, MetricFieldInfo{
+				metricFields = append(metricFields, metrics.MetricFieldInfo{
 					Name:           name,
 					ShortName:      shortName,
 					Type:           info.Type,
@@ -1253,13 +1117,13 @@ func (c *Client) GetMetricFieldNames(ctx context.Context) ([]MetricFieldInfo, er
 	}
 
 	// Sort by name for consistent display
-	sortMetricFields(metrics)
+	sortMetricFields(metricFields)
 
-	return metrics, nil
+	return metricFields, nil
 }
 
 // sortMetricFields sorts metric fields by short name
-func sortMetricFields(fields []MetricFieldInfo) {
+func sortMetricFields(fields []metrics.MetricFieldInfo) {
 	for i := 0; i < len(fields)-1; i++ {
 		for j := i + 1; j < len(fields); j++ {
 			if fields[i].ShortName > fields[j].ShortName {
@@ -1270,7 +1134,7 @@ func sortMetricFields(fields []MetricFieldInfo) {
 }
 
 // AggregateMetrics retrieves aggregated statistics for all discovered metrics
-func (c *Client) AggregateMetrics(ctx context.Context, opts AggregateMetricsOptions) (*MetricsAggResult, error) {
+func (c *Client) AggregateMetrics(ctx context.Context, opts metrics.AggregateMetricsOptions) (*metrics.MetricsAggResult, error) {
 	// Discover metrics
 	metricFields, err := c.GetMetricFieldNames(ctx)
 	if err != nil {
@@ -1278,7 +1142,7 @@ func (c *Client) AggregateMetrics(ctx context.Context, opts AggregateMetricsOpti
 	}
 
 	if len(metricFields) == 0 {
-		return &MetricsAggResult{Metrics: []AggregatedMetric{}, BucketSize: opts.BucketSize}, nil
+		return &metrics.MetricsAggResult{Metrics: []metrics.AggregatedMetric{}, BucketSize: opts.BucketSize}, nil
 	}
 
 	// Limit to 50 metrics to avoid huge queries
@@ -1402,7 +1266,7 @@ func (c *Client) AggregateMetrics(ctx context.Context, opts AggregateMetricsOpti
 	return parseMetricsAggResponse(res.Body, metricFields, opts.BucketSize)
 }
 
-func parseMetricsAggResponse(body io.Reader, fields []MetricFieldInfo, bucketSize string) (*MetricsAggResult, error) {
+func parseMetricsAggResponse(body io.Reader, fields []metrics.MetricFieldInfo, bucketSize string) (*metrics.MetricsAggResult, error) {
 	// Parse the complex nested aggregation response
 	var raw map[string]interface{}
 	if err := json.NewDecoder(body).Decode(&raw); err != nil {
@@ -1411,11 +1275,11 @@ func parseMetricsAggResponse(body io.Reader, fields []MetricFieldInfo, bucketSiz
 
 	aggs, ok := raw["aggregations"].(map[string]interface{})
 	if !ok {
-		return &MetricsAggResult{Metrics: []AggregatedMetric{}, BucketSize: bucketSize}, nil
+		return &metrics.MetricsAggResult{Metrics: []metrics.AggregatedMetric{}, BucketSize: bucketSize}, nil
 	}
 
-	result := &MetricsAggResult{
-		Metrics:    make([]AggregatedMetric, 0, len(fields)),
+	result := &metrics.MetricsAggResult{
+		Metrics:    make([]metrics.AggregatedMetric, 0, len(fields)),
 		BucketSize: bucketSize,
 	}
 
@@ -1426,7 +1290,7 @@ func parseMetricsAggResponse(body io.Reader, fields []MetricFieldInfo, bucketSiz
 			continue
 		}
 
-		am := AggregatedMetric{
+		am := metrics.AggregatedMetric{
 			Name:      mf.Name,
 			ShortName: mf.ShortName,
 			Type:      mf.TimeSeriesType,
@@ -1448,13 +1312,13 @@ func parseMetricsAggResponse(body io.Reader, fields []MetricFieldInfo, bucketSiz
 		// Extract time series buckets
 		if overTime, ok := metricAgg["over_time"].(map[string]interface{}); ok {
 			if buckets, ok := overTime["buckets"].([]interface{}); ok {
-				am.Buckets = make([]MetricBucket, 0, len(buckets))
+				am.Buckets = make([]metrics.MetricBucket, 0, len(buckets))
 				for _, b := range buckets {
 					bucket, ok := b.(map[string]interface{})
 					if !ok {
 						continue
 					}
-					mb := MetricBucket{}
+					mb := metrics.MetricBucket{}
 					if keyMs, ok := bucket["key"].(float64); ok {
 						mb.Timestamp = time.UnixMilli(int64(keyMs))
 					}
@@ -1510,7 +1374,7 @@ func extractNestedFloat(data map[string]interface{}, path string) float64 {
 }
 
 // GetTransactionNames returns aggregated transaction names with statistics
-func (c *Client) GetTransactionNames(ctx context.Context, lookback, service, resource string) ([]TransactionNameAgg, error) {
+func (c *Client) GetTransactionNames(ctx context.Context, lookback, service, resource string) ([]traces.TransactionNameAgg, error) {
 	// Build base filters (WITHOUT processor.event filter - we'll add that in aggregations)
 	var filters []map[string]interface{}
 
@@ -1654,7 +1518,7 @@ func (c *Client) GetTransactionNames(ctx context.Context, lookback, service, res
 
 	aggs, ok := raw["aggregations"].(map[string]interface{})
 	if !ok {
-		return []TransactionNameAgg{}, nil
+		return []traces.TransactionNameAgg{}, nil
 	}
 
 	// Extract global span count and unique traces to calculate avgSpans
@@ -1672,27 +1536,27 @@ func (c *Client) GetTransactionNames(ctx context.Context, lookback, service, res
 	// Navigate through the "transactions" filter aggregation
 	transactions, ok := aggs["transactions"].(map[string]interface{})
 	if !ok {
-		return []TransactionNameAgg{}, nil
+		return []traces.TransactionNameAgg{}, nil
 	}
 
 	txNames, ok := transactions["tx_names"].(map[string]interface{})
 	if !ok {
-		return []TransactionNameAgg{}, nil
+		return []traces.TransactionNameAgg{}, nil
 	}
 
 	buckets, ok := txNames["buckets"].([]interface{})
 	if !ok {
-		return []TransactionNameAgg{}, nil
+		return []traces.TransactionNameAgg{}, nil
 	}
 
-	result := make([]TransactionNameAgg, 0, len(buckets))
+	result := make([]traces.TransactionNameAgg, 0, len(buckets))
 	for _, b := range buckets {
 		bucket, ok := b.(map[string]interface{})
 		if !ok {
 			continue
 		}
 
-		agg := TransactionNameAgg{}
+		agg := traces.TransactionNameAgg{}
 
 		if name, ok := bucket["key"].(string); ok {
 			agg.Name = name
@@ -1748,7 +1612,7 @@ func (c *Client) GetTransactionNames(ctx context.Context, lookback, service, res
 }
 
 // executeESQLQuery executes an ES|QL query and returns the structured result
-func (c *Client) executeESQLQuery(ctx context.Context, query string) (*ESQLResult, error) {
+func (c *Client) executeESQLQuery(ctx context.Context, query string) (*traces.ESQLResult, error) {
 	// Build request body
 	body := map[string]interface{}{
 		"query": query,
@@ -1782,7 +1646,7 @@ func (c *Client) executeESQLQuery(ctx context.Context, query string) (*ESQLResul
 	}
 
 	// Parse response
-	var result ESQLResult
+	var result traces.ESQLResult
 	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode ES|QL response: %w", err)
 	}
@@ -1792,7 +1656,7 @@ func (c *Client) executeESQLQuery(ctx context.Context, query string) (*ESQLResul
 
 // GetTransactionNamesESQL retrieves transaction aggregations using ES|QL
 // This uses a 3-query approach with client-side correlation to calculate accurate span counts per transaction name
-func (c *Client) GetTransactionNamesESQL(ctx context.Context, lookback, service, resource string) ([]TransactionNameAgg, error) {
+func (c *Client) GetTransactionNamesESQL(ctx context.Context, lookback, service, resource string) ([]traces.TransactionNameAgg, error) {
 	// Build filter clauses for queries
 	timeFilter := fmt.Sprintf("@timestamp >= NOW() - %s", strings.TrimPrefix(lookback, "now-"))
 
@@ -1831,7 +1695,7 @@ func (c *Client) GetTransactionNamesESQL(ctx context.Context, lookback, service,
 	}
 
 	// Parse transaction stats
-	txStats := make([]TransactionNameAgg, 0, len(statsResult.Values))
+	txStats := make([]traces.TransactionNameAgg, 0, len(statsResult.Values))
 	txNameToIndex := make(map[string]int) // Map tx name -> index in txStats slice
 
 	for _, row := range statsResult.Values {
@@ -1839,7 +1703,7 @@ func (c *Client) GetTransactionNamesESQL(ctx context.Context, lookback, service,
 			continue // Skip malformed rows
 		}
 
-		agg := TransactionNameAgg{}
+		agg := traces.TransactionNameAgg{}
 
 		// Parse columns (order matches STATS ... BY clause above)
 		if v, ok := row[0].(float64); ok {
@@ -1956,26 +1820,18 @@ func (c *Client) GetTransactionNamesESQL(ctx context.Context, lookback, service,
 	return txStats, nil
 }
 
-// PerspectiveAgg represents aggregate counts for a service or resource
-type PerspectiveAgg struct {
-	Name        string
-	LogCount    int64
-	TraceCount  int64
-	MetricCount int64
-}
-
 // GetServices returns aggregated counts per service
-func (c *Client) GetServices(ctx context.Context, lookback string) ([]PerspectiveAgg, error) {
+func (c *Client) GetServices(ctx context.Context, lookback string) ([]perspectives.PerspectiveAgg, error) {
 	return c.getPerspective(ctx, lookback, "service.name")
 }
 
 // GetResources returns aggregated counts per resource environment
-func (c *Client) GetResources(ctx context.Context, lookback string) ([]PerspectiveAgg, error) {
+func (c *Client) GetResources(ctx context.Context, lookback string) ([]perspectives.PerspectiveAgg, error) {
 	return c.getPerspective(ctx, lookback, "resource.attributes.deployment.environment")
 }
 
 // getPerspective aggregates counts of logs, traces, and metrics for a given field
-func (c *Client) getPerspective(ctx context.Context, lookback string, field string) ([]PerspectiveAgg, error) {
+func (c *Client) getPerspective(ctx context.Context, lookback string, field string) ([]perspectives.PerspectiveAgg, error) {
 	// Query across all indices to get logs, traces, and metrics counts
 	index := "logs-*,traces-*,metrics-*"
 
@@ -2081,14 +1937,14 @@ func (c *Client) getPerspective(ctx context.Context, lookback string, field stri
 	}
 
 	// Extract perspective data
-	perspectives := []PerspectiveAgg{}
+	perspectiveList := []perspectives.PerspectiveAgg{}
 	for _, bucket := range result.Aggregations.Items.Buckets {
 		name, ok := bucket["key"].(string)
 		if !ok || name == "" {
 			continue
 		}
 
-		agg := PerspectiveAgg{Name: name}
+		agg := perspectives.PerspectiveAgg{Name: name}
 
 		// Extract log count
 		if logs, ok := bucket["logs"].(map[string]interface{}); ok {
@@ -2111,8 +1967,8 @@ func (c *Client) getPerspective(ctx context.Context, lookback string, field stri
 			}
 		}
 
-		perspectives = append(perspectives, agg)
+		perspectiveList = append(perspectiveList, agg)
 	}
 
-	return perspectives, nil
+	return perspectiveList, nil
 }
