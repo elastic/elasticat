@@ -1,0 +1,146 @@
+version: '3.8'
+
+# Stock Tracker Demo Application
+# 
+# This compose file runs ONLY the application services.
+# It expects the main ElastiCat stack (ES + OTel) to already be running.
+#
+# Usage:
+#   1. Start ElastiCat stack first:  make up  (from project root)
+#   2. Then start this demo:         docker compose up -d
+#
+# To run standalone with its own ES stack, use: docker compose --profile standalone up -d
+
+services:
+  # ============================================
+  # Stock Tracker Application Services
+  # ============================================
+
+  gateway:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.gateway
+    container_name: stock-tracker-gateway
+    environment:
+      - PORT=8080
+      - STOCK_SERVICE_URL=http://stock-service:8081
+      - PORTFOLIO_SERVICE_URL=http://portfolio-service:8082
+      - OTEL_EXPORTER_OTLP_ENDPOINT=host.docker.internal:4318
+    ports:
+      - "8080:8080"
+    networks:
+      - stock-tracker
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - stock-service
+      - portfolio-service
+
+  stock-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.stock
+    container_name: stock-tracker-stock
+    environment:
+      - PORT=8081
+      - OTEL_EXPORTER_OTLP_ENDPOINT=host.docker.internal:4318
+    networks:
+      - stock-tracker
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  portfolio-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.portfolio
+    container_name: stock-tracker-portfolio
+    environment:
+      - PORT=8082
+      - OTEL_EXPORTER_OTLP_ENDPOINT=host.docker.internal:4318
+    networks:
+      - stock-tracker
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: stock-tracker-frontend
+    environment:
+      - VITE_API_URL=http://localhost:8080
+    ports:
+      - "3000:3000"
+    networks:
+      - stock-tracker
+    depends_on:
+      - gateway
+
+  # ============================================
+  # Standalone ElastiCat Stack (optional)
+  # Use --profile standalone to include these
+  # ============================================
+  
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.0.0
+    container_name: elasticat-demo-es
+    profiles:
+      - standalone
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+      - cluster.name=elasticat-demo
+      - node.name=elasticat-demo-es01
+      - xpack.ml.use_auto_machine_memory_percent=true
+    mem_limit: 2g
+    memswap_limit: 2g
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9200:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    networks:
+      - stock-tracker
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -qE '\"status\":\"(green|yellow)\"'"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+
+  otel-collector:
+    image: docker.elastic.co/elastic-agent/elastic-agent:9.0.0
+    container_name: elasticat-demo-otel
+    profiles:
+      - standalone
+    environment:
+      - ELASTIC_AGENT_OTEL=true
+      - ELASTICSEARCH_ENDPOINT=http://elasticsearch:9200
+      - OTEL_COLLECTOR_HOST=0.0.0.0
+      - OTEL_COLLECTOR_PORT_GRPC=4317
+      - OTEL_COLLECTOR_PORT_HTTP=4318
+    command: ["otelcol", "--config=/etc/otel-collector/config.yaml"]
+    volumes:
+      - ./otel-config.yaml:/etc/otel-collector/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    networks:
+      - stock-tracker
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+networks:
+  stock-tracker:
+    driver: bridge
+
+volumes:
+  esdata:
+    driver: local

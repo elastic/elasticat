@@ -1057,6 +1057,23 @@ func LookbackToBucketInterval(lookback string) string {
 	}
 }
 
+// LookbackToESQLInterval converts a lookback string (e.g., "now-5m") to ES|QL format (e.g., "5 minutes")
+// ES|QL requires full unit names, not abbreviations
+func LookbackToESQLInterval(lookback string) string {
+	switch lookback {
+	case "now-5m":
+		return "5 minutes"
+	case "now-1h":
+		return "1 hour"
+	case "now-24h":
+		return "24 hours"
+	case "now-1w":
+		return "7 days"
+	default:
+		return "24 hours" // Default
+	}
+}
+
 // GetMetricFieldNames discovers metric field names from field_caps API
 // Returns only aggregatable numeric fields under the "metrics.*" namespace
 func (c *Client) GetMetricFieldNames(ctx context.Context) ([]metrics.MetricFieldInfo, error) {
@@ -1658,7 +1675,8 @@ func (c *Client) executeESQLQuery(ctx context.Context, query string) (*traces.ES
 // This uses a 3-query approach with client-side correlation to calculate accurate span counts per transaction name
 func (c *Client) GetTransactionNamesESQL(ctx context.Context, lookback, service, resource string) ([]traces.TransactionNameAgg, error) {
 	// Build filter clauses for queries
-	timeFilter := fmt.Sprintf("@timestamp >= NOW() - %s", strings.TrimPrefix(lookback, "now-"))
+	// ES|QL requires full unit names (e.g., "5 minutes" not "5m")
+	timeFilter := fmt.Sprintf("@timestamp >= NOW() - %s", LookbackToESQLInterval(lookback))
 
 	serviceFilter := ""
 	if service != "" {
@@ -1671,7 +1689,7 @@ func (c *Client) GetTransactionNamesESQL(ctx context.Context, lookback, service,
 	}
 
 	// Query 1: Get transaction stats per transaction name
-	q1 := fmt.Sprintf(`FROM %s*
+	q1 := fmt.Sprintf(`FROM %s
 | WHERE processor.event == "transaction"
   AND %s
   %s
@@ -1734,7 +1752,7 @@ func (c *Client) GetTransactionNamesESQL(ctx context.Context, lookback, service,
 	}
 
 	// Query 2: Get trace.id -> transaction.name mapping
-	q2 := fmt.Sprintf(`FROM %s*
+	q2 := fmt.Sprintf(`FROM %s
 | WHERE processor.event == "transaction"
   AND %s
   %s
@@ -1769,7 +1787,7 @@ func (c *Client) GetTransactionNamesESQL(ctx context.Context, lookback, service,
 	}
 
 	// Query 3: Get span counts by trace.id
-	q3 := fmt.Sprintf(`FROM %s*
+	q3 := fmt.Sprintf(`FROM %s
 | WHERE processor.event == "span"
   AND %s
 | STATS span_count = COUNT(*) BY trace.id`,
@@ -1833,7 +1851,7 @@ func (c *Client) GetResources(ctx context.Context, lookback string) ([]perspecti
 // getPerspective aggregates counts of logs, traces, and metrics for a given field
 func (c *Client) getPerspective(ctx context.Context, lookback string, field string) ([]perspectives.PerspectiveAgg, error) {
 	// Query across all indices to get logs, traces, and metrics counts
-	index := "logs-*,traces-*,metrics-*"
+	index := "logs-generic.otel-*,traces-generic.otel-*,metrics-generic.otel-*"
 
 	// Build time range filter
 	timeFilter := map[string]interface{}{

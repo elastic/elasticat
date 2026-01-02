@@ -171,13 +171,13 @@ func (s SignalType) String() string {
 func (s SignalType) IndexPattern() string {
 	switch s {
 	case signalLogs:
-		return "logs-*"
+		return "logs-generic.otel-*"
 	case signalTraces:
-		return "traces-*"
+		return "traces-generic.otel-*"
 	case signalMetrics:
-		return "metrics-*"
+		return "metrics-generic.otel-*"
 	default:
-		return "logs-*"
+		return "logs-generic.otel-*"
 	}
 }
 

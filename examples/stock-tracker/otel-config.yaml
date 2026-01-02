@@ -1,0 +1,84 @@
+# OpenTelemetry Collector configuration for Stock Tracker Demo
+# This config collects traces and logs from the microservices
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - "http://*"
+            - "https://*"
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 256
+    send_batch_max_size: 512
+
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: demo
+        action: upsert
+      - key: service.namespace
+        value: stock-tracker
+        action: upsert
+
+exporters:
+  elasticsearch/otel:
+    endpoints:
+      - ${env:ELASTICSEARCH_ENDPOINT}
+    logs_dynamic_index:
+      enabled: true
+    metrics_dynamic_index:
+      enabled: true
+    traces_dynamic_index:
+      enabled: true
+    mapping:
+      mode: otel
+    flush:
+      bytes: 5242880
+      interval: 5s
+    retry:
+      enabled: true
+      initial_interval: 100ms
+      max_interval: 30s
+
+  debug:
+    verbosity: basic
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [resource, batch]
+      exporters: [elasticsearch/otel]
+
+    logs:
+      receivers: [otlp]
+      processors: [resource, batch]
+      exporters: [elasticsearch/otel]
+
+    metrics:
+      receivers: [otlp]
+      processors: [resource, batch]
+      exporters: [elasticsearch/otel]
+
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      address: 0.0.0.0:8888
+
