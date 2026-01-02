@@ -250,6 +250,7 @@ func (c *Client) Search(ctx context.Context, queryStr string, opts SearchOptions
 type TailOptions struct {
 	Size            int
 	Service         string
+	Resource        string // Filter on resource.attributes.deployment.environment
 	Level           string
 	Since           time.Time
 	ContainerID     string
@@ -264,6 +265,7 @@ type TailOptions struct {
 type SearchOptions struct {
 	Size            int
 	Service         string
+	Resource        string   // Filter on resource.attributes.deployment.environment
 	Level           string
 	From            time.Time
 	To              time.Time
@@ -310,6 +312,15 @@ func buildTailQuery(opts TailOptions) map[string]interface{} {
 					{"term": map[string]interface{}{"resource.service.name": opts.Service}},
 				},
 				"minimum_should_match": 1,
+			},
+		})
+	}
+
+	// Resource filter - filter on deployment environment
+	if opts.Resource != "" {
+		must = append(must, map[string]interface{}{
+			"term": map[string]interface{}{
+				"resource.attributes.deployment.environment": opts.Resource,
 			},
 		})
 	}
@@ -439,6 +450,15 @@ func buildSearchQuery(queryStr string, opts SearchOptions) map[string]interface{
 					{"term": map[string]interface{}{"resource.service.name": opts.Service}},
 				},
 				"minimum_should_match": 1,
+			},
+		})
+	}
+
+	// Resource filter - filter on deployment environment
+	if opts.Resource != "" {
+		must = append(must, map[string]interface{}{
+			"term": map[string]interface{}{
+				"resource.attributes.deployment.environment": opts.Resource,
 			},
 		})
 	}
@@ -1568,4 +1588,161 @@ func (c *Client) GetTransactionNames(ctx context.Context, lookback string) ([]Tr
 	}
 
 	return result, nil
+}
+
+// PerspectiveAgg represents aggregate counts for a service or resource
+type PerspectiveAgg struct {
+	Name        string
+	LogCount    int64
+	TraceCount  int64
+	MetricCount int64
+}
+
+// GetServices returns aggregated counts per service
+func (c *Client) GetServices(ctx context.Context, lookback string) ([]PerspectiveAgg, error) {
+	return c.getPerspective(ctx, lookback, "service.name")
+}
+
+// GetResources returns aggregated counts per resource environment
+func (c *Client) GetResources(ctx context.Context, lookback string) ([]PerspectiveAgg, error) {
+	return c.getPerspective(ctx, lookback, "resource.attributes.deployment.environment")
+}
+
+// getPerspective aggregates counts of logs, traces, and metrics for a given field
+func (c *Client) getPerspective(ctx context.Context, lookback string, field string) ([]PerspectiveAgg, error) {
+	index := c.index
+
+	// Build time range filter
+	timeFilter := map[string]interface{}{
+		"range": map[string]interface{}{
+			"@timestamp": map[string]interface{}{
+				"gte": fmt.Sprintf("now-%s", lookback),
+			},
+		},
+	}
+
+	// Build aggregation
+	agg := map[string]interface{}{
+		"size": 0,
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
+				"filter": []interface{}{timeFilter},
+			},
+		},
+		"aggs": map[string]interface{}{
+			"items": map[string]interface{}{
+				"terms": map[string]interface{}{
+					"field": field,
+					"size":  100, // Top 100 services/resources
+				},
+				"aggs": map[string]interface{}{
+					// Count logs (excluding transactions and spans)
+					"logs": map[string]interface{}{
+						"filter": map[string]interface{}{
+							"bool": map[string]interface{}{
+								"must_not": []interface{}{
+									map[string]interface{}{
+										"term": map[string]interface{}{
+											"processor.event": "transaction",
+										},
+									},
+									map[string]interface{}{
+										"term": map[string]interface{}{
+											"processor.event": "span",
+										},
+									},
+								},
+							},
+						},
+					},
+					// Count traces (transactions only)
+					"traces": map[string]interface{}{
+						"filter": map[string]interface{}{
+							"term": map[string]interface{}{
+								"processor.event": "transaction",
+							},
+						},
+					},
+					// Count metrics (documents with metrics fields)
+					"metrics": map[string]interface{}{
+						"filter": map[string]interface{}{
+							"exists": map[string]interface{}{
+								"field": "metrics",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Execute search
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(agg); err != nil {
+		return nil, fmt.Errorf("encode query: %w", err)
+	}
+
+	res, err := c.es.Search(
+		c.es.Search.WithContext(ctx),
+		c.es.Search.WithIndex(index),
+		c.es.Search.WithBody(&buf),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("search: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		body, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("search error: %s: %s", res.Status(), string(body))
+	}
+
+	// Parse response
+	var result struct {
+		Aggregations struct {
+			Items struct {
+				Buckets []map[string]interface{} `json:"buckets"`
+			} `json:"items"`
+		} `json:"aggregations"`
+	}
+
+	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	// Extract perspective data
+	perspectives := []PerspectiveAgg{}
+	for _, bucket := range result.Aggregations.Items.Buckets {
+		name, ok := bucket["key"].(string)
+		if !ok || name == "" {
+			continue
+		}
+
+		agg := PerspectiveAgg{Name: name}
+
+		// Extract log count
+		if logs, ok := bucket["logs"].(map[string]interface{}); ok {
+			if count, ok := logs["doc_count"].(float64); ok {
+				agg.LogCount = int64(count)
+			}
+		}
+
+		// Extract trace count
+		if traces, ok := bucket["traces"].(map[string]interface{}); ok {
+			if count, ok := traces["doc_count"].(float64); ok {
+				agg.TraceCount = int64(count)
+			}
+		}
+
+		// Extract metric count
+		if metrics, ok := bucket["metrics"].(map[string]interface{}); ok {
+			if count, ok := metrics["doc_count"].(float64); ok {
+				agg.MetricCount = int64(count)
+			}
+		}
+
+		perspectives = append(perspectives, agg)
+	}
+
+	return perspectives, nil
 }
