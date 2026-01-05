@@ -1,3 +1,6 @@
+// Copyright 2026 Elasticsearch B.V.
+// SPDX-License-Identifier: Apache-2.0
+
 package tui
 
 import (
@@ -29,7 +32,9 @@ type Model struct {
 	levelFilter    string
 	searchQuery    string
 	filterService  string // Active service filter (from perspectives or manual)
+	negateService  bool   // If true, exclude filterService instead of filtering to it
 	filterResource string // Active resource filter (from perspectives or manual)
+	negateResource bool   // If true, exclude filterResource instead of filtering to it
 
 	// Auto-refresh
 	autoRefresh   bool

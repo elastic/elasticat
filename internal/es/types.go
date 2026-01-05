@@ -1,3 +1,6 @@
+// Copyright 2026 Elasticsearch B.V.
+// SPDX-License-Identifier: Apache-2.0
+
 package es
 
 import (
@@ -49,7 +52,9 @@ type SearchResult struct {
 type TailOptions struct {
 	Size            int
 	Service         string
+	NegateService   bool   // If true, exclude Service instead of filtering to it
 	Resource        string // Filter on resource.attributes.deployment.environment
+	NegateResource  bool   // If true, exclude Resource instead of filtering to it
 	Level           string
 	Since           time.Time
 	ContainerID     string
@@ -64,7 +69,9 @@ type TailOptions struct {
 type SearchOptions struct {
 	Size            int
 	Service         string
+	NegateService   bool   // If true, exclude Service instead of filtering to it
 	Resource        string // Filter on resource.attributes.deployment.environment
+	NegateResource  bool   // If true, exclude Resource instead of filtering to it
 	Level           string
 	From            time.Time
 	To              time.Time

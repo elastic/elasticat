@@ -1,3 +1,6 @@
+// Copyright 2026 Elasticsearch B.V.
+// SPDX-License-Identifier: Apache-2.0
+
 package metrics
 
 import "time"
@@ -37,8 +40,10 @@ type MetricsAggResult struct {
 
 // AggregateMetricsOptions configures the metrics aggregation query
 type AggregateMetricsOptions struct {
-	Lookback   string // ES time range (e.g., "now-5m", "now-1h")
-	BucketSize string // ES interval (e.g., "10s", "1m", "5m")
-	Service    string // Filter by service name
-	Resource   string // Filter by resource environment
+	Lookback       string // ES time range (e.g., "now-5m", "now-1h")
+	BucketSize     string // ES interval (e.g., "10s", "1m", "5m")
+	Service        string // Filter by service name
+	NegateService  bool   // If true, exclude Service instead of filtering to it
+	Resource       string // Filter by resource environment
+	NegateResource bool   // If true, exclude Resource instead of filtering to it
 }

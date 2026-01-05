@@ -1,3 +1,6 @@
+// Copyright 2026 Elasticsearch B.V.
+// SPDX-License-Identifier: Apache-2.0
+
 package tui
 
 import (
@@ -43,7 +46,9 @@ func (m Model) fetchLogs() tea.Cmd {
 			opts := es.SearchOptions{
 				Size:            100,
 				Service:         m.filterService,
+				NegateService:   m.negateService,
 				Resource:        m.filterResource,
+				NegateResource:  m.negateResource,
 				Level:           m.levelFilter,
 				SortAsc:         m.sortAscending,
 				SearchFields:    CollectSearchFields(m.displayFields),
@@ -58,7 +63,9 @@ func (m Model) fetchLogs() tea.Cmd {
 			opts := es.TailOptions{
 				Size:            100,
 				Service:         m.filterService,
+				NegateService:   m.negateService,
 				Resource:        m.filterResource,
+				NegateResource:  m.negateResource,
 				Level:           m.levelFilter,
 				SortAsc:         m.sortAscending,
 				Lookback:        lookbackRange,
@@ -93,10 +100,12 @@ func (m Model) fetchAggregatedMetrics() tea.Cmd {
 		bucketInterval := es.LookbackToBucketInterval(lookbackRange)
 
 		opts := metrics.AggregateMetricsOptions{
-			Lookback:   lookbackRange,
-			BucketSize: bucketInterval,
-			Service:    m.filterService,
-			Resource:   m.filterResource,
+			Lookback:       lookbackRange,
+			BucketSize:     bucketInterval,
+			Service:        m.filterService,
+			NegateService:  m.negateService,
+			Resource:       m.filterResource,
+			NegateResource: m.negateResource,
 		}
 
 		result, err := m.client.AggregateMetrics(ctx, opts)
@@ -115,7 +124,7 @@ func (m Model) fetchTransactionNames() tea.Cmd {
 
 		lookbackRange := m.lookback.ESRange()
 
-		names, err := m.client.GetTransactionNamesESQL(ctx, lookbackRange, m.filterService, m.filterResource)
+		names, err := m.client.GetTransactionNamesESQL(ctx, lookbackRange, m.filterService, m.filterResource, m.negateService, m.negateResource)
 		if err != nil {
 			return transactionNamesMsg{err: err}
 		}

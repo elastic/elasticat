@@ -1,3 +1,6 @@
+// Copyright 2026 Elasticsearch B.V.
+// SPDX-License-Identifier: Apache-2.0
+
 package tui
 
 import (
@@ -16,7 +19,7 @@ func (m Model) renderStatusBar() string {
 	row1Parts = append(row1Parts, StatusKeyStyle.Render("Signal: ")+StatusValueStyle.Render(m.signalType.String()))
 
 	// Current index
-	row1Parts = append(row1Parts, StatusKeyStyle.Render("Idx: ")+StatusValueStyle.Render(m.client.GetIndex()+"*"))
+	row1Parts = append(row1Parts, StatusKeyStyle.Render("Idx: ")+StatusValueStyle.Render(m.client.GetIndex()))
 
 	// Total logs
 	row1Parts = append(row1Parts, StatusKeyStyle.Render("Total: ")+StatusValueStyle.Render(fmt.Sprintf("%d", m.total)))
@@ -29,10 +32,18 @@ func (m Model) renderStatusBar() string {
 		row1Parts = append(row1Parts, StatusKeyStyle.Render("Level: ")+StatusValueStyle.Render(m.levelFilter))
 	}
 	if m.filterService != "" {
-		row1Parts = append(row1Parts, lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")).Bold(true).Render("⚡ Service: ")+StatusValueStyle.Render(m.filterService))
+		if m.negateService {
+			row1Parts = append(row1Parts, lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6B6B")).Bold(true).Render("⛔ NOT Service: ")+StatusValueStyle.Render(m.filterService))
+		} else {
+			row1Parts = append(row1Parts, lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")).Bold(true).Render("⚡ Service: ")+StatusValueStyle.Render(m.filterService))
+		}
 	}
 	if m.filterResource != "" {
-		row1Parts = append(row1Parts, lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")).Bold(true).Render("⚡ Resource: ")+StatusValueStyle.Render(m.filterResource))
+		if m.negateResource {
+			row1Parts = append(row1Parts, lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6B6B")).Bold(true).Render("⛔ NOT Resource: ")+StatusValueStyle.Render(m.filterResource))
+		} else {
+			row1Parts = append(row1Parts, lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")).Bold(true).Render("⚡ Resource: ")+StatusValueStyle.Render(m.filterResource))
+		}
 	}
 
 	// Loading indicator

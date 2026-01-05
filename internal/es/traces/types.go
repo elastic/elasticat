@@ -1,3 +1,6 @@
+// Copyright 2026 Elasticsearch B.V.
+// SPDX-License-Identifier: Apache-2.0
+
 package traces
 
 // TransactionNameAgg represents aggregated statistics for a transaction name

@@ -1,3 +1,6 @@
+// Copyright 2026 Elasticsearch B.V.
+// SPDX-License-Identifier: Apache-2.0
+
 package tui
 
 import (
@@ -535,7 +538,7 @@ func (m Model) renderCompactDetail() string {
 func (m Model) renderQueryOverlay() string {
 	var b strings.Builder
 
-	index := m.lastQueryIndex + "*"
+	index := m.lastQueryIndex
 
 	// Header showing format and status
 	var formatLabel string
@@ -1082,12 +1085,21 @@ func (m Model) renderPerspectiveList(listHeight int) string {
 		item := m.perspectiveItems[i]
 		selected := i == m.perspectiveCursor
 
-		// Check if this item is currently active as a filter
-		isActive := false
+		// Check if this item is currently active as a filter (include or exclude)
+		isIncluded := false
+		isExcluded := false
 		if m.currentPerspective == PerspectiveServices && m.filterService == item.Name {
-			isActive = true
+			if m.negateService {
+				isExcluded = true
+			} else {
+				isIncluded = true
+			}
 		} else if m.currentPerspective == PerspectiveResources && m.filterResource == item.Name {
-			isActive = true
+			if m.negateResource {
+				isExcluded = true
+			} else {
+				isIncluded = true
+			}
 		}
 
 		// Format values
@@ -1095,10 +1107,12 @@ func (m Model) renderPerspectiveList(listHeight int) string {
 		tracesStr := fmt.Sprintf("%d", item.TraceCount)
 		metricsStr := fmt.Sprintf("%d", item.MetricCount)
 
-		// Add active marker
+		// Add active marker: ✓ for include, - for exclude
 		nameDisplay := item.Name
-		if isActive {
+		if isIncluded {
 			nameDisplay = "✓ " + item.Name
+		} else if isExcluded {
+			nameDisplay = "- " + item.Name
 		}
 
 		line := PadOrTruncate(nameDisplay, nameWidth) + " " +

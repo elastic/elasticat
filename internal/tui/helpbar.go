@@ -1,3 +1,6 @@
+// Copyright 2026 Elasticsearch B.V.
+// SPDX-License-Identifier: Apache-2.0
+
 package tui
 
 import "strings"
@@ -103,7 +106,7 @@ func (m Model) renderHelpBar() string {
 	case viewPerspectiveList:
 		keys = []string{
 			HelpKeyStyle.Render("j/k") + HelpDescStyle.Render(" scroll"),
-			HelpKeyStyle.Render("enter") + HelpDescStyle.Render(" toggle filter"),
+			HelpKeyStyle.Render("enter") + HelpDescStyle.Render(" ✓include/-exclude/clear"),
 			HelpKeyStyle.Render("p") + HelpDescStyle.Render(" cycle"),
 			HelpKeyStyle.Render("l") + HelpDescStyle.Render(" lookback"),
 			HelpKeyStyle.Render("r") + HelpDescStyle.Render(" refresh"),

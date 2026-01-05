@@ -2,6 +2,14 @@
 
 AI-powered local development log viewer powered by Elasticsearch and OpenTelemetry.
 
+## Installation
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/elastic/elasticat/main/install.sh | bash
+```
+
+Or download directly from [GitHub Releases](https://github.com/elastic/elasticat/releases).
+
 ## Quick Start
 
 ```bash

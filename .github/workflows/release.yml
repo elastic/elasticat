@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            binary: elasticat-linux-amd64
+            asset_name: elasticat-linux-amd64
+          - os: macos-latest
+            binary: elasticat-darwin-arm64
+            asset_name: elasticat-darwin-arm64
+          - os: windows-latest
+            binary: elasticat-windows-amd64.exe
+            asset_name: elasticat-windows-amd64.exe
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libgl1-mesa-dev libxxf86vm-dev
+
+      - name: Build binary (Unix)
+        if: matrix.os != 'windows-latest'
+        run: |
+          go build -ldflags="-s -w" -o bin/${{ matrix.binary }} ./cmd/elasticat
+
+      - name: Build binary (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          go build -ldflags="-s -w" -o bin/${{ matrix.binary }} ./cmd/elasticat
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.binary }}
+          path: bin/${{ matrix.binary }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/elasticat-linux-amd64/elasticat-linux-amd64
+            artifacts/elasticat-darwin-arm64/elasticat-darwin-arm64
+            artifacts/elasticat-windows-amd64.exe/elasticat-windows-amd64.exe
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

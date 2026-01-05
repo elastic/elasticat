@@ -1,4 +1,4 @@
-.PHONY: build install clean up down logs test fmt fmt-check
+.PHONY: build install clean up down logs test fmt fmt-check license-check license-add
 
 # Build the elasticat binary
 build:
@@ -60,6 +60,14 @@ fmt-check:
 # Lint code
 lint:
 	golangci-lint run
+
+# Check license headers (for CI) - fails if any Go files are missing headers
+license-check:
+	@./scripts/check-license.sh
+
+# Add license headers to all Go files that need them
+license-add:
+	@./scripts/add-license.sh
 
 # Generate a test log (for development)
 test-log:

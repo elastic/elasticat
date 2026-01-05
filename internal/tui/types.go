@@ -1,3 +1,6 @@
+// Copyright 2026 Elasticsearch B.V.
+// SPDX-License-Identifier: Apache-2.0
+
 package tui
 
 import (
@@ -8,6 +11,7 @@ import (
 	"github.com/elastic/elasticat/internal/es"
 	"github.com/elastic/elasticat/internal/es/metrics"
 	"github.com/elastic/elasticat/internal/es/traces"
+	"github.com/elastic/elasticat/internal/index"
 )
 
 // viewMode represents different UI views in the TUI
@@ -171,13 +175,13 @@ func (s SignalType) String() string {
 func (s SignalType) IndexPattern() string {
 	switch s {
 	case signalLogs:
-		return "logs-generic.otel-"
+		return index.Logs
 	case signalTraces:
-		return "traces-generic.otel-"
+		return index.Traces
 	case signalMetrics:
-		return "metrics-generic.otel-"
+		return index.Metrics
 	default:
-		return "logs-generic.otel-"
+		return index.Logs
 	}
 }
 
