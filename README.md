@@ -2,6 +2,8 @@
 
 AI-powered local development log viewer powered by Elasticsearch and OpenTelemetry.
 
+[![CI (main)](https://github.com/elastic/elasticat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/elastic/elasticat/actions/workflows/ci.yml?query=branch%3Amain)
+
 ## Installation
 
 ```bash
@@ -9,6 +11,8 @@ curl -fsSL https://raw.githubusercontent.com/elastic/elasticat/main/install.sh |
 ```
 
 Or download directly from [GitHub Releases](https://github.com/elastic/elasticat/releases).
+
+Latest main artifacts (CI): [Download the `elasticat-linux-amd64`, `elasticat-darwin-arm64`, or `elasticat-windows-amd64.exe` artifact](https://github.com/elastic/elasticat/actions/workflows/ci.yml?query=branch%3Amain). GitHub login required to access artifacts.
 
 ## Quick Start
 
