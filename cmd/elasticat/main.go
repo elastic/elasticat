@@ -148,8 +148,8 @@ Examples:
 
 var clearCmd = &cobra.Command{
 	Use:   "clear",
-	Short: "Delete all collected logs from Elasticsearch",
-	Long: `Clears all logs from Elasticsearch. Useful during development
+	Short: "Delete all collected telemetry (logs, metrics, traces) from Elasticsearch",
+	Long: `Clears all logs, metrics, and traces from Elasticsearch. Useful during development
 when you want a fresh start.
 
 Examples:
@@ -640,22 +640,23 @@ func runWatch(files []string) error {
 }
 
 func runClear() error {
-	client, err := es.New([]string{esURL}, esIndex)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	// Create a client just for ping check (use logs index)
+	pingClient, err := es.New([]string{esURL}, "logs-*")
 	if err != nil {
 		return fmt.Errorf("failed to create ES client: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
 	// Check connection first
-	if err := client.Ping(ctx); err != nil {
+	if err := pingClient.Ping(ctx); err != nil {
 		return fmt.Errorf("cannot connect to Elasticsearch: %w\nIs the stack running? Try 'elasticat up'", err)
 	}
 
 	// Prompt for confirmation unless --force
 	if !clearForce {
-		fmt.Print("This will delete ALL collected logs. Are you sure? [y/N] ")
+		fmt.Print("This will delete ALL collected telemetry (logs, metrics, traces). Are you sure? [y/N] ")
 		var response string
 		fmt.Scanln(&response)
 		if response != "y" && response != "Y" {
@@ -664,13 +665,37 @@ func runClear() error {
 		}
 	}
 
-	fmt.Println("Clearing logs...")
+	fmt.Println("Clearing all telemetry data...")
 
-	deleted, err := client.Clear(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to clear logs: %w", err)
+	// Define the index patterns for each signal type
+	signals := []struct {
+		name  string
+		index string
+	}{
+		{"logs", "logs-*"},
+		{"metrics", "metrics-*"},
+		{"traces", "traces-*"},
 	}
 
-	fmt.Printf("Deleted %d logs.\n", deleted)
+	var totalDeleted int64
+	for _, sig := range signals {
+		client, err := es.New([]string{esURL}, sig.index)
+		if err != nil {
+			fmt.Printf("  Warning: failed to create client for %s: %v\n", sig.name, err)
+			continue
+		}
+
+		deleted, err := client.Clear(ctx)
+		if err != nil {
+			// Don't fail completely if one index pattern doesn't exist
+			fmt.Printf("  %s: 0 (no data or index not found)\n", sig.name)
+			continue
+		}
+
+		fmt.Printf("  %s: %d deleted\n", sig.name, deleted)
+		totalDeleted += deleted
+	}
+
+	fmt.Printf("\nTotal: %d documents deleted.\n", totalDeleted)
 	return nil
 }

@@ -17,7 +17,6 @@ func (m Model) renderHelpBar() string {
 			HelpKeyStyle.Render("enter") + HelpDescStyle.Render(" details"),
 			HelpKeyStyle.Render("s") + HelpDescStyle.Render(" sort"),
 			HelpKeyStyle.Render("f") + HelpDescStyle.Render(" fields"),
-			HelpKeyStyle.Render("c") + HelpDescStyle.Render(" clear"),
 			HelpKeyStyle.Render("Q") + HelpDescStyle.Render(" query"),
 			HelpKeyStyle.Render("q") + HelpDescStyle.Render(" quit"),
 		}
@@ -107,7 +106,6 @@ func (m Model) renderHelpBar() string {
 			HelpKeyStyle.Render("enter") + HelpDescStyle.Render(" toggle filter"),
 			HelpKeyStyle.Render("p") + HelpDescStyle.Render(" cycle"),
 			HelpKeyStyle.Render("l") + HelpDescStyle.Render(" lookback"),
-			HelpKeyStyle.Render("c") + HelpDescStyle.Render(" clear all"),
 			HelpKeyStyle.Render("r") + HelpDescStyle.Render(" refresh"),
 			HelpKeyStyle.Render("esc") + HelpDescStyle.Render(" back"),
 			HelpKeyStyle.Render("q") + HelpDescStyle.Render(" quit"),

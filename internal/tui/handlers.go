@@ -296,15 +296,6 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.fetchLogs()
 	case "a":
 		m.autoRefresh = !m.autoRefresh
-	case "c":
-		// Clear filters
-		m.searchQuery = ""
-		m.filterService = ""
-		m.filterResource = ""
-		m.levelFilter = ""
-		m.userHasScrolled = false // Reset for tail -f behavior
-		m.loading = true
-		return m, m.fetchLogs()
 	case "1":
 		m.levelFilter = "ERROR"
 		m.userHasScrolled = false // Reset for tail -f behavior
@@ -1112,18 +1103,6 @@ func (m Model) handlePerspectiveListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// Stay in perspective view - user can navigate back with 'esc' when ready
 		}
 		return m, nil
-	case "c":
-		// Clear filters
-		m.filterService = ""
-		m.filterResource = ""
-		m.userHasScrolled = false // Reset for tail -f behavior
-		m.statusMessage = "Filters cleared"
-		m.statusTime = time.Now()
-		m.mode = viewLogs
-		m.logs = []es.LogEntry{}
-		m.selectedIndex = 0
-		m.loading = true
-		return m, m.fetchLogs()
 	case "p":
 		// Cycle to next perspective
 		switch m.currentPerspective {

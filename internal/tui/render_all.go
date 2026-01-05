@@ -99,23 +99,14 @@ func (m Model) View() string {
 		b.WriteString("\n")
 		b.WriteString(m.renderCompactDetail())
 	case viewErrorModal:
-		// Render the underlying view first (so modal appears on top)
-		switch m.previousMode {
-		case viewLogs:
-			b.WriteString(m.renderLogListWithHeight(logListHeight))
-		case viewMetricsDashboard:
-			b.WriteString(m.renderMetricsDashboard(logListHeight))
-		case viewTraceNames:
-			b.WriteString(m.renderTransactionNames(logListHeight))
-		case viewPerspectiveList:
-			b.WriteString(m.renderPerspectiveList(logListHeight))
-		default:
-			b.WriteString(m.renderLogListWithHeight(logListHeight))
-		}
-		// Render error modal overlay
-		b.WriteString(m.renderErrorModal())
-		// Skip help bar for modal (it has its own instructions)
-		return b.String()
+		// Use lipgloss.Place to properly overlay the modal in the center of the screen
+		modal := m.renderErrorModal()
+		overlay := lipgloss.Place(
+			m.width, m.height,
+			lipgloss.Center, lipgloss.Center,
+			modal,
+		)
+		return overlay
 	}
 
 	// Help bar (bottom)
@@ -1290,19 +1281,8 @@ func (m Model) renderLogDetail(log es.LogEntry) string {
 }
 
 func (m Model) renderErrorModal() string {
-	var b strings.Builder
-
 	// Modal dimensions
 	modalWidth := min(m.width-8, 80)
-
-	// Calculate centering (use fixed top padding to avoid cut-off)
-	leftPadding := (m.width - modalWidth) / 2
-	topPadding := 3 // Fixed small padding from top
-
-	// Add top padding
-	for i := 0; i < topPadding; i++ {
-		b.WriteString("\n")
-	}
 
 	// Modal box style
 	modalStyle := lipgloss.NewStyle().
@@ -1373,18 +1353,8 @@ func (m Model) renderErrorModal() string {
 		actions,
 	)
 
-	// Render modal with centering
-	modal := modalStyle.Render(content)
-
-	// Add left padding to center horizontally
-	lines := strings.Split(modal, "\n")
-	for _, line := range lines {
-		b.WriteString(strings.Repeat(" ", leftPadding))
-		b.WriteString(line)
-		b.WriteString("\n")
-	}
-
-	return b.String()
+	// Render modal - lipgloss.Place() in View() handles centering
+	return modalStyle.Render(content)
 }
 
 // Commands
