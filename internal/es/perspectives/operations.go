@@ -5,145 +5,71 @@ package perspectives
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 
-	"github.com/elastic/elasticat/internal/es/errfmt"
+	"github.com/elastic/elasticat/internal/es/traces"
 	"github.com/elastic/elasticat/internal/index"
 )
 
 // GetByField aggregates counts of logs, traces, and metrics for a given field
 func GetByField(ctx context.Context, exec Executor, lookback string, field string) ([]PerspectiveAgg, error) {
-	// Query across all indices to get logs, traces, and metrics counts
-	indexPattern := index.All
+	lookbackInterval := traces.LookbackToESQLInterval(lookback)
 
-	// Build time range filter
-	timeFilter := map[string]interface{}{
-		"range": map[string]interface{}{
-			"@timestamp": map[string]interface{}{
-				"gte": lookback, // lookback already includes "now-" prefix from ESRange()
-			},
-		},
-	}
+	query := fmt.Sprintf(`FROM %s
+| WHERE @timestamp >= NOW() - %s
+| STATS
+    logs = COUNT(CASE(processor.event != "transaction" AND processor.event != "span", 1, null)),
+    traces = COUNT(CASE(processor.event == "transaction", 1, null)),
+    metrics = COUNT(CASE(metrics IS NOT NULL, 1, null))
+  BY %s
+| SORT logs DESC
+| LIMIT 100`, index.All, lookbackInterval, field)
 
-	// Build aggregation
-	agg := map[string]interface{}{
-		"size": 0,
-		"query": map[string]interface{}{
-			"bool": map[string]interface{}{
-				"filter": []interface{}{timeFilter},
-			},
-		},
-		"aggs": map[string]interface{}{
-			"items": map[string]interface{}{
-				"terms": map[string]interface{}{
-					"field": field,
-					"size":  100, // Top 100 services/resources
-				},
-				"aggs": map[string]interface{}{
-					// Count logs (excluding transactions and spans)
-					"logs": map[string]interface{}{
-						"filter": map[string]interface{}{
-							"bool": map[string]interface{}{
-								"must_not": []interface{}{
-									map[string]interface{}{
-										"term": map[string]interface{}{
-											"processor.event": "transaction",
-										},
-									},
-									map[string]interface{}{
-										"term": map[string]interface{}{
-											"processor.event": "span",
-										},
-									},
-								},
-							},
-						},
-					},
-					// Count traces (transactions only)
-					"traces": map[string]interface{}{
-						"filter": map[string]interface{}{
-							"term": map[string]interface{}{
-								"processor.event": "transaction",
-							},
-						},
-					},
-					// Count metrics (documents with metrics fields)
-					"metrics": map[string]interface{}{
-						"filter": map[string]interface{}{
-							"exists": map[string]interface{}{
-								"field": "metrics",
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	// Execute search
-	queryJSON, err := json.Marshal(agg)
+	res, err := exec.ExecuteESQLQuery(ctx, query)
 	if err != nil {
-		return nil, fmt.Errorf("encode query: %w", err)
+		return nil, fmt.Errorf("ES|QL perspective query failed: %w", err)
 	}
 
-	res, err := exec.SearchForPerspectives(ctx, indexPattern, queryJSON, 0)
-	if err != nil {
-		return nil, fmt.Errorf("search: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.IsError {
-		body, _ := io.ReadAll(res.Body)
-		return nil, errfmt.FormatQueryError(res.Status, body, queryJSON)
+	colIndex := map[string]int{}
+	for i, col := range res.Columns {
+		colIndex[col.Name] = i
 	}
 
-	// Parse response
-	var result struct {
-		Aggregations struct {
-			Items struct {
-				Buckets []map[string]interface{} `json:"buckets"`
-			} `json:"items"`
-		} `json:"aggregations"`
+	// Expected columns: logs, traces, metrics, <field>
+	getFloat := func(row []interface{}, name string) int64 {
+		idx, ok := colIndex[name]
+		if !ok || idx >= len(row) {
+			return 0
+		}
+		if v, ok := row[idx].(float64); ok {
+			return int64(v)
+		}
+		return 0
 	}
 
-	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	getString := func(row []interface{}, name string) string {
+		idx, ok := colIndex[name]
+		if !ok || idx >= len(row) {
+			return ""
+		}
+		if v, ok := row[idx].(string); ok {
+			return v
+		}
+		return ""
 	}
 
-	// Extract perspective data
 	perspectiveList := []PerspectiveAgg{}
-	for _, bucket := range result.Aggregations.Items.Buckets {
-		name, ok := bucket["key"].(string)
-		if !ok || name == "" {
+	for _, row := range res.Values {
+		name := getString(row, field)
+		if name == "" {
 			continue
 		}
-
-		agg := PerspectiveAgg{Name: name}
-
-		// Extract log count
-		if logs, ok := bucket["logs"].(map[string]interface{}); ok {
-			if count, ok := logs["doc_count"].(float64); ok {
-				agg.LogCount = int64(count)
-			}
-		}
-
-		// Extract trace count
-		if traces, ok := bucket["traces"].(map[string]interface{}); ok {
-			if count, ok := traces["doc_count"].(float64); ok {
-				agg.TraceCount = int64(count)
-			}
-		}
-
-		// Extract metric count
-		if metrics, ok := bucket["metrics"].(map[string]interface{}); ok {
-			if count, ok := metrics["doc_count"].(float64); ok {
-				agg.MetricCount = int64(count)
-			}
-		}
-
-		perspectiveList = append(perspectiveList, agg)
+		perspectiveList = append(perspectiveList, PerspectiveAgg{
+			Name:        name,
+			LogCount:    getFloat(row, "logs"),
+			TraceCount:  getFloat(row, "traces"),
+			MetricCount: getFloat(row, "metrics"),
+		})
 	}
 
 	return perspectiveList, nil

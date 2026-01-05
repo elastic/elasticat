@@ -6,6 +6,8 @@ package perspectives
 import (
 	"context"
 	"io"
+
+	"github.com/elastic/elasticat/internal/es/traces"
 )
 
 // SearchResponse represents a raw search response body
@@ -20,4 +22,7 @@ type SearchResponse struct {
 type Executor interface {
 	// SearchForPerspectives executes a search query and returns the raw response
 	SearchForPerspectives(ctx context.Context, index string, body []byte, size int) (*SearchResponse, error)
+
+	// ExecuteESQLQuery executes an ES|QL query and returns the structured result
+	ExecuteESQLQuery(ctx context.Context, query string) (*traces.ESQLResult, error)
 }

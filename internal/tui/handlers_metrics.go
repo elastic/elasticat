@@ -60,7 +60,7 @@ func (m Model) handleMetricDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc", "backspace", "q":
 		// Return to metrics dashboard
 		m.mode = viewMetricsDashboard
-	case "left", "h":
+	case "left":
 		// Previous metric
 		if m.metricsCursor > 0 {
 			m.metricsCursor--
@@ -78,4 +78,3 @@ func (m Model) handleMetricDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	return m, nil
 }
-

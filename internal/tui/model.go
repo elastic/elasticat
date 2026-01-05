@@ -75,6 +75,7 @@ type Model struct {
 	indexInput    textinput.Model
 	viewport      viewport.Model
 	errorViewport viewport.Model // For scrollable error modal
+	helpViewport  viewport.Model // For scrollable help overlay
 
 	// Dimensions
 	width  int
@@ -110,6 +111,8 @@ type Model struct {
 	cancels map[requestKind]requestState
 	// Monotonic counter for request IDs (for supersede detection)
 	requestSeq int64
+
+	// Help overlay state
 }
 
 // Highlighter returns a Highlighter configured with the current search query
@@ -141,6 +144,7 @@ func NewModel(ctx context.Context, client *es.Client, signal SignalType) Model {
 
 	vp := viewport.New(80, 20)
 	errorVp := viewport.New(70, 15) // Viewport for error modal
+	helpVp := viewport.New(70, 15)  // Viewport for help overlay
 
 	// Determine initial view mode based on signal type
 	var initialMode viewMode
@@ -171,6 +175,7 @@ func NewModel(ctx context.Context, client *es.Client, signal SignalType) Model {
 		indexInput:      ii,
 		viewport:        vp,
 		errorViewport:   errorVp,
+		helpViewport:    helpVp,
 		width:           80,
 		height:          24,
 		traceViewLevel:  traceViewNames,        // Start at transaction names for traces

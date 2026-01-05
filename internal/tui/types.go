@@ -30,6 +30,7 @@ const (
 	viewTraceNames       // Aggregated transaction names for traces
 	viewPerspectiveList  // List of services or resources for perspective filtering
 	viewErrorModal       // Error dialog with copy/close options
+	viewHelp             // Hotkeys overlay
 )
 
 // MetricsViewMode toggles between aggregated and document views for metrics
@@ -249,10 +250,12 @@ func DefaultFields(signal SignalType) []DisplayField {
 	default: // signalLogs
 		return []DisplayField{
 			{Name: "@timestamp", Label: "TIME", Width: 8, Selected: true, SearchFields: nil},
-			{Name: "severity_text", Label: "LEVEL", Width: 7, Selected: true, SearchFields: []string{"severity_text", "level"}},
+			// Use only severity_text and log.level - "level" doesn't exist in OTel indices
+			{Name: "severity_text", Label: "LEVEL", Width: 7, Selected: true, SearchFields: []string{"severity_text", "log.level"}},
 			{Name: "_resource", Label: "RESOURCE", Width: 12, Selected: true, SearchFields: []string{"resource.attributes.service.namespace", "resource.attributes.deployment.environment"}},
 			{Name: "service.name", Label: "SERVICE", Width: 15, Selected: true, SearchFields: []string{"resource.attributes.service.name", "service.name"}},
-			{Name: "body.text", Label: "MESSAGE", Width: 0, Selected: true, SearchFields: []string{"body.text", "body", "message", "event_name"}},
+			// Use only body.text, message, event_name - "body" doesn't exist as a searchable field in OTel
+			{Name: "body.text", Label: "MESSAGE", Width: 0, Selected: true, SearchFields: []string{"body.text", "message", "event_name"}},
 		}
 	}
 }

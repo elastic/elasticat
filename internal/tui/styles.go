@@ -170,6 +170,11 @@ var (
 	HelpDescStyle = lipgloss.NewStyle().
 			Foreground(mutedColor)
 
+	HelpOverlayStyle = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(secondaryColor).
+				Padding(1, 2)
+
 	// Error style
 	ErrorStyle = lipgloss.NewStyle().
 			Foreground(errorColor).

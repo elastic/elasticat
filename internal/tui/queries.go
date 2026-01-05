@@ -37,7 +37,7 @@ func (m *Model) fetchLogs() tea.Cmd {
 
 		var result *es.SearchResult
 		var err error
-		var queryJSON string
+		var queryString string
 		index := m.client.GetIndex()
 
 		lookbackRange := m.lookback.ESRange()
@@ -74,8 +74,7 @@ func (m *Model) fetchLogs() tea.Cmd {
 				TransactionName: transactionName,
 				TraceID:         traceID,
 			}
-			result, err = m.client.Search(ctx, m.searchQuery, opts)
-			queryJSON, _ = m.client.GetSearchQueryJSON(m.searchQuery, opts)
+			result, queryString, err = m.client.SearchESQL(ctx, m.searchQuery, opts)
 		} else {
 			opts := es.TailOptions{
 				Size:            100,
@@ -90,15 +89,14 @@ func (m *Model) fetchLogs() tea.Cmd {
 				TransactionName: transactionName,
 				TraceID:         traceID,
 			}
-			result, err = m.client.Tail(ctx, opts)
-			queryJSON, _ = m.client.GetTailQueryJSON(opts)
+			result, queryString, err = m.client.TailESQL(ctx, opts)
 		}
 
 		if err != nil {
 			return logsMsg{err: err}
 		}
 
-		return logsMsg{logs: result.Logs, total: result.Total, queryJSON: queryJSON, index: index}
+		return logsMsg{logs: result.Logs, total: result.Total, queryJSON: queryString, index: index}
 	}
 }
 
@@ -156,7 +154,14 @@ func (m Model) fetchSpans(traceID string) tea.Cmd {
 		ctx, done := m.startRequest(requestSpans, 10*time.Second)
 		defer done()
 
-		result, err := m.client.GetSpansByTraceID(ctx, traceID)
+		opts := es.TailOptions{
+			Size:           1000,
+			TraceID:        traceID,
+			ProcessorEvent: "span",
+			SortAsc:        true,
+		}
+
+		result, _, err := m.client.TailESQL(ctx, opts)
 		if err != nil {
 			return spansMsg{err: err}
 		}
@@ -218,27 +223,26 @@ func (m *Model) autoDetectLookback() tea.Cmd {
 
 		for _, lb := range lookbackDurations {
 			opts := es.TailOptions{
-				Size:           1, // We only need count, not actual results
 				Lookback:       lb.ESRange(),
 				ProcessorEvent: processorEvent,
 			}
 
-			result, err := m.client.Tail(ctx, opts)
+			total, _, err := m.client.CountESQL(ctx, opts)
 			if err != nil {
 				continue
 			}
 
 			// Track the best option we've found
-			if result.Total > bestTotal {
+			if total > bestTotal {
 				bestLookback = lb
-				bestTotal = result.Total
+				bestTotal = total
 			}
 
 			// If we found enough data, stop here and use this lookback
-			if result.Total >= targetCount {
+			if total >= targetCount {
 				return autoDetectMsg{
 					lookback: lb,
-					total:    result.Total,
+					total:    total,
 				}
 			}
 		}

@@ -38,6 +38,14 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.searchInput.Blur()
 			return m, nil
 		}
+	case "h":
+		// Global help only when enabled and not in text-input modes
+		if m.HelpEnabled() && !m.isTextInputActive() {
+			m.previousMode = m.mode
+			m.mode = viewHelp
+			m.renderHelpOverlay()
+			return m, nil
+		}
 	}
 
 	// Mode-specific keys
@@ -64,9 +72,23 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handlePerspectiveListKey(msg)
 	case viewErrorModal:
 		return m.handleErrorModalKey(msg)
+	case viewHelp:
+		return m.handleHelpKey(msg)
 	}
 
 	return m, nil
+}
+
+// isTextInputActive returns true when a text input is active, disabling global hotkeys like h.
+func (m Model) isTextInputActive() bool {
+	if m.mode == viewSearch || m.mode == viewIndex || m.mode == viewQuery {
+		return true
+	}
+	// Fields search submode
+	if m.mode == viewFields && m.fieldsSearchMode {
+		return true
+	}
+	return false
 }
 
 // handleMouse handles mouse events across all views

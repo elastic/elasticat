@@ -69,6 +69,10 @@ func SortFields(fields []MetricFieldInfo) {
 }
 
 // Aggregate retrieves aggregated statistics for all discovered metrics
+// NOTE: This path intentionally remains Query DSL-based. The ES|QL surface
+// cannot yet express the dynamic field discovery plus extended_stats/date
+// histogram combination we build here without multiple client-side joins,
+// so DSL is kept for correctness.
 func Aggregate(ctx context.Context, exec Executor, opts AggregateMetricsOptions) (*MetricsAggResult, error) {
 	index := exec.GetIndex()
 

@@ -94,6 +94,15 @@ func (m Model) View() string {
 			modal,
 		)
 		return overlay
+	case viewHelp:
+		// Center the help overlay similar to error modal
+		modal := m.renderHelpOverlay()
+		overlay := lipgloss.Place(
+			m.width, m.height,
+			lipgloss.Center, lipgloss.Center,
+			modal,
+		)
+		return overlay
 	}
 
 	// Help bar (bottom)
