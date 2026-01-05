@@ -6,6 +6,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	osSignal "os/signal"
+	"syscall"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -22,20 +25,20 @@ var uiCmd = &cobra.Command{
 Signal can be: logs (default), metrics, or traces.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		signal := tui.SignalLogs
+		sig := tui.SignalLogs
 		if len(args) > 0 {
 			switch args[0] {
 			case "logs":
-				signal = tui.SignalLogs
+				sig = tui.SignalLogs
 			case "metrics":
-				signal = tui.SignalMetrics
+				sig = tui.SignalMetrics
 			case "traces":
-				signal = tui.SignalTraces
+				sig = tui.SignalTraces
 			default:
 				return fmt.Errorf("unknown signal %q (expected logs, metrics, traces)", args[0])
 			}
 		}
-		return runTUI(signal)
+		return runTUI(cmd.Context(), sig)
 	},
 }
 
@@ -43,14 +46,17 @@ func init() {
 	rootCmd.AddCommand(uiCmd)
 }
 
-func runTUI(signal tui.SignalType) error {
+func runTUI(parentCtx context.Context, sig tui.SignalType) error {
+	notifyCtx, stop := osSignal.NotifyContext(parentCtx, os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	client, err := es.New([]string{esURL}, esIndex)
 	if err != nil {
 		return fmt.Errorf("failed to create ES client: %w", err)
 	}
 
 	// Check connection
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(notifyCtx, 5*time.Second)
 	defer cancel()
 
 	if err := client.Ping(ctx); err != nil {
@@ -59,8 +65,8 @@ func runTUI(signal tui.SignalType) error {
 		fmt.Println()
 	}
 
-	model := tui.NewModel(client, signal)
-	p := tea.NewProgram(model, tea.WithAltScreen())
+	model := tui.NewModel(notifyCtx, client, sig)
+	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithContext(notifyCtx))
 
 	if _, err := p.Run(); err != nil {
 		return fmt.Errorf("error running TUI: %w", err)

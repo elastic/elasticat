@@ -34,23 +34,31 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.mode == viewDetail {
 			m.mode = viewDetailJSON
 			if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
-				m.viewport.SetContent(es.PrettyJSON(m.logs[m.selectedIndex].RawJSON))
+				m.setViewportContent(es.PrettyJSON(m.logs[m.selectedIndex].RawJSON))
 				m.viewport.GotoTop()
 			}
 		} else {
 			m.mode = viewDetail
 			if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
-				m.viewport.SetContent(m.renderLogDetail(m.logs[m.selectedIndex]))
+				m.setViewportContent(m.renderLogDetail(m.logs[m.selectedIndex]))
 				m.viewport.GotoTop()
 			}
 		}
 		return m, nil
 	case "j":
-		// Switch to JSON view
-		m.mode = viewDetailJSON
-		if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
-			m.viewport.SetContent(es.PrettyJSON(m.logs[m.selectedIndex].RawJSON))
-			m.viewport.GotoTop()
+		// Toggle JSON view on/off
+		if m.mode == viewDetailJSON {
+			m.mode = viewDetail
+			if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
+				m.setViewportContent(m.renderLogDetail(m.logs[m.selectedIndex]))
+				m.viewport.GotoTop()
+			}
+		} else {
+			m.mode = viewDetailJSON
+			if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
+				m.setViewportContent(es.PrettyJSON(m.logs[m.selectedIndex].RawJSON))
+				m.viewport.GotoTop()
+			}
 		}
 		return m, nil
 	case "y":
@@ -86,9 +94,9 @@ func (m *Model) updateDetailContent() {
 		return
 	}
 	if m.mode == viewDetailJSON {
-		m.viewport.SetContent(es.PrettyJSON(m.logs[m.selectedIndex].RawJSON))
+		m.setViewportContent(es.PrettyJSON(m.logs[m.selectedIndex].RawJSON))
 	} else {
-		m.viewport.SetContent(m.renderLogDetail(m.logs[m.selectedIndex]))
+		m.setViewportContent(m.renderLogDetail(m.logs[m.selectedIndex]))
 	}
 	m.viewport.GotoTop()
 }

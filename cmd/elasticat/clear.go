@@ -26,7 +26,7 @@ Examples:
   elasticat clear          # Prompts for confirmation
   elasticat clear --force  # Skip confirmation`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runClear()
+		return runClear(cmd.Context())
 	},
 }
 
@@ -35,8 +35,8 @@ func init() {
 	rootCmd.AddCommand(clearCmd)
 }
 
-func runClear() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+func runClear(parentCtx context.Context) error {
+	ctx, cancel := context.WithTimeout(parentCtx, 60*time.Second)
 	defer cancel()
 
 	// Create a client just for ping check (use logs index)

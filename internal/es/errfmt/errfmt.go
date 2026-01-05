@@ -20,3 +20,4 @@ func FormatQueryError(status string, body []byte, queryJSON []byte) error {
 	return fmt.Errorf("search failed: %s\nError: %s\n\nQuery:\n%s", status, string(body), prettyQuery.String())
 }
 
+

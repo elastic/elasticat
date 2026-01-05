@@ -31,51 +31,29 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case "up", "k":
-		if m.selectedIndex > 0 {
-			m.selectedIndex--
-			m.userHasScrolled = true // User manually scrolled
-			// Fetch spans for traces when selection changes
-			if m.signalType == signalTraces && len(m.logs) > 0 {
-				traceID := m.logs[m.selectedIndex].TraceID
-				if traceID != "" {
-					m.spansLoading = true
-					return m, m.fetchSpans(traceID)
-				}
-			}
+		if m.moveSelection(-1) {
+			return m, m.maybeFetchSpansForSelection()
 		}
 	case "down", "j":
-		if m.selectedIndex < len(m.logs)-1 {
-			m.selectedIndex++
-			m.userHasScrolled = true // User manually scrolled
-			// Fetch spans for traces when selection changes
-			if m.signalType == signalTraces && len(m.logs) > 0 {
-				traceID := m.logs[m.selectedIndex].TraceID
-				if traceID != "" {
-					m.spansLoading = true
-					return m, m.fetchSpans(traceID)
-				}
-			}
+		if m.moveSelection(1) {
+			return m, m.maybeFetchSpansForSelection()
 		}
 	case "home", "g":
-		m.selectedIndex = 0
-		m.userHasScrolled = true // User manually scrolled
+		if m.setSelectedIndex(0) {
+			return m, m.maybeFetchSpansForSelection()
+		}
 	case "end", "G":
-		if len(m.logs) > 0 {
-			m.selectedIndex = len(m.logs) - 1
+		if m.setSelectedIndex(len(m.logs) - 1) {
+			return m, m.maybeFetchSpansForSelection()
 		}
-		m.userHasScrolled = true // User manually scrolled
 	case "pgup":
-		m.selectedIndex -= 10
-		if m.selectedIndex < 0 {
-			m.selectedIndex = 0
+		if m.moveSelection(-10) {
+			return m, m.maybeFetchSpansForSelection()
 		}
-		m.userHasScrolled = true // User manually scrolled
 	case "pgdown":
-		m.selectedIndex += 10
-		if m.selectedIndex >= len(m.logs) {
-			m.selectedIndex = len(m.logs) - 1
+		if m.moveSelection(10) {
+			return m, m.maybeFetchSpansForSelection()
 		}
-		m.userHasScrolled = true // User manually scrolled
 	case "/":
 		m.mode = viewSearch
 		m.searchInput.Focus()
@@ -83,7 +61,7 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
 			m.mode = viewDetail
-			m.viewport.SetContent(m.renderLogDetail(m.logs[m.selectedIndex]))
+			m.setViewportContent(m.renderLogDetail(m.logs[m.selectedIndex]))
 			m.viewport.GotoTop()
 		}
 	case "r":
@@ -122,7 +100,14 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.indexInput.Focus()
 		return m, textinput.Blink
 	case "t":
-		m.relativeTime = !m.relativeTime
+		switch m.timeDisplayMode {
+		case timeDisplayClock:
+			m.timeDisplayMode = timeDisplayRelative
+		case timeDisplayRelative:
+			m.timeDisplayMode = timeDisplayFull
+		default:
+			m.timeDisplayMode = timeDisplayClock
+		}
 	case "Q":
 		m.mode = viewQuery
 		m.queryFormat = formatKibana
@@ -165,4 +150,66 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m *Model) setSelectedIndex(newIdx int) bool {
+	if len(m.logs) == 0 {
+		m.selectedIndex = 0
+		return false
+	}
+
+	if newIdx < 0 {
+		newIdx = 0
+	}
+	if newIdx >= len(m.logs) {
+		newIdx = len(m.logs) - 1
+	}
+	if newIdx == m.selectedIndex {
+		return false
+	}
+
+	m.selectedIndex = newIdx
+	m.userHasScrolled = true
+	return true
+}
+
+func (m *Model) moveSelection(delta int) bool {
+	return m.setSelectedIndex(m.selectedIndex + delta)
+}
+
+// maybeFetchSpansForSelection triggers a spans fetch for traces, avoiding duplicate requests.
+func (m *Model) maybeFetchSpansForSelection() tea.Cmd {
+	if m.signalType != signalTraces {
+		return nil
+	}
+	if len(m.logs) == 0 || m.selectedIndex < 0 || m.selectedIndex >= len(m.logs) {
+		m.lastFetchedTraceID = ""
+		return nil
+	}
+
+	traceID := m.logs[m.selectedIndex].TraceID
+	if traceID == "" {
+		m.lastFetchedTraceID = ""
+		return nil
+	}
+
+	if !m.needsSpanFetch(traceID) {
+		return nil
+	}
+
+	m.spansLoading = true
+	m.lastFetchedTraceID = traceID
+	m.spans = nil
+	return m.fetchSpans(traceID)
+}
+
+// needsSpanFetch encapsulates the dedupe logic for span fetches.
+func (m Model) needsSpanFetch(traceID string) bool {
+	if traceID == "" {
+		return false
+	}
+	if traceID == m.lastFetchedTraceID && (m.spansLoading || len(m.spans) > 0) {
+		return false
+	}
+	return true
 }

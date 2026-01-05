@@ -4,6 +4,7 @@
 package tui
 
 import (
+	"context"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -17,6 +18,9 @@ import (
 type Model struct {
 	// ES client
 	client *es.Client
+
+	// Parent context (canceled when app exits)
+	ctx context.Context
 
 	// State
 	logs            []es.LogEntry
@@ -40,7 +44,7 @@ type Model struct {
 	autoRefresh bool
 
 	// Time display
-	relativeTime bool // Show "2m ago" vs "15:04:05"
+	timeDisplayMode TimeDisplayMode // Clock, relative, or full timestamp
 
 	// Sort order
 	sortAscending bool // false = newest first (desc), true = oldest first (asc)
@@ -86,20 +90,26 @@ type Model struct {
 	metricsCursor     int // Selected metric in dashboard
 
 	// Traces navigation state
-	traceViewLevel   TraceViewLevel              // Current navigation level
-	transactionNames []traces.TransactionNameAgg // Aggregated transaction names
-	traceNamesCursor int                         // Cursor in transaction names list
-	selectedTxName   string                      // Selected transaction name filter
-	selectedTraceID  string                      // Selected trace_id for spans view
-	tracesLoading    bool                        // Loading transaction names
-	spans            []es.LogEntry               // Child spans for selected trace
-	spansLoading     bool                        // Loading spans for trace
+	traceViewLevel     TraceViewLevel              // Current navigation level
+	transactionNames   []traces.TransactionNameAgg // Aggregated transaction names
+	traceNamesCursor   int                         // Cursor in transaction names list
+	selectedTxName     string                      // Selected transaction name filter
+	selectedTraceID    string                      // Selected trace_id for spans view
+	tracesLoading      bool                        // Loading transaction names
+	spans              []es.LogEntry               // Child spans for selected trace
+	spansLoading       bool                        // Loading spans for trace
+	lastFetchedTraceID string                      // De-dupe span fetches for the same trace
 
 	// Perspective filtering state
 	currentPerspective PerspectiveType   // Current perspective being viewed
 	perspectiveItems   []PerspectiveItem // List of services or resources with counts
 	perspectiveCursor  int               // Cursor in perspective list
 	perspectiveLoading bool              // Loading perspective data
+
+	// In-flight cancel funcs keyed by request kind (logs, spans, metrics, etc.)
+	cancels map[requestKind]requestState
+	// Monotonic counter for request IDs (for supersede detection)
+	requestSeq int64
 }
 
 // Highlighter returns a Highlighter configured with the current search query
@@ -107,8 +117,14 @@ func (m Model) Highlighter() *Highlighter {
 	return NewHighlighter(m.searchQuery)
 }
 
+// setViewportContent wraps content to the viewport width before rendering.
+func (m *Model) setViewportContent(content string) {
+	wrapped := WrapText(content, m.viewport.Width)
+	m.viewport.SetContent(wrapped)
+}
+
 // NewModel creates a new TUI model
-func NewModel(client *es.Client, signal SignalType) Model {
+func NewModel(ctx context.Context, client *es.Client, signal SignalType) Model {
 	ti := textinput.New()
 	ti.Placeholder = "Search... (supports ES query syntax)"
 	ti.CharLimit = 256
@@ -137,13 +153,19 @@ func NewModel(client *es.Client, signal SignalType) Model {
 		initialMode = viewLogs
 	}
 
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	return Model{
+		ctx:             ctx,
 		client:          client,
 		logs:            []es.LogEntry{},
 		mode:            initialMode,
 		autoRefresh:     true,
 		signalType:      signal,
 		lookback:        lookback24h,
+		timeDisplayMode: timeDisplayClock,
 		displayFields:   DefaultFields(signal),
 		searchInput:     ti,
 		indexInput:      ii,
@@ -153,5 +175,6 @@ func NewModel(client *es.Client, signal SignalType) Model {
 		height:          24,
 		traceViewLevel:  traceViewNames,        // Start at transaction names for traces
 		metricsViewMode: metricsViewAggregated, // Start at aggregated view for metrics
+		cancels:         make(map[requestKind]requestState),
 	}
 }

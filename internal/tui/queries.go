@@ -13,10 +13,27 @@ import (
 	"github.com/elastic/elasticat/internal/es/perspectives"
 )
 
-func (m Model) fetchLogs() tea.Cmd {
+type requestKind int
+
+const (
+	requestLogs requestKind = iota
+	requestMetricsAgg
+	requestTransactionNames
+	requestSpans
+	requestPerspective
+	requestFieldCaps
+	requestAutoDetect
+)
+
+type requestState struct {
+	cancel context.CancelFunc
+	id     int64
+}
+
+func (m *Model) fetchLogs() tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
+		ctx, done := m.startRequest(requestLogs, 10*time.Second)
+		defer done()
 
 		var result *es.SearchResult
 		var err error
@@ -93,8 +110,8 @@ func (m Model) tickCmd() tea.Cmd {
 
 func (m Model) fetchAggregatedMetrics() tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
+		ctx, done := m.startRequest(requestMetricsAgg, 30*time.Second)
+		defer done()
 
 		lookbackRange := m.lookback.ESRange()
 		bucketInterval := es.LookbackToBucketInterval(lookbackRange)
@@ -117,10 +134,10 @@ func (m Model) fetchAggregatedMetrics() tea.Cmd {
 	}
 }
 
-func (m Model) fetchTransactionNames() tea.Cmd {
+func (m *Model) fetchTransactionNames() tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
+		ctx, done := m.startRequest(requestTransactionNames, 30*time.Second)
+		defer done()
 
 		lookbackRange := m.lookback.ESRange()
 
@@ -136,8 +153,8 @@ func (m Model) fetchTransactionNames() tea.Cmd {
 // fetchSpans fetches all child spans for a given trace ID
 func (m Model) fetchSpans(traceID string) tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
+		ctx, done := m.startRequest(requestSpans, 10*time.Second)
+		defer done()
 
 		result, err := m.client.GetSpansByTraceID(ctx, traceID)
 		if err != nil {
@@ -148,10 +165,10 @@ func (m Model) fetchSpans(traceID string) tea.Cmd {
 	}
 }
 
-func (m Model) fetchPerspectiveData() tea.Cmd {
+func (m *Model) fetchPerspectiveData() tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
+		ctx, done := m.startRequest(requestPerspective, 10*time.Second)
+		defer done()
 
 		var aggs []perspectives.PerspectiveAgg
 		var err error
@@ -182,10 +199,10 @@ func (m Model) fetchPerspectiveData() tea.Cmd {
 	}
 }
 
-func (m Model) autoDetectLookback() tea.Cmd {
+func (m *Model) autoDetectLookback() tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
+		ctx, done := m.startRequest(requestAutoDetect, 30*time.Second)
+		defer done()
 
 		// For traces, filter to only count transactions
 		processorEvent := ""
@@ -234,10 +251,10 @@ func (m Model) autoDetectLookback() tea.Cmd {
 	}
 }
 
-func (m Model) fetchFieldCaps() tea.Cmd {
+func (m *Model) fetchFieldCaps() tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
+		ctx, done := m.startRequest(requestFieldCaps, 10*time.Second)
+		defer done()
 
 		fields, err := m.client.GetFieldCaps(ctx)
 		if err != nil {
@@ -253,4 +270,24 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// startRequest cancels any in-flight request of the same kind, and returns a timeout-scoped context.
+func (m *Model) startRequest(kind requestKind, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if m.cancels == nil {
+		m.cancels = make(map[requestKind]requestState)
+	}
+	if st, ok := m.cancels[kind]; ok {
+		st.cancel()
+	}
+	m.requestSeq++
+	id := m.requestSeq
+	ctx, cancel := context.WithTimeout(m.ctx, timeout)
+	m.cancels[kind] = requestState{cancel: cancel, id: id}
+	return ctx, func() {
+		if cur, ok := m.cancels[kind]; ok && cur.id == id {
+			delete(m.cancels, kind)
+		}
+		cancel()
+	}
 }

@@ -191,3 +191,4 @@ func (m Model) renderMetricDetail() string {
 
 	return DetailStyle.Width(m.width - 4).Height(contentHeight).Render(b.String())
 }
+

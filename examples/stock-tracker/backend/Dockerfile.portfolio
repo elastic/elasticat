@@ -19,3 +19,4 @@ EXPOSE 8082
 
 CMD ["./portfolio-service"]
 
+

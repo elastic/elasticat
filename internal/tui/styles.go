@@ -71,6 +71,12 @@ var (
 				Bold(true).
 				PaddingLeft(1)
 
+	// Cell style for selected rows: no padding so column alignment stays fixed
+	SelectedCellStyle = lipgloss.NewStyle().
+				Background(lipgloss.Color("#4A4A7A")).
+				Foreground(lipgloss.Color("#FFFFFF")).
+				Bold(true)
+
 	// Column header row
 	HeaderRowStyle = lipgloss.NewStyle().
 			Foreground(mutedColor).

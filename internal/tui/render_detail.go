@@ -5,10 +5,12 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/elastic/elasticat/internal/es"
 )
 
 // renderCompactDetail renders a compact detail view of the selected log at the bottom
@@ -20,25 +22,52 @@ func (m Model) renderCompactDetail() string {
 	}
 
 	log := m.logs[m.selectedIndex]
+	switch m.signalType {
+	case signalTraces:
+		return m.renderCompactDetailTraces(log)
+	case signalMetrics:
+		return m.renderCompactDetailMetrics(log)
+	default:
+		return m.renderCompactDetailLogs(log)
+	}
+}
+
+func (m Model) renderCompactDetailLogs(log es.LogEntry) string {
 	hl := m.Highlighter()
 	var b strings.Builder
 
-	// First line varies by signal type
-	ts := log.Timestamp.Format("2006-01-02 15:04:05.000")
-	service := log.ServiceName
-	if service == "" {
-		service = "unknown"
+	m.writeBaseHeader(&b, log, hl, func() {
+		level := log.GetLevel()
+		b.WriteString("  ")
+		b.WriteString(DetailKeyStyle.Render("Level: "))
+		b.WriteString(hl.ApplyToField(level, LevelStyle(level)))
+		if resource := log.GetResource(); resource != "" {
+			b.WriteString("  ")
+			b.WriteString(DetailKeyStyle.Render("Resource: "))
+			b.WriteString(hl.ApplyToField(resource, DetailValueStyle))
+		}
+	})
+
+	b.WriteString("\n")
+	b.WriteString(DetailKeyStyle.Render("Message: "))
+	msg := singleLine(log.GetMessage())
+	b.WriteString(hl.ApplyToField(msg, DetailValueStyle))
+	b.WriteString("\n")
+
+	if len(log.Attributes) > 0 {
+		b.WriteString(DetailKeyStyle.Render("Attrs: "))
+		attrs := formatKVPreview(log.Attributes, 5, 0)
+		b.WriteString(hl.ApplyToField(attrs, DetailMutedStyle))
 	}
 
-	b.WriteString(DetailKeyStyle.Render("Time: "))
-	b.WriteString(DetailValueStyle.Render(ts))
-	b.WriteString("  ")
-	b.WriteString(DetailKeyStyle.Render("Service: "))
-	b.WriteString(hl.ApplyToField(service, DetailValueStyle))
+	return CompactDetailStyle.Width(m.width - 4).Height(compactDetailHeight).Render(b.String())
+}
 
-	switch m.signalType {
-	case signalTraces:
-		// Trace-specific first line
+func (m Model) renderCompactDetailTraces(log es.LogEntry) string {
+	hl := m.Highlighter()
+	var b strings.Builder
+
+	m.writeBaseHeader(&b, log, hl, func() {
 		if log.Kind != "" {
 			b.WriteString("  ")
 			b.WriteString(DetailKeyStyle.Render("Kind: "))
@@ -54,170 +83,155 @@ func (m Model) renderCompactDetail() string {
 				b.WriteString(DetailValueStyle.Render(fmt.Sprintf("%.2fms", ms)))
 			}
 		}
-		if log.Status != nil {
-			if code, ok := log.Status["code"].(string); ok {
-				b.WriteString("  ")
-				b.WriteString(DetailKeyStyle.Render("Status: "))
-				b.WriteString(DetailValueStyle.Render(code))
-			}
-		}
-	case signalMetrics:
-		// Metrics-specific first line - show scope
-		if log.Scope != nil {
-			if scopeName, ok := log.Scope["name"].(string); ok && scopeName != "" {
-				b.WriteString("  ")
-				b.WriteString(DetailKeyStyle.Render("Scope: "))
-				b.WriteString(DetailValueStyle.Render(scopeName))
-			}
-		}
-	default:
-		// Log-specific first line
-		level := log.GetLevel()
-		b.WriteString("  ")
-		b.WriteString(DetailKeyStyle.Render("Level: "))
-		b.WriteString(hl.ApplyToField(level, LevelStyle(level)))
-		resource := log.GetResource()
-		if resource != "" {
+		if code, ok := log.Status["code"].(string); ok {
 			b.WriteString("  ")
-			b.WriteString(DetailKeyStyle.Render("Resource: "))
-			b.WriteString(hl.ApplyToField(resource, DetailValueStyle))
+			b.WriteString(DetailKeyStyle.Render("Status: "))
+			b.WriteString(DetailValueStyle.Render(code))
 		}
+	})
+
+	b.WriteString("\n")
+	b.WriteString(DetailKeyStyle.Render("Name: "))
+	name := log.Name
+	if name == "" {
+		name = log.GetMessage()
 	}
+	name = singleLine(name)
+	b.WriteString(hl.ApplyToField(name, DetailValueStyle))
 	b.WriteString("\n")
 
-	// Second line: varies by signal type
-	switch m.signalType {
-	case signalTraces:
-		msg := log.Name
-		if msg == "" {
-			msg = log.GetMessage()
+	if log.TraceID != "" {
+		b.WriteString(DetailKeyStyle.Render("Trace: "))
+		b.WriteString(DetailMutedStyle.Render(log.TraceID))
+		if log.SpanID != "" {
+			b.WriteString("  ")
+			b.WriteString(DetailKeyStyle.Render("Span: "))
+			b.WriteString(DetailMutedStyle.Render(log.SpanID))
 		}
-		b.WriteString(DetailKeyStyle.Render("Name: "))
-		msg = strings.ReplaceAll(msg, "\n", " ")
-		maxMsgLen := (m.width - 10) * 2
-		if len(msg) > maxMsgLen {
-			msg = msg[:maxMsgLen-3] + "..."
-		}
-		b.WriteString(hl.ApplyToField(msg, DetailValueStyle))
-	case signalMetrics:
-		// Show metrics on second line
-		if len(log.Metrics) > 0 {
-			b.WriteString(DetailKeyStyle.Render("Metrics: "))
-			metricParts := []string{}
-			for k, v := range log.Metrics {
-				metricParts = append(metricParts, fmt.Sprintf("%s=%v", k, v))
-			}
-			metricsStr := strings.Join(metricParts, ", ")
-			maxLen := m.width - 15
-			if len(metricsStr) > maxLen {
-				metricsStr = metricsStr[:maxLen-3] + "..."
-			}
-			b.WriteString(hl.ApplyToField(metricsStr, DetailValueStyle))
-		} else {
-			b.WriteString(DetailMutedStyle.Render("No metrics data"))
-		}
-	default:
-		msg := log.GetMessage()
-		b.WriteString(DetailKeyStyle.Render("Message: "))
-		msg = strings.ReplaceAll(msg, "\n", " ")
-		maxMsgLen := (m.width - 10) * 2
-		if len(msg) > maxMsgLen {
-			msg = msg[:maxMsgLen-3] + "..."
-		}
-		b.WriteString(hl.ApplyToField(msg, DetailValueStyle))
 	}
-	b.WriteString("\n")
 
-	// Third line: signal-specific details
-	switch m.signalType {
-	case signalTraces:
-		if log.TraceID != "" {
-			b.WriteString(DetailKeyStyle.Render("Trace: "))
-			b.WriteString(DetailMutedStyle.Render(log.TraceID))
-			if log.SpanID != "" {
-				b.WriteString("  ")
-				b.WriteString(DetailKeyStyle.Render("Span: "))
-				b.WriteString(DetailMutedStyle.Render(log.SpanID))
+	b.WriteString("\n")
+	if m.spansLoading {
+		b.WriteString(DetailKeyStyle.Render("Spans: "))
+		b.WriteString(LoadingStyle.Render("Loading..."))
+	} else if len(m.spans) > 0 {
+		b.WriteString(DetailKeyStyle.Render(fmt.Sprintf("Spans (%d): ", len(m.spans))))
+		spanNames := []string{}
+		for i, span := range m.spans {
+			if i >= 5 {
+				spanNames = append(spanNames, "…")
+				break
 			}
+			name := span.Name
+			if name == "" {
+				name = span.GetMessage()
+			}
+			if name == "" {
+				name = "unnamed"
+			}
+			spanNames = append(spanNames, name)
 		}
-		// Fourth line: Show child spans
-		b.WriteString("\n")
-		if m.spansLoading {
-			b.WriteString(DetailKeyStyle.Render("Spans: "))
-			b.WriteString(LoadingStyle.Render("Loading..."))
-		} else if len(m.spans) > 0 {
-			b.WriteString(DetailKeyStyle.Render(fmt.Sprintf("Spans (%d): ", len(m.spans))))
-			// Show first 5 span names
-			spanNames := []string{}
-			for i, span := range m.spans {
-				if i >= 5 {
-					spanNames = append(spanNames, "…")
-					break
-				}
-				name := span.Name
-				if name == "" {
-					name = span.GetMessage()
-				}
-				if name == "" {
-					name = "unnamed"
-				}
-				spanNames = append(spanNames, name)
-			}
-			spansStr := strings.Join(spanNames, " → ")
-			maxLen := m.width - 20
-			if len(spansStr) > maxLen {
-				spansStr = spansStr[:maxLen-3] + "..."
-			}
-			b.WriteString(DetailValueStyle.Render(spansStr))
-		} else if log.TraceID != "" {
-			b.WriteString(DetailKeyStyle.Render("Spans: "))
-			b.WriteString(DetailMutedStyle.Render("No child spans"))
-		}
-	case signalMetrics:
-		// Show attributes for metrics (often contains span info)
-		if len(log.Attributes) > 0 {
-			b.WriteString(DetailKeyStyle.Render("Attrs: "))
-			attrParts := []string{}
-			maxAttrs := 5
-			count := 0
-			for k, v := range log.Attributes {
-				if count >= maxAttrs {
-					attrParts = append(attrParts, "...")
-					break
-				}
-				attrParts = append(attrParts, fmt.Sprintf("%s=%v", k, v))
-				count++
-			}
-			attrStr := strings.Join(attrParts, ", ")
-			if len(attrStr) > m.width-15 {
-				attrStr = attrStr[:m.width-18] + "..."
-			}
-			b.WriteString(hl.ApplyToField(attrStr, DetailMutedStyle))
-		}
-	default:
-		// Logs - show attributes
-		if len(log.Attributes) > 0 {
-			b.WriteString(DetailKeyStyle.Render("Attrs: "))
-			attrParts := []string{}
-			maxAttrs := 5
-			count := 0
-			for k, v := range log.Attributes {
-				if count >= maxAttrs {
-					attrParts = append(attrParts, "...")
-					break
-				}
-				attrParts = append(attrParts, fmt.Sprintf("%s=%v", k, v))
-				count++
-			}
-			attrStr := strings.Join(attrParts, ", ")
-			if len(attrStr) > m.width-15 {
-				attrStr = attrStr[:m.width-18] + "..."
-			}
-			b.WriteString(hl.ApplyToField(attrStr, DetailMutedStyle))
-		}
+		spansStr := strings.Join(spanNames, " → ")
+		b.WriteString(DetailValueStyle.Render(spansStr))
+	} else if log.TraceID != "" {
+		b.WriteString(DetailKeyStyle.Render("Spans: "))
+		b.WriteString(DetailMutedStyle.Render("No child spans"))
 	}
 
 	return CompactDetailStyle.Width(m.width - 4).Height(compactDetailHeight).Render(b.String())
+}
+
+func (m Model) renderCompactDetailMetrics(log es.LogEntry) string {
+	hl := m.Highlighter()
+	var b strings.Builder
+
+	m.writeBaseHeader(&b, log, hl, func() {
+		if scopeName, ok := log.Scope["name"].(string); ok && scopeName != "" {
+			b.WriteString("  ")
+			b.WriteString(DetailKeyStyle.Render("Scope: "))
+			b.WriteString(DetailValueStyle.Render(scopeName))
+		}
+	})
+
+	b.WriteString("\n")
+	b.WriteString(DetailKeyStyle.Render("Metrics: "))
+	if len(log.Metrics) > 0 {
+		metricsStr := formatKVPreview(log.Metrics, 8, 0)
+		b.WriteString(hl.ApplyToField(metricsStr, DetailValueStyle))
+	} else {
+		b.WriteString(DetailMutedStyle.Render("No metrics data"))
+	}
+	b.WriteString("\n")
+
+	if len(log.Attributes) > 0 {
+		b.WriteString(DetailKeyStyle.Render("Attrs: "))
+		attrs := formatKVPreview(log.Attributes, 5, 0)
+		b.WriteString(hl.ApplyToField(attrs, DetailMutedStyle))
+	}
+
+	return CompactDetailStyle.Width(m.width - 4).Height(compactDetailHeight).Render(b.String())
+}
+
+func (m Model) writeBaseHeader(b *strings.Builder, log es.LogEntry, hl *Highlighter, appendExtras func()) {
+	ts := log.Timestamp.Format("2006-01-02 15:04:05.000")
+	service := log.ServiceName
+	if service == "" {
+		service = "unknown"
+	}
+
+	b.WriteString(DetailKeyStyle.Render("Time: "))
+	b.WriteString(DetailValueStyle.Render(ts))
+	b.WriteString("  ")
+	b.WriteString(DetailKeyStyle.Render("Service: "))
+	b.WriteString(hl.ApplyToField(service, DetailValueStyle))
+
+	if appendExtras != nil {
+		appendExtras()
+	}
+}
+
+func truncateWithEllipsis(s string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	if len(s) <= max {
+		return s
+	}
+	if max <= 3 {
+		return s[:max]
+	}
+	return s[:max-3] + "..."
+}
+
+func singleLine(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, "\r", " "), "\n", " ")
+}
+
+// formatKVPreview renders up to maxItems sorted keys. If maxLen > 0, the result is truncated.
+func formatKVPreview(m map[string]interface{}, maxItems, maxLen int) string {
+	if len(m) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	parts := make([]string, 0, maxItems)
+	for i, k := range keys {
+		if i >= maxItems {
+			parts = append(parts, "...")
+			break
+		}
+		parts = append(parts, fmt.Sprintf("%s=%v", k, m[k]))
+	}
+
+	result := strings.Join(parts, ", ")
+	if maxLen <= 0 {
+		return result
+	}
+	return truncateWithEllipsis(result, maxLen)
 }
 
 func (m Model) renderDetailView() string {
@@ -246,9 +260,9 @@ func (m Model) renderDetailView() string {
 
 	// Only add header line if we have something to show
 	if header != "" {
-		return DetailStyle.Width(m.width - 4).Height(contentHeight).Render(header + "\n" + content)
+		return DetailStyle.Height(contentHeight).Render(header + "\n" + content)
 	}
-	return DetailStyle.Width(m.width - 4).Height(contentHeight).Render(content)
+	return DetailStyle.Height(contentHeight).Render(content)
 }
 
 func (m Model) renderFieldSelector() string {

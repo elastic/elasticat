@@ -4,6 +4,8 @@
 package tui
 
 import (
+	"context"
+	"errors"
 	"time"
 
 	"fmt"
@@ -20,8 +22,6 @@ func (m Model) Init() tea.Cmd {
 
 // Update handles messages
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
-
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		return m.handleKey(msg)
@@ -30,163 +30,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleMouse(msg)
 
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		m.viewport.Width = msg.Width - 4
-		m.viewport.Height = msg.Height - 10
-		return m, nil
+		return m.handleWindowSize(msg)
 
 	case logsMsg:
-		m.loading = false
-		m.lastRefresh = time.Now()
-		if msg.err != nil {
-			m.err = msg.err
-			m.showErrorModal()
-		} else {
-			m.logs = msg.logs
-			m.total = msg.total
-			m.err = nil
-			m.lastQueryJSON = msg.queryJSON
-			m.lastQueryIndex = msg.index
-
-			// Tail -f behavior: auto-select newest log unless user has manually scrolled
-			if !m.userHasScrolled && len(m.logs) > 0 {
-				if m.sortAscending {
-					// Oldest first (asc) → newest is at the end
-					m.selectedIndex = len(m.logs) - 1
-				} else {
-					// Newest first (desc) → newest is at the beginning
-					m.selectedIndex = 0
-				}
-			}
-
-			// Ensure selectedIndex is valid
-			if m.selectedIndex >= len(m.logs) {
-				m.selectedIndex = len(m.logs) - 1
-			}
-			if m.selectedIndex < 0 && len(m.logs) > 0 {
-				m.selectedIndex = 0
-			}
-
-			// Fetch spans for the selected trace when logs first load
-			if m.signalType == signalTraces && len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
-				traceID := m.logs[m.selectedIndex].TraceID
-				if traceID != "" {
-					m.spansLoading = true
-					return m, m.fetchSpans(traceID)
-				}
-			}
-		}
-		return m, nil
+		return m.handleLogsMsg(msg)
 
 	case tickMsg:
-		if m.autoRefresh && m.mode == viewLogs {
-			cmds = append(cmds, m.fetchLogs())
-		}
-		cmds = append(cmds, m.tickCmd())
-		return m, tea.Batch(cmds...)
+		return m.handleTickMsg()
 
 	case fieldCapsMsg:
-		m.fieldsLoading = false
-		if msg.err != nil {
-			m.err = msg.err
-			m.showErrorModal()
-		} else {
-			m.availableFields = msg.fields
-		}
-		return m, nil
+		return m.handleFieldCapsMsg(msg)
 
 	case autoDetectMsg:
-		if msg.err != nil {
-			// Auto-detect failed, just use current lookback and fetch
-			m.loading = true
-			// Signal-specific fetch on error
-			switch m.signalType {
-			case signalMetrics:
-				if m.metricsViewMode == metricsViewAggregated {
-					m.metricsLoading = true
-					return m, m.fetchAggregatedMetrics()
-				}
-			case signalTraces:
-				if m.traceViewLevel == traceViewNames {
-					m.tracesLoading = true
-					return m, m.fetchTransactionNames()
-				}
-			}
-			return m, m.fetchLogs()
-		}
-		// Set the detected lookback and fetch
-		m.lookback = msg.lookback
-		m.statusMessage = fmt.Sprintf("Found %d entries in %s", msg.total, msg.lookback.String())
-		m.statusTime = time.Now()
-		// Signal-specific fetch
-		switch m.signalType {
-		case signalMetrics:
-			if m.metricsViewMode == metricsViewAggregated {
-				m.metricsLoading = true
-				return m, m.fetchAggregatedMetrics()
-			}
-		case signalTraces:
-			if m.traceViewLevel == traceViewNames {
-				m.tracesLoading = true
-				return m, m.fetchTransactionNames()
-			}
-		}
-		m.loading = true
-		return m, m.fetchLogs()
+		return m.handleAutoDetectMsg(msg)
 
 	case metricsAggMsg:
-		m.metricsLoading = false
-		if msg.err != nil {
-			m.err = msg.err
-			m.showErrorModal()
-		} else {
-			m.aggregatedMetrics = msg.result
-			m.err = nil
-		}
-		return m, nil
+		return m.handleMetricsAggMsg(msg)
 
 	case transactionNamesMsg:
-		m.tracesLoading = false
-		if msg.err != nil {
-			m.err = msg.err
-			m.showErrorModal()
-		} else {
-			m.transactionNames = msg.names
-			m.err = nil
-		}
-		return m, nil
+		return m.handleTransactionNamesMsg(msg)
 
 	case spansMsg:
-		m.spansLoading = false
-		if msg.err != nil {
-			m.err = msg.err
-			m.showErrorModal()
-		} else {
-			m.spans = msg.spans
-			m.err = nil
-		}
-		return m, nil
+		return m.handleSpansMsg(msg)
 
 	case perspectiveDataMsg:
-		m.perspectiveLoading = false
-		if msg.err != nil {
-			m.err = msg.err
-			m.showErrorModal()
-		} else {
-			m.perspectiveItems = msg.items
-			m.err = nil
-			m.statusMessage = fmt.Sprintf("Loaded %d %s", len(msg.items), m.currentPerspective.String())
-			m.statusTime = time.Now()
-		}
-		return m, nil
+		return m.handlePerspectiveDataMsg(msg)
 
 	case errMsg:
-		m.err = msg
-		m.loading = false
-		m.showErrorModal()
-		return m, nil
+		return m.handleErrMsg(msg)
 	}
+
+	var cmds []tea.Cmd
 
 	// Update components based on mode
 	switch m.mode {
@@ -223,4 +97,224 @@ func (m *Model) showErrorModal() {
 		m.errorViewport.SetContent(m.err.Error())
 	}
 	m.errorViewport.GotoTop()
+}
+
+func (m Model) handleWindowSize(msg tea.WindowSizeMsg) (Model, tea.Cmd) {
+	m.width = msg.Width
+	m.height = msg.Height
+	m.viewport.Width = msg.Width - 4
+	m.viewport.Height = msg.Height - 10
+
+	// Re-wrap detail content after resize so long fields wrap correctly.
+	if m.mode == viewDetail || m.mode == viewDetailJSON {
+		(&m).updateDetailContent()
+	}
+
+	return m, nil
+}
+
+func (m Model) handleLogsMsg(msg logsMsg) (Model, tea.Cmd) {
+	m.loading = false
+	m.lastRefresh = time.Now()
+	if msg.err != nil {
+		if isContextError(msg.err) {
+			return m, nil
+		}
+		m.err = msg.err
+		m.showErrorModal()
+		return m, nil
+	}
+
+	m.logs = msg.logs
+	m.total = msg.total
+	m.err = nil
+	m.lastQueryJSON = msg.queryJSON
+	m.lastQueryIndex = msg.index
+
+	m = m.applyTailBehaviorAfterFetch()
+	m = m.clampSelection()
+
+	return m.maybeTriggerPostLoadFetches()
+}
+
+func (m Model) handleTickMsg() (Model, tea.Cmd) {
+	var cmds []tea.Cmd
+	if m.autoRefresh && m.mode == viewLogs {
+		cmds = append(cmds, m.fetchLogs())
+	}
+	cmds = append(cmds, m.tickCmd())
+	return m, tea.Batch(cmds...)
+}
+
+func (m Model) handleFieldCapsMsg(msg fieldCapsMsg) (Model, tea.Cmd) {
+	m.fieldsLoading = false
+	if msg.err != nil {
+		if isContextError(msg.err) {
+			return m, nil
+		}
+		m.err = msg.err
+		m.showErrorModal()
+		return m, nil
+	}
+
+	m.availableFields = msg.fields
+	return m, nil
+}
+
+func (m Model) handleAutoDetectMsg(msg autoDetectMsg) (Model, tea.Cmd) {
+	if msg.err != nil {
+		if isContextError(msg.err) {
+			return m, nil
+		}
+		// Auto-detect failed, just use current lookback and fetch
+		m.loading = true
+		switch m.signalType {
+		case signalMetrics:
+			if m.metricsViewMode == metricsViewAggregated {
+				m.metricsLoading = true
+				return m, m.fetchAggregatedMetrics()
+			}
+		case signalTraces:
+			if m.traceViewLevel == traceViewNames {
+				m.tracesLoading = true
+				return m, m.fetchTransactionNames()
+			}
+		}
+		return m, m.fetchLogs()
+	}
+
+	m.lookback = msg.lookback
+	m.statusMessage = fmt.Sprintf("Found %d entries in %s", msg.total, msg.lookback.String())
+	m.statusTime = time.Now()
+
+	switch m.signalType {
+	case signalMetrics:
+		if m.metricsViewMode == metricsViewAggregated {
+			m.metricsLoading = true
+			return m, m.fetchAggregatedMetrics()
+		}
+	case signalTraces:
+		if m.traceViewLevel == traceViewNames {
+			m.tracesLoading = true
+			return m, m.fetchTransactionNames()
+		}
+	}
+
+	m.loading = true
+	return m, m.fetchLogs()
+}
+
+func (m Model) handleMetricsAggMsg(msg metricsAggMsg) (Model, tea.Cmd) {
+	m.metricsLoading = false
+	if msg.err != nil {
+		if isContextError(msg.err) {
+			return m, nil
+		}
+		m.err = msg.err
+		m.showErrorModal()
+		return m, nil
+	}
+
+	m.aggregatedMetrics = msg.result
+	m.err = nil
+	return m, nil
+}
+
+func (m Model) handleTransactionNamesMsg(msg transactionNamesMsg) (Model, tea.Cmd) {
+	m.tracesLoading = false
+	if msg.err != nil {
+		if isContextError(msg.err) {
+			return m, nil
+		}
+		m.err = msg.err
+		m.showErrorModal()
+		return m, nil
+	}
+
+	m.transactionNames = msg.names
+	m.err = nil
+	return m, nil
+}
+
+func (m Model) handleSpansMsg(msg spansMsg) (Model, tea.Cmd) {
+	m.spansLoading = false
+	if msg.err != nil {
+		if isContextError(msg.err) {
+			return m, nil
+		}
+		m.err = msg.err
+		m.showErrorModal()
+		return m, nil
+	}
+
+	m.spans = msg.spans
+	m.err = nil
+	return m, nil
+}
+
+func (m Model) handlePerspectiveDataMsg(msg perspectiveDataMsg) (Model, tea.Cmd) {
+	m.perspectiveLoading = false
+	if msg.err != nil {
+		if isContextError(msg.err) {
+			return m, nil
+		}
+		m.err = msg.err
+		m.showErrorModal()
+		return m, nil
+	}
+
+	m.perspectiveItems = msg.items
+	m.err = nil
+	m.statusMessage = fmt.Sprintf("Loaded %d %s", len(msg.items), m.currentPerspective.String())
+	m.statusTime = time.Now()
+	return m, nil
+}
+
+func (m Model) handleErrMsg(msg errMsg) (Model, tea.Cmd) {
+	m.err = msg
+	m.loading = false
+	m.showErrorModal()
+	return m, nil
+}
+
+// applyTailBehaviorAfterFetch auto-selects the newest log when the user has not scrolled.
+func (m Model) applyTailBehaviorAfterFetch() Model {
+	if m.userHasScrolled || len(m.logs) == 0 {
+		return m
+	}
+
+	if m.sortAscending {
+		m.selectedIndex = len(m.logs) - 1
+	} else {
+		m.selectedIndex = 0
+	}
+	return m
+}
+
+// clampSelection keeps the selection within bounds.
+func (m Model) clampSelection() Model {
+	if len(m.logs) == 0 {
+		m.selectedIndex = 0
+		return m
+	}
+	if m.selectedIndex >= len(m.logs) {
+		m.selectedIndex = len(m.logs) - 1
+	}
+	if m.selectedIndex < 0 {
+		m.selectedIndex = 0
+	}
+	return m
+}
+
+// maybeTriggerPostLoadFetches runs any follow-up fetches after logs load (e.g., spans).
+func (m Model) maybeTriggerPostLoadFetches() (Model, tea.Cmd) {
+	if m.signalType != signalTraces {
+		m.lastFetchedTraceID = ""
+		return m, nil
+	}
+	return m, m.maybeFetchSpansForSelection()
+}
+
+func isContextError(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }

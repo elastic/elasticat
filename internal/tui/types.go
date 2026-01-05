@@ -60,6 +60,15 @@ const (
 	formatCurl
 )
 
+// TimeDisplayMode controls how timestamps are shown in lists
+type TimeDisplayMode int
+
+const (
+	timeDisplayClock    TimeDisplayMode = iota // HH:MM:SS
+	timeDisplayRelative                        // "2m ago"
+	timeDisplayFull                            // 2006-01-02 15:04:05
+)
+
 // SignalType represents the OTel signal type
 type SignalType int
 

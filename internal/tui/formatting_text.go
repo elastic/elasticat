@@ -3,7 +3,11 @@
 
 package tui
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/charmbracelet/x/ansi"
+)
 
 // PadLeft pads a string to the left to reach the specified width
 func PadLeft(s string, width int) string {
@@ -37,4 +41,21 @@ func PadOrTruncate(s string, width int) string {
 	}
 	// Pad with spaces
 	return s + strings.Repeat(" ", width-len(s))
+}
+
+// WrapText hard-wraps text to the given width (terminal cells). Preserves existing newlines.
+// This is ANSI-aware and safe to use on lipgloss-styled strings.
+func WrapText(text string, width int) string {
+	if width <= 0 {
+		return text
+	}
+	var out strings.Builder
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		out.WriteString(ansi.HardwrapWc(line, width, true))
+		if i < len(lines)-1 {
+			out.WriteByte('\n')
+		}
+	}
+	return out.String()
 }

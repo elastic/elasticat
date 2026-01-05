@@ -87,3 +87,4 @@ export default function Watchlist({ items, onRemove, onSelect }: WatchlistProps)
   );
 }
 
+

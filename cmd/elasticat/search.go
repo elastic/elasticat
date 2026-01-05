@@ -22,7 +22,7 @@ var searchCmd = &cobra.Command{
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		query := args[0]
-		return runSearch(query)
+		return runSearch(cmd.Context(), query)
 	},
 }
 
@@ -34,13 +34,13 @@ func init() {
 	rootCmd.AddCommand(searchCmd)
 }
 
-func runSearch(query string) error {
+func runSearch(parentCtx context.Context, query string) error {
 	client, err := es.New([]string{esURL}, esIndex)
 	if err != nil {
 		return fmt.Errorf("failed to create ES client: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
 	defer cancel()
 
 	result, err := client.Search(ctx, query, es.SearchOptions{

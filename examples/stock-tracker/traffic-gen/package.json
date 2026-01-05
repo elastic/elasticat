@@ -2,11 +2,12 @@
   "name": "stock-tracker-traffic-gen",
   "private": true,
   "scripts": {
-    "traffic": "bun run traffic.ts",
-    "install-browsers": "bunx playwright install chromium"
+    "traffic": "node --loader tsx traffic.ts",
+    "install-browsers": "npx playwright install chromium"
   },
   "dependencies": {
-    "playwright": "^1.57.0"
+    "playwright": "^1.57.0",
+    "tsx": "^4.7.0"
   }
 }
 

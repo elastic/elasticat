@@ -59,3 +59,4 @@ func calcVisibleRange(cursor, listLen, viewHeight int) (startIdx, endIdx int) {
 	}
 	return startIdx, endIdx
 }
+

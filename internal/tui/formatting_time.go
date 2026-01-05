@@ -49,3 +49,8 @@ func formatRelativeTime(t time.Time) string {
 		return fmt.Sprintf("%dy ago", int(diff.Hours()/(24*365)))
 	}
 }
+
+// formatFullTime returns full date and time in local time with seconds
+func formatFullTime(t time.Time) string {
+	return t.Format("2006-01-02 15:04:05")
+}

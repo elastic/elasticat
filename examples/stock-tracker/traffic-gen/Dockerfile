@@ -1,22 +1,18 @@
 FROM mcr.microsoft.com/playwright:v1.57.0-jammy
 
-# Install Bun
-ENV BUN_INSTALL=/root/.bun \
-    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN apt-get update && apt-get install -y unzip && \
-    curl -fsSL https://bun.sh/install | bash && \
-    ln -s /root/.bun/bin/bun /usr/local/bin/bun
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 WORKDIR /app
 
-# 1) Copy only dependency manifests first (better layer cache)
-COPY package.json bun.lock* ./
+# 1) Copy dependency manifest for caching
+COPY package.json package-lock.json* ./
 
-# 2) Install JS deps
-RUN bun install
+# 2) Install dependencies (npm comes with the Playwright base image)
+RUN npm install
 
-# 3) Copy the frequently-changing app code last
+# 3) Copy application code
 COPY . .
 
-CMD ["bun", "run", "traffic.ts", "--duration", "0", "--include-chaos"]
+# Default: run forever with chaos on (duration 0 falls back to default loop duration)
+CMD ["npm", "run", "traffic", "--", "--duration", "0", "--include-chaos"]
 

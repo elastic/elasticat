@@ -109,3 +109,4 @@ export default function StockSearch({ onSearch, loading }: StockSearchProps) {
   );
 }
 
+

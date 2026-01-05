@@ -26,8 +26,12 @@ func (m Model) renderLogListWithHeight(listHeight int) string {
 	// Calculate flexible column width first (needed for both header and content)
 	fixedWidth := 0
 	for _, field := range m.displayFields {
-		if field.Width > 0 {
-			fixedWidth += field.Width + 1 // +1 for space between columns
+		width := field.Width
+		if field.Name == "@timestamp" {
+			width = m.timestampWidth(width)
+		}
+		if width > 0 {
+			fixedWidth += width + 1 // +1 for space between columns
 		}
 	}
 	flexWidth := m.width - fixedWidth - 10
@@ -40,10 +44,20 @@ func (m Model) renderLogListWithHeight(listHeight int) string {
 	for _, field := range m.displayFields {
 		label := field.Label
 		// Special handling for timestamp label
-		if field.Name == "@timestamp" && m.relativeTime {
-			label = "AGE"
+		if field.Name == "@timestamp" {
+			switch m.timeDisplayMode {
+			case timeDisplayRelative:
+				label = "AGE"
+			case timeDisplayFull:
+				label = "DATETIME"
+			default:
+				label = "TIME"
+			}
 		}
 		width := field.Width
+		if field.Name == "@timestamp" {
+			width = m.timestampWidth(width)
+		}
 		if width == 0 {
 			width = flexWidth
 		}
@@ -83,13 +97,34 @@ func (m Model) renderLogListWithHeight(listHeight int) string {
 	return LogListStyle.Width(m.width - 4).Height(listHeight).Render(content)
 }
 
+// timestampWidth returns the width to use for the timestamp column based on mode.
+func (m Model) timestampWidth(base int) int {
+	if base <= 0 {
+		base = 8
+	}
+	switch m.timeDisplayMode {
+	case timeDisplayFull:
+		if base < 19 {
+			return 19
+		}
+		return base
+	default:
+		// Clock or relative can use the base width
+		return base
+	}
+}
+
 func (m Model) renderLogEntry(log es.LogEntry, selected bool) string {
 	// Calculate fixed column widths to determine flexible column width
 	fixedWidth := 0
 	flexibleFieldIdx := -1
 	for i, field := range m.displayFields {
-		if field.Width > 0 {
-			fixedWidth += field.Width + 1 // +1 for space between columns
+		width := field.Width
+		if field.Name == "@timestamp" {
+			width = m.timestampWidth(width)
+		}
+		if width > 0 {
+			fixedWidth += width + 1 // +1 for space between columns
 		} else {
 			flexibleFieldIdx = i
 		}
@@ -107,7 +142,7 @@ func (m Model) renderLogEntry(log es.LogEntry, selected bool) string {
 	// When selected, use selection colors for all columns
 	getStyle := func(baseStyle lipgloss.Style) lipgloss.Style {
 		if selected {
-			return SelectedLogStyle
+			return SelectedCellStyle
 		}
 		return baseStyle
 	}
@@ -117,6 +152,9 @@ func (m Model) renderLogEntry(log es.LogEntry, selected bool) string {
 		var value string
 		var styled string
 		width := field.Width
+		if field.Name == "@timestamp" {
+			width = m.timestampWidth(width)
+		}
 		if width == 0 {
 			if i == flexibleFieldIdx {
 				width = flexWidth
@@ -127,9 +165,12 @@ func (m Model) renderLogEntry(log es.LogEntry, selected bool) string {
 
 		switch field.Name {
 		case "@timestamp":
-			if m.relativeTime {
+			switch m.timeDisplayMode {
+			case timeDisplayRelative:
 				value = formatRelativeTime(log.Timestamp)
-			} else {
+			case timeDisplayFull:
+				value = formatFullTime(log.Timestamp)
+			default:
 				value = formatClockTime(log.Timestamp)
 			}
 			// Timestamp is not searchable, just pad and style with MaxWidth to prevent scrolling

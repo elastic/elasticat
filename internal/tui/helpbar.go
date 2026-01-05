@@ -73,6 +73,7 @@ func (m Model) renderHelpBar() string {
 			HelpKeyStyle.Render("←/→") + HelpDescStyle.Render(" prev/next"),
 			HelpKeyStyle.Render("↑/↓") + HelpDescStyle.Render(" scroll"),
 			HelpKeyStyle.Render("enter") + HelpDescStyle.Render(" details"),
+			HelpKeyStyle.Render("j") + HelpDescStyle.Render(" details"),
 			HelpKeyStyle.Render("y") + HelpDescStyle.Render(" copy"),
 			HelpKeyStyle.Render("esc") + HelpDescStyle.Render(" close"),
 		}

@@ -47,3 +47,4 @@ func (m Model) handleTraceNamesKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	return m, nil
 }
+

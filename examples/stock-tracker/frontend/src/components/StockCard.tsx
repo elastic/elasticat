@@ -165,3 +165,4 @@ export default function StockCard({ stock, onAddToPortfolio, onAddToWatchlist }:
   );
 }
 
+

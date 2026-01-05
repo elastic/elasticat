@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -38,7 +39,7 @@ Examples:
   elasticat watch --no-send server.log # Display only, don't send to ES`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runWatch(args)
+		return runWatch(cmd, args)
 	},
 }
 
@@ -53,9 +54,14 @@ func init() {
 	rootCmd.AddCommand(watchCmd)
 }
 
-func runWatch(files []string) error {
+func runWatch(cmd *cobra.Command, files []string) error {
+	// Listen for SIGINT/SIGTERM and cancel the run context.
+	ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
 	// Create watcher
 	watcher, err := watch.New(watch.Config{
+		Context:   ctx,
 		Files:     files,
 		Service:   serviceFlag,
 		TailLines: watchLines,
@@ -66,6 +72,10 @@ func runWatch(files []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create watcher: %w", err)
 	}
+	go func() {
+		<-ctx.Done()
+		fmt.Println("\nShutting down...")
+	}()
 
 	// Create OTLP client if sending is enabled
 	var otlpClient *otlp.Client
@@ -80,20 +90,6 @@ func runWatch(files []string) error {
 			fmt.Fprintf(os.Stderr, "Logs will be displayed but not sent to Elasticsearch.\n\n")
 		}
 	}
-
-	// Setup context for graceful shutdown
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Handle shutdown signals
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sigCh
-		fmt.Println("\nShutting down...")
-		watcher.Stop()
-		cancel()
-	}()
 
 	// Determine if we need to show filename prefix (multiple files)
 	showFilename := watcher.FileCount() > 1
@@ -128,6 +124,9 @@ func runWatch(files []string) error {
 	if watchOneshot {
 		lineCount, err := watcher.ReadAll()
 		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return nil
+			}
 			return fmt.Errorf("read error: %w", err)
 		}
 		fmt.Printf("\nImported %d log lines.\n", lineCount)

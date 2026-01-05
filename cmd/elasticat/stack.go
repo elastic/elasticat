@@ -42,7 +42,7 @@ var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Check the status of the ElastiCat stack",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runStatus()
+		return runStatus(cmd.Context())
 	},
 }
 
@@ -199,13 +199,13 @@ func runDown() error {
 	return nil
 }
 
-func runStatus() error {
+func runStatus(parentCtx context.Context) error {
 	client, err := es.New([]string{esURL}, esIndex)
 	if err != nil {
 		return fmt.Errorf("failed to create ES client: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
 	defer cancel()
 
 	fmt.Println("ElastiCat Status")

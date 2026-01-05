@@ -34,6 +34,7 @@ type Watcher struct {
 
 // Config holds watcher configuration
 type Config struct {
+	Context   context.Context
 	Files     []string
 	Service   string // Override service name
 	TailLines int    // Number of lines to show initially (0 = all lines in oneshot mode)
@@ -66,7 +67,12 @@ func New(cfg Config) (*Watcher, error) {
 		return nil, fmt.Errorf("no files to watch")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	parentCtx := cfg.Context
+	if parentCtx == nil {
+		parentCtx = context.Background()
+	}
+
+	ctx, cancel := context.WithCancel(parentCtx)
 
 	return &Watcher{
 		files:     files,
@@ -138,6 +144,10 @@ func (w *Watcher) ReadAll() (int, error) {
 	totalLines := 0
 
 	for _, filename := range w.files {
+		if err := w.ctx.Err(); err != nil {
+			return totalLines, err
+		}
+
 		service := w.service
 		if service == "" {
 			service = ServiceFromFilename(filename)
@@ -155,6 +165,13 @@ func (w *Watcher) ReadAll() (int, error) {
 		var lines []string
 
 		for {
+			select {
+			case <-w.ctx.Done():
+				file.Close()
+				return totalLines, w.ctx.Err()
+			default:
+			}
+
 			n, err := file.Read(buf)
 			if n > 0 {
 				chunk := partial + string(buf[:n])
@@ -181,6 +198,10 @@ func (w *Watcher) ReadAll() (int, error) {
 
 		// Process all lines
 		for _, line := range lines {
+			if err := w.ctx.Err(); err != nil {
+				return totalLines, err
+			}
+
 			if line == "" {
 				continue
 			}
@@ -261,6 +282,12 @@ func (w *Watcher) showLastLines(filename, service string) error {
 	var partial string
 
 	for {
+		select {
+		case <-w.ctx.Done():
+			return w.ctx.Err()
+		default:
+		}
+
 		n, err := file.Read(buf)
 		if n > 0 {
 			chunk := partial + string(buf[:n])
@@ -291,6 +318,10 @@ func (w *Watcher) showLastLines(filename, service string) error {
 
 	// Display them
 	for _, line := range lines[start:] {
+		if err := w.ctx.Err(); err != nil {
+			return err
+		}
+
 		if line == "" {
 			continue
 		}

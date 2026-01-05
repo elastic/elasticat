@@ -19,3 +19,4 @@ EXPOSE 8081
 
 CMD ["./stock-service"]
 
+

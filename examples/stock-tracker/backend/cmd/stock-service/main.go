@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"net/http"
 	"os"
@@ -167,12 +168,16 @@ func getStock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Look up stock
+	// Look up stock; if not found, return a synthetic quote unless explicitly testing INVALID
 	stock, found := stockData[symbol]
 	if !found {
-		logger.Warn(ctx, "Stock not found", attribute.String("symbol", symbol))
-		http.Error(w, `{"error":"stock not found"}`, http.StatusNotFound)
-		return
+		if symbol == "INVALID" {
+			logger.Warn(ctx, "Stock not found", attribute.String("symbol", symbol))
+			http.Error(w, `{"error":"stock not found"}`, http.StatusNotFound)
+			return
+		}
+		stock = syntheticStock(symbol)
+		logger.Warn(ctx, "Stock not found - returning synthetic quote", attribute.String("symbol", symbol))
 	}
 
 	// Add some random variance to make it look live
@@ -214,3 +219,20 @@ func getEnv(key, fallback string) string {
 	}
 	return fallback
 }
+
+// syntheticStock generates a plausible quote so arbitrary symbols don't 404
+func syntheticStock(symbol string) Stock {
+	price := 50 + rand.Float64()*150
+	change := (rand.Float64() - 0.5) * 5
+	changePct := (change / price) * 100
+	return Stock{
+		Symbol:    symbol,
+		Name:      fmt.Sprintf("%s Corp.", symbol),
+		Price:     price,
+		Change:    change,
+		ChangePct: changePct,
+		Volume:    int64(1_000_000 + rand.Intn(5_000_000)),
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+	}
+}
+
