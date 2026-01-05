@@ -98,7 +98,10 @@ func GetByField(ctx context.Context, exec Executor, lookback string, field strin
 		body, _ := io.ReadAll(res.Body)
 		// Pretty-print the query for error messages
 		var prettyQuery bytes.Buffer
-		json.Indent(&prettyQuery, queryJSON, "", "  ")
+		err = json.Indent(&prettyQuery, queryJSON, "", "  ")
+		if err != nil {
+			return nil, fmt.Errorf("indent query: %w", err)
+		}
 		return nil, fmt.Errorf("search error: %s\nError: %s\n\nQuery:\n%s", res.Status, string(body), prettyQuery.String())
 	}
 
@@ -161,4 +164,3 @@ func GetServices(ctx context.Context, exec Executor, lookback string) ([]Perspec
 func GetResources(ctx context.Context, exec Executor, lookback string) ([]PerspectiveAgg, error) {
 	return GetByField(ctx, exec, lookback, "resource.attributes.deployment.environment")
 }
-

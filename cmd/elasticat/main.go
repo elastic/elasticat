@@ -661,7 +661,7 @@ func runClear() error {
 	if !clearForce {
 		fmt.Print("This will delete ALL collected telemetry (logs, metrics, traces). Are you sure? [y/N] ")
 		var response string
-		fmt.Scanln(&response)
+		_, _ = fmt.Scanln(&response)
 		if response != "y" && response != "Y" {
 			fmt.Println("Aborted.")
 			return nil

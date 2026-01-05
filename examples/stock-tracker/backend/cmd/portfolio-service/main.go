@@ -24,10 +24,10 @@ import (
 
 // Holding represents a stock holding in a portfolio
 type Holding struct {
-	Symbol    string    `json:"symbol"`
-	Shares    int       `json:"shares"`
-	AvgCost   float64   `json:"avg_cost"`
-	AddedAt   time.Time `json:"added_at"`
+	Symbol  string    `json:"symbol"`
+	Shares  int       `json:"shares"`
+	AvgCost float64   `json:"avg_cost"`
+	AddedAt time.Time `json:"added_at"`
 }
 
 // Portfolio represents a user's portfolio
@@ -302,4 +302,3 @@ func getEnv(key, fallback string) string {
 	}
 	return fallback
 }
-

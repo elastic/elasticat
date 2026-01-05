@@ -172,7 +172,7 @@ func GetNames(ctx context.Context, exec Executor, lookback, service, resource st
 		body, _ := io.ReadAll(res.Body)
 		// Pretty-print the query for error messages
 		var prettyQuery bytes.Buffer
-		json.Indent(&prettyQuery, queryJSON, "", "  ")
+		_ = json.Indent(&prettyQuery, queryJSON, "", "  ")
 		return nil, fmt.Errorf("aggregation failed: %s\nError: %s\n\nQuery:\n%s", res.Status, string(body), prettyQuery.String())
 	}
 
@@ -453,4 +453,3 @@ func GetNamesESSQL(ctx context.Context, exec Executor, lookback, service, resour
 
 	return txStats, nil
 }
-

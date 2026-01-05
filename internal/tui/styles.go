@@ -19,7 +19,6 @@ var (
 	infoColor      = lipgloss.Color("#61AFEF")
 	debugColor     = lipgloss.Color("#6C757D")
 	traceColor     = lipgloss.Color("#888888")
-	bgColor        = lipgloss.Color("#1E1E1E")
 	fgColor        = lipgloss.Color("#E0E0E0")
 	mutedColor     = lipgloss.Color("#6C757D")
 )

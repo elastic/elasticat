@@ -85,7 +85,7 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			}
 		case viewDetail, viewDetailJSON:
 			// Scroll up in detail viewport
-			m.viewport.LineUp(3)
+			m.viewport.ScrollUp(3)
 		case viewFields:
 			// Scroll up in field selector
 			if m.fieldsCursor > 0 {
@@ -132,7 +132,7 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			}
 		case viewDetail, viewDetailJSON:
 			// Scroll down in detail viewport
-			m.viewport.LineDown(3)
+			m.viewport.ScrollDown(3)
 		case viewFields:
 			// Scroll down in field selector
 			sortedFields := m.getSortedFieldList()

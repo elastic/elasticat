@@ -21,4 +21,3 @@ type Executor interface {
 	// SearchForPerspectives executes a search query and returns the raw response
 	SearchForPerspectives(ctx context.Context, index string, body []byte, size int) (*SearchResponse, error)
 }
-

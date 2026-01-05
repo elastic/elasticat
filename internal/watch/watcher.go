@@ -109,7 +109,7 @@ func (w *Watcher) Start() error {
 	// Stop all tails
 	w.mu.Lock()
 	for _, t := range w.tails {
-		t.Stop()
+		_ = t.Stop()
 	}
 	w.mu.Unlock()
 

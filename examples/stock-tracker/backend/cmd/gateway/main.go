@@ -26,11 +26,11 @@ import (
 )
 
 var (
-	logger         *appOtel.Logger
-	tracer         = otel.Tracer("api-gateway")
+	logger              *appOtel.Logger
+	tracer              = otel.Tracer("api-gateway")
 	stockServiceURL     = getEnv("STOCK_SERVICE_URL", "http://localhost:8081")
 	portfolioServiceURL = getEnv("PORTFOLIO_SERVICE_URL", "http://localhost:8082")
-	httpClient     *http.Client
+	httpClient          *http.Client
 
 	// Rate limiting
 	rateLimiter = &RateLimiter{
@@ -292,4 +292,3 @@ func getEnv(key, fallback string) string {
 	}
 	return fallback
 }
-

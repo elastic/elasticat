@@ -27,4 +27,3 @@ type Executor interface {
 	// GetIndex returns the current index pattern
 	GetIndex() string
 }
-

@@ -25,19 +25,19 @@ func (m Model) handleErrorModalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "j", "down":
-		m.errorViewport.LineDown(1)
+		m.errorViewport.ScrollDown(1)
 		return m, nil
 
 	case "k", "up":
-		m.errorViewport.LineUp(1)
+		m.errorViewport.ScrollUp(1)
 		return m, nil
 
 	case "d", "pgdown":
-		m.errorViewport.HalfViewDown()
+		m.errorViewport.HalfPageDown()
 		return m, nil
 
 	case "u", "pgup":
-		m.errorViewport.HalfViewUp()
+		m.errorViewport.HalfPageUp()
 		return m, nil
 
 	case "g", "home":
@@ -53,4 +53,3 @@ func (m Model) handleErrorModalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.errorViewport, cmd = m.errorViewport.Update(msg)
 	return m, cmd
 }
-

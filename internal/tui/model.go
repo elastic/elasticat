@@ -37,8 +37,7 @@ type Model struct {
 	negateResource bool   // If true, exclude filterResource instead of filtering to it
 
 	// Auto-refresh
-	autoRefresh   bool
-	refreshTicker *time.Ticker
+	autoRefresh bool
 
 	// Time display
 	relativeTime bool // Show "2m ago" vs "15:04:05"

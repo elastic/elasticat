@@ -3,6 +3,7 @@ import StockSearch from './components/StockSearch';
 import StockCard from './components/StockCard';
 import Portfolio from './components/Portfolio';
 import Watchlist from './components/Watchlist';
+import { traceUserAction, captureError } from './instrumentation';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
@@ -142,82 +143,122 @@ export default function App() {
   };
 
   const handleSearch = async (symbol: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`${API_URL}/api/stocks/${symbol}`);
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || `Failed to fetch ${symbol}`);
+    await traceUserAction('stock.search', async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`${API_URL}/api/stocks/${symbol}`);
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || `Failed to fetch ${symbol}`);
+        }
+        const stock = await res.json();
+        setSelectedStock(stock);
+      } catch (err: any) {
+        setError(err.message);
+        setSelectedStock(null);
+        if (err instanceof Error) {
+          captureError(err, 'stock.search');
+        }
+        throw err;
+      } finally {
+        setLoading(false);
       }
-      const stock = await res.json();
-      setSelectedStock(stock);
-    } catch (err: any) {
-      setError(err.message);
-      setSelectedStock(null);
-    } finally {
-      setLoading(false);
-    }
+    }, { 'stock.symbol': symbol });
   };
 
   const handleAddToPortfolio = async (symbol: string, shares: number, price: number) => {
-    try {
-      const res = await fetch(`${API_URL}/api/portfolio/${symbol}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shares, price }),
-      });
-      if (!res.ok) throw new Error('Failed to add to portfolio');
-      await fetchPortfolio();
-    } catch (err: any) {
-      setError(err.message);
-    }
+    await traceUserAction('portfolio.add', async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/portfolio/${symbol}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ shares, price }),
+        });
+        if (!res.ok) throw new Error('Failed to add to portfolio');
+        await fetchPortfolio();
+      } catch (err: any) {
+        setError(err.message);
+        if (err instanceof Error) {
+          captureError(err, 'portfolio.add');
+        }
+        throw err;
+      }
+    }, {
+      'portfolio.symbol': symbol,
+      'portfolio.shares': shares,
+      'portfolio.price': price,
+    });
   };
 
   const handleAddToWatchlist = async (symbol: string) => {
-    try {
-      const res = await fetch(`${API_URL}/api/watchlist/${symbol}`, {
-        method: 'POST',
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to add to watchlist');
+    await traceUserAction('watchlist.add', async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/watchlist/${symbol}`, {
+          method: 'POST',
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Failed to add to watchlist');
+        }
+        await fetchWatchlist();
+      } catch (err: any) {
+        setError(err.message);
+        if (err instanceof Error) {
+          captureError(err, 'watchlist.add');
+        }
+        throw err;
       }
-      await fetchWatchlist();
-    } catch (err: any) {
-      setError(err.message);
-    }
+    }, { 'watchlist.symbol': symbol });
   };
 
   const handleRemoveFromWatchlist = async (symbol: string) => {
-    try {
-      const res = await fetch(`${API_URL}/api/watchlist/${symbol}`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) throw new Error('Failed to remove from watchlist');
-      await fetchWatchlist();
-    } catch (err: any) {
-      setError(err.message);
-    }
+    await traceUserAction('watchlist.remove', async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/watchlist/${symbol}`, {
+          method: 'DELETE',
+        });
+        if (!res.ok) throw new Error('Failed to remove from watchlist');
+        await fetchWatchlist();
+      } catch (err: any) {
+        setError(err.message);
+        if (err instanceof Error) {
+          captureError(err, 'watchlist.remove');
+        }
+        throw err;
+      }
+    }, { 'watchlist.symbol': symbol });
   };
 
   // Chaos engineering controls
   const handleChaosKill = async () => {
-    try {
-      await fetch(`${API_URL}/api/chaos/kill-stock-service`, { method: 'POST' });
-      setError('Stock service has been marked unavailable (chaos mode)');
-    } catch (err) {
-      console.error('Chaos kill failed:', err);
-    }
+    await traceUserAction('chaos.kill_stock_service', async () => {
+      try {
+        await fetch(`${API_URL}/api/chaos/kill-stock-service`, { method: 'POST' });
+        setError('Stock service has been marked unavailable (chaos mode)');
+      } catch (err) {
+        console.error('Chaos kill failed:', err);
+        if (err instanceof Error) {
+          captureError(err, 'chaos.kill_stock_service');
+        }
+        throw err;
+      }
+    });
   };
 
   const handleChaosRestore = async () => {
-    try {
-      await fetch(`${API_URL}/api/chaos/restore-stock-service`, { method: 'POST' });
-      setError(null);
-    } catch (err) {
-      console.error('Chaos restore failed:', err);
-    }
+    await traceUserAction('chaos.restore_stock_service', async () => {
+      try {
+        await fetch(`${API_URL}/api/chaos/restore-stock-service`, { method: 'POST' });
+        setError(null);
+      } catch (err) {
+        console.error('Chaos restore failed:', err);
+        if (err instanceof Error) {
+          captureError(err, 'chaos.restore_stock_service');
+        }
+        throw err;
+      }
+    });
   };
 
   return (

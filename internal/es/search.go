@@ -62,7 +62,7 @@ func (c *Client) Tail(ctx context.Context, opts TailOptions) (*SearchResult, err
 		body, _ := io.ReadAll(res.Body)
 		// Pretty-print the query for error messages
 		var prettyQuery bytes.Buffer
-		json.Indent(&prettyQuery, queryJSON, "", "  ")
+		_ = json.Indent(&prettyQuery, queryJSON, "", "  ")
 		return nil, fmt.Errorf("search failed: %s\nError: %s\n\nQuery:\n%s", res.Status(), string(body), prettyQuery.String())
 	}
 
@@ -111,7 +111,7 @@ func (c *Client) Search(ctx context.Context, queryStr string, opts SearchOptions
 		body, _ := io.ReadAll(res.Body)
 		// Pretty-print the query for error messages
 		var prettyQuery bytes.Buffer
-		json.Indent(&prettyQuery, queryJSON, "", "  ")
+		_ = json.Indent(&prettyQuery, queryJSON, "", "  ")
 		return nil, fmt.Errorf("search failed: %s\nError: %s\n\nQuery:\n%s", res.Status(), string(body), prettyQuery.String())
 	}
 
@@ -434,4 +434,3 @@ func parseSearchResponse(body io.Reader) (*SearchResult, error) {
 
 	return result, nil
 }
-

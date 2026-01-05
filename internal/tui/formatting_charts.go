@@ -31,7 +31,7 @@ func (m Model) renderLargeChart(buckets []metrics.MetricBucket, minVal, maxVal f
 	if valRange == 0 {
 		valRange = 1
 		minVal = minVal - 0.5
-		maxVal = maxVal + 0.5
+		// maxVal adjustment not needed since we use valRange for normalization
 	}
 
 	// Sample buckets to fit chart width

@@ -206,7 +206,7 @@ func Aggregate(ctx context.Context, exec Executor, opts AggregateMetricsOptions)
 		body, _ := io.ReadAll(res.Body)
 		// Pretty-print the query for error messages
 		var prettyQuery bytes.Buffer
-		json.Indent(&prettyQuery, queryJSON, "", "  ")
+		_ = json.Indent(&prettyQuery, queryJSON, "", "  ")
 		return nil, fmt.Errorf("aggregation failed: %s\nError: %s\n\nQuery:\n%s", res.Status, string(body), prettyQuery.String())
 	}
 
@@ -319,4 +319,3 @@ func extractNestedFloat(data map[string]interface{}, path string) float64 {
 	}
 	return 0
 }
-

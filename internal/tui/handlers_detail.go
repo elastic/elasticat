@@ -90,4 +90,3 @@ func (m *Model) updateDetailContent() {
 	}
 	m.viewport.GotoTop()
 }
-

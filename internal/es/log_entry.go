@@ -411,4 +411,3 @@ func getNestedValue(data map[string]interface{}, path string) string {
 	}
 	return fmt.Sprintf("%v", current)
 }
-

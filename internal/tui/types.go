@@ -84,12 +84,6 @@ const (
 	PerspectiveResources
 )
 
-// Unexported aliases for backward compatibility within this package
-const (
-	perspectiveServices  = PerspectiveServices
-	perspectiveResources = PerspectiveResources
-)
-
 func (p PerspectiveType) String() string {
 	switch p {
 	case PerspectiveServices:
@@ -379,7 +373,6 @@ type (
 		items []PerspectiveItem
 		err   error
 	}
-	tickMsg   time.Time
-	errMsg    error
-	statusMsg string
+	tickMsg time.Time
+	errMsg  error
 )
