@@ -130,7 +130,7 @@ func (m Model) renderLogEntry(log es.LogEntry, selected bool) string {
 			if m.relativeTime {
 				value = formatRelativeTime(log.Timestamp)
 			} else {
-				value = log.Timestamp.Format("15:04:05")
+				value = formatClockTime(log.Timestamp)
 			}
 			// Timestamp is not searchable, just pad and style with MaxWidth to prevent scrolling
 			styled = getStyle(TimestampStyle).MaxWidth(width).Render(PadOrTruncate(value, width))

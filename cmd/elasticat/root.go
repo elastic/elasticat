@@ -25,5 +25,5 @@ Your AI assistant can query logs via the Elasticsearch MCP server.`,
 func init() {
 	// Global flags
 	rootCmd.PersistentFlags().StringVar(&esURL, "es-url", "http://localhost:9200", "Elasticsearch URL")
-	rootCmd.PersistentFlags().StringVar(&esIndex, "index", "logs-*", "Elasticsearch index/data stream pattern (e.g., 'logs-*', 'logs-myapp-*')")
+	rootCmd.PersistentFlags().StringVarP(&esIndex, "index", "i", "logs-*", "Elasticsearch index/data stream pattern (e.g., 'logs-*', 'logs-myapp-*')")
 }

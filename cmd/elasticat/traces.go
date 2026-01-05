@@ -3,11 +3,7 @@
 
 package main
 
-import (
-	"fmt"
-
-	"github.com/spf13/cobra"
-)
+import "github.com/spf13/cobra"
 
 var tracesCmd = &cobra.Command{
 	Use:   "traces",
@@ -16,12 +12,11 @@ var tracesCmd = &cobra.Command{
 
 For the interactive TUI, use 'elasticat ui traces'.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Println("CLI traces command not yet implemented.")
-		fmt.Println("Use 'elasticat ui traces' for the interactive viewer.")
-		return nil
+		return runSignalCommand(cmd, signalKindTraces, args)
 	},
 }
 
 func init() {
+	registerSignalFlags(tracesCmd)
 	rootCmd.AddCommand(tracesCmd)
 }

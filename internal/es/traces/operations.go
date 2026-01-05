@@ -4,11 +4,12 @@
 package traces
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+
+	"github.com/elastic/elasticat/internal/es/errfmt"
 )
 
 // LookbackToESQLInterval converts a lookback string (e.g., "now-5m") to ES|QL format (e.g., "5 minutes")
@@ -170,10 +171,7 @@ func GetNames(ctx context.Context, exec Executor, lookback, service, resource st
 
 	if res.IsError {
 		body, _ := io.ReadAll(res.Body)
-		// Pretty-print the query for error messages
-		var prettyQuery bytes.Buffer
-		_ = json.Indent(&prettyQuery, queryJSON, "", "  ")
-		return nil, fmt.Errorf("aggregation failed: %s\nError: %s\n\nQuery:\n%s", res.Status, string(body), prettyQuery.String())
+		return nil, errfmt.FormatQueryError(res.Status, body, queryJSON)
 	}
 
 	// Parse response

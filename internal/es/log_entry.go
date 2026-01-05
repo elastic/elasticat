@@ -275,7 +275,7 @@ func (l *LogEntry) GetFieldValue(fieldPath string) string {
 	// Handle built-in fields first
 	switch fieldPath {
 	case "@timestamp":
-		return l.Timestamp.Format("15:04:05")
+		return fmt.Sprintf("%02d:%02d:%02d", l.Timestamp.Hour(), l.Timestamp.Minute(), l.Timestamp.Second())
 	case "level", "severity_text":
 		return l.GetLevel()
 	case "service.name", "resource.attributes.service.name":

@@ -4,12 +4,13 @@
 package es
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"time"
+
+	"github.com/elastic/elasticat/internal/es/errfmt"
 )
 
 // GetTailQueryJSON returns the JSON query body for a tail operation
@@ -46,27 +47,18 @@ func (c *Client) Tail(ctx context.Context, opts TailOptions) (*SearchResult, err
 		sortOrder = "@timestamp:asc"
 	}
 
-	res, err := c.es.Search(
-		c.es.Search.WithContext(ctx),
-		c.es.Search.WithIndex(c.index),
-		c.es.Search.WithBody(bytes.NewReader(queryJSON)),
-		c.es.Search.WithSize(opts.Size),
-		c.es.Search.WithSort(sortOrder),
-	)
+	body, status, isError, err := doSearch(ctx, c.es, c.index, queryJSON, opts.Size, sortOrder)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search: %w", err)
 	}
-	defer res.Body.Close()
+	defer body.Close()
 
-	if res.IsError() {
-		body, _ := io.ReadAll(res.Body)
-		// Pretty-print the query for error messages
-		var prettyQuery bytes.Buffer
-		_ = json.Indent(&prettyQuery, queryJSON, "", "  ")
-		return nil, fmt.Errorf("search failed: %s\nError: %s\n\nQuery:\n%s", res.Status(), string(body), prettyQuery.String())
+	if isError {
+		respBody, _ := io.ReadAll(body)
+		return nil, errfmt.FormatQueryError(status, respBody, queryJSON)
 	}
 
-	return parseSearchResponse(res.Body)
+	return parseSearchResponse(body)
 }
 
 // GetSpansByTraceID fetches all spans for a given trace ID
@@ -95,27 +87,18 @@ func (c *Client) Search(ctx context.Context, queryStr string, opts SearchOptions
 		sortOrder = "@timestamp:asc"
 	}
 
-	res, err := c.es.Search(
-		c.es.Search.WithContext(ctx),
-		c.es.Search.WithIndex(c.index),
-		c.es.Search.WithBody(bytes.NewReader(queryJSON)),
-		c.es.Search.WithSize(opts.Size),
-		c.es.Search.WithSort(sortOrder),
-	)
+	body, status, isError, err := doSearch(ctx, c.es, c.index, queryJSON, opts.Size, sortOrder)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search: %w", err)
 	}
-	defer res.Body.Close()
+	defer body.Close()
 
-	if res.IsError() {
-		body, _ := io.ReadAll(res.Body)
-		// Pretty-print the query for error messages
-		var prettyQuery bytes.Buffer
-		_ = json.Indent(&prettyQuery, queryJSON, "", "  ")
-		return nil, fmt.Errorf("search failed: %s\nError: %s\n\nQuery:\n%s", res.Status(), string(body), prettyQuery.String())
+	if isError {
+		respBody, _ := io.ReadAll(body)
+		return nil, errfmt.FormatQueryError(status, respBody, queryJSON)
 	}
 
-	return parseSearchResponse(res.Body)
+	return parseSearchResponse(body)
 }
 
 // buildTailQuery constructs an ES query for tailing logs.
@@ -422,12 +405,8 @@ func parseSearchResponse(body io.Reader) (*SearchResult, error) {
 		var raw map[string]interface{}
 		if err := json.Unmarshal(hit.Source, &raw); err == nil {
 			entry := extractLogEntry(raw)
-			// Store pretty-printed raw JSON for display
-			if prettyJSON, err := json.MarshalIndent(raw, "", "  "); err == nil {
-				entry.RawJSON = string(prettyJSON)
-			} else {
-				entry.RawJSON = string(hit.Source)
-			}
+			// Store raw JSON (compact) for NDJSON output
+			entry.RawJSON = string(hit.Source)
 			result.Logs = append(result.Logs, entry)
 		}
 	}

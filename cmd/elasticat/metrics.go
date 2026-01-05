@@ -3,11 +3,7 @@
 
 package main
 
-import (
-	"fmt"
-
-	"github.com/spf13/cobra"
-)
+import "github.com/spf13/cobra"
 
 var metricsCmd = &cobra.Command{
 	Use:   "metrics",
@@ -16,12 +12,11 @@ var metricsCmd = &cobra.Command{
 
 For the interactive TUI, use 'elasticat ui metrics'.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Println("CLI metrics command not yet implemented.")
-		fmt.Println("Use 'elasticat ui metrics' for the interactive viewer.")
-		return nil
+		return runSignalCommand(cmd, signalKindMetrics, args)
 	},
 }
 
 func init() {
+	registerSignalFlags(metricsCmd)
 	rootCmd.AddCommand(metricsCmd)
 }

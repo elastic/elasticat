@@ -5,6 +5,8 @@ package tui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/elastic/elasticat/internal/es"
 )
 
 func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -32,7 +34,7 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.mode == viewDetail {
 			m.mode = viewDetailJSON
 			if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
-				m.viewport.SetContent(m.logs[m.selectedIndex].RawJSON)
+				m.viewport.SetContent(es.PrettyJSON(m.logs[m.selectedIndex].RawJSON))
 				m.viewport.GotoTop()
 			}
 		} else {
@@ -47,14 +49,14 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Switch to JSON view
 		m.mode = viewDetailJSON
 		if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
-			m.viewport.SetContent(m.logs[m.selectedIndex].RawJSON)
+			m.viewport.SetContent(es.PrettyJSON(m.logs[m.selectedIndex].RawJSON))
 			m.viewport.GotoTop()
 		}
 		return m, nil
 	case "y":
 		// Copy raw JSON to clipboard
 		if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
-			m.copyToClipboard(m.logs[m.selectedIndex].RawJSON, "Copied JSON to clipboard!")
+			m.copyToClipboard(es.PrettyJSON(m.logs[m.selectedIndex].RawJSON), "Copied JSON to clipboard!")
 		}
 		return m, nil
 	case "s":
@@ -84,7 +86,7 @@ func (m *Model) updateDetailContent() {
 		return
 	}
 	if m.mode == viewDetailJSON {
-		m.viewport.SetContent(m.logs[m.selectedIndex].RawJSON)
+		m.viewport.SetContent(es.PrettyJSON(m.logs[m.selectedIndex].RawJSON))
 	} else {
 		m.viewport.SetContent(m.renderLogDetail(m.logs[m.selectedIndex]))
 	}

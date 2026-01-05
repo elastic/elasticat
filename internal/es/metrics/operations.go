@@ -4,13 +4,14 @@
 package metrics
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
 	"time"
+
+	"github.com/elastic/elasticat/internal/es/errfmt"
 )
 
 // GetFieldNames discovers metric field names from field_caps API
@@ -204,10 +205,7 @@ func Aggregate(ctx context.Context, exec Executor, opts AggregateMetricsOptions)
 
 	if res.IsError {
 		body, _ := io.ReadAll(res.Body)
-		// Pretty-print the query for error messages
-		var prettyQuery bytes.Buffer
-		_ = json.Indent(&prettyQuery, queryJSON, "", "  ")
-		return nil, fmt.Errorf("aggregation failed: %s\nError: %s\n\nQuery:\n%s", res.Status, string(body), prettyQuery.String())
+		return nil, errfmt.FormatQueryError(res.Status, body, queryJSON)
 	}
 
 	return parseAggResponse(res.Body, metricFields, opts.BucketSize)

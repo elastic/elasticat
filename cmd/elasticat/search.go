@@ -54,9 +54,14 @@ func runSearch(query string) error {
 
 	fmt.Printf("Found %d logs matching '%s'\n\n", result.Total, query)
 
-	for _, log := range result.Logs {
-		printLogLine(log)
+	if jsonFlag {
+		printEntriesJSON(result.Logs)
+		return nil
 	}
+
+	renderer := newTableRenderer(signalKindLogs, nil)
+	renderer.RenderHeader()
+	renderer.RenderRows(result.Logs)
 
 	return nil
 }

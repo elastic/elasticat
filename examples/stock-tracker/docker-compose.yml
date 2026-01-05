@@ -14,7 +14,7 @@ version: '3.8'
 services:
   # ============================================
   # Stock Tracker Application Services
-  # ============================================
+  # ============================================ 
 
   gateway:
     build:
@@ -74,6 +74,19 @@ services:
       - stock-tracker
     depends_on:
       - gateway
+
+  traffic-generator:
+    build:
+      context: ./traffic-gen
+      dockerfile: Dockerfile
+    container_name: stock-tracker-traffic
+    environment:
+      - STOCK_TRACKER_URL=http://frontend:3000
+    networks:
+      - stock-tracker
+    depends_on:
+      - frontend
+    restart: unless-stopped
 
   # ============================================
   # Standalone ElastiCat Stack (optional)

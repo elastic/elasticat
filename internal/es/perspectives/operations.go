@@ -4,12 +4,12 @@
 package perspectives
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 
+	"github.com/elastic/elasticat/internal/es/errfmt"
 	"github.com/elastic/elasticat/internal/index"
 )
 
@@ -96,13 +96,7 @@ func GetByField(ctx context.Context, exec Executor, lookback string, field strin
 
 	if res.IsError {
 		body, _ := io.ReadAll(res.Body)
-		// Pretty-print the query for error messages
-		var prettyQuery bytes.Buffer
-		err = json.Indent(&prettyQuery, queryJSON, "", "  ")
-		if err != nil {
-			return nil, fmt.Errorf("indent query: %w", err)
-		}
-		return nil, fmt.Errorf("search error: %s\nError: %s\n\nQuery:\n%s", res.Status, string(body), prettyQuery.String())
+		return nil, errfmt.FormatQueryError(res.Status, body, queryJSON)
 	}
 
 	// Parse response

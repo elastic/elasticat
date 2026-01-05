@@ -121,6 +121,22 @@ docker compose -f examples/stock-tracker/docker-compose.yml logs -f gateway stoc
   ./bin/elasticat watch --service stock-tracker /dev/stdin
 ```
 
+### Traffic Generation (automated)
+
+The stock tracker Docker Compose stack now launches the Playwright-based traffic generator automatically. This service walks a headless Chromium browser through searches, portfolio/watchlist updates, chaos commands, and error scenarios so that OpenTelemetry traces, metrics, and logs are continually produced without manual input.
+
+When you run `docker compose up -d`, you can inspect its output with:
+
+```bash
+docker compose logs traffic-generator
+```
+
+If you need to override the target host (for example you are running the frontend on a different URL), set `STOCK_TRACKER_URL` before bringing the stack up:
+
+```bash
+STOCK_TRACKER_URL=http://localhost:3000 docker compose up -d
+```
+
 ### View Logs in ElastiCat TUI
 
 Once logs are being collected, open another terminal to view them:

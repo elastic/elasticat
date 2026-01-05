@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+// formatClockTime returns zero-padded HH:MM:SS
+func formatClockTime(t time.Time) string {
+	return fmt.Sprintf("%02d:%02d:%02d", t.Hour(), t.Minute(), t.Second())
+}
+
 // formatRelativeTime formats a time.Time as a human-readable relative time string
 func formatRelativeTime(t time.Time) string {
 	now := time.Now()
