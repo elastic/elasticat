@@ -12,11 +12,22 @@ import (
 	"time"
 
 	"github.com/elastic/elasticat/internal/es/errfmt"
+	"github.com/elastic/elasticat/internal/es/traces"
 )
 
 // GetFieldNames discovers metric field names from field_caps API
 // Returns only aggregatable numeric fields under the "metrics.*" namespace
 func GetFieldNames(ctx context.Context, exec Executor, index string) ([]MetricFieldInfo, error) {
+	return getFieldNamesFiltered(ctx, exec, index, false)
+}
+
+// GetFieldNamesForESQL discovers metric field names compatible with ES|QL aggregations.
+// ES|QL cannot aggregate counter types or histogram fields.
+func GetFieldNamesForESQL(ctx context.Context, exec Executor, index string) ([]MetricFieldInfo, error) {
+	return getFieldNamesFiltered(ctx, exec, index, true)
+}
+
+func getFieldNamesFiltered(ctx context.Context, exec Executor, index string, esqlCompatible bool) ([]MetricFieldInfo, error) {
 	res, err := exec.FieldCaps(ctx, index, "metrics.*")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get metric field caps: %w", err)
@@ -33,9 +44,22 @@ func GetFieldNames(ctx context.Context, exec Executor, index string) ([]MetricFi
 			if !info.Aggregatable {
 				continue
 			}
-			// Filter to long, double, float, histogram, aggregate_metric_double types
+
+			// For ES|QL compatibility, skip types that can't be aggregated
+			if esqlCompatible {
+				// ES|QL doesn't support histogram types
+				if info.Type == "histogram" {
+					continue
+				}
+				// ES|QL doesn't support MIN/MAX/AVG on counter types
+				if info.TimeSeriesMetric == "counter" {
+					continue
+				}
+			}
+
+			// Filter to supported numeric types
 			switch info.Type {
-			case "long", "double", "float", "half_float", "scaled_float", "histogram", "aggregate_metric_double":
+			case "long", "double", "float", "half_float", "scaled_float", "aggregate_metric_double":
 				shortName := name
 				if strings.HasPrefix(name, "metrics.") {
 					shortName = name[8:] // Remove "metrics." prefix
@@ -46,6 +70,20 @@ func GetFieldNames(ctx context.Context, exec Executor, index string) ([]MetricFi
 					Type:           info.Type,
 					TimeSeriesType: info.TimeSeriesMetric,
 				})
+			case "histogram":
+				// Only include histogram for non-ES|QL (Query DSL) path
+				if !esqlCompatible {
+					shortName := name
+					if strings.HasPrefix(name, "metrics.") {
+						shortName = name[8:]
+					}
+					metricFields = append(metricFields, MetricFieldInfo{
+						Name:           name,
+						ShortName:      shortName,
+						Type:           info.Type,
+						TimeSeriesType: info.TimeSeriesMetric,
+					})
+				}
 			}
 			break // Only process first type
 		}
@@ -212,7 +250,55 @@ func Aggregate(ctx context.Context, exec Executor, opts AggregateMetricsOptions)
 		return nil, errfmt.FormatQueryError(res.Status, body, queryJSON)
 	}
 
-	return parseAggResponse(res.Body, metricFields, opts.BucketSize)
+	result, err := parseAggResponse(res.Body, metricFields, opts.BucketSize)
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate an ES|QL query for Kibana integration (simpler than the full DSL query)
+	result.Query = generateKibanaESQLQuery(index, opts)
+
+	return result, nil
+}
+
+// generateKibanaESQLQuery creates a simple ES|QL query for Kibana integration.
+// This is a simplified query that allows users to explore metrics in Kibana,
+// even though the actual data was fetched via Query DSL for full feature support.
+func generateKibanaESQLQuery(index string, opts AggregateMetricsOptions) string {
+	var sb strings.Builder
+
+	sb.WriteString(fmt.Sprintf("FROM %s\n", index))
+
+	// Build WHERE clause
+	whereParts := []string{}
+	if opts.Lookback != "" {
+		whereParts = append(whereParts, fmt.Sprintf("@timestamp >= NOW() - %s", traces.LookbackToESQLInterval(opts.Lookback)))
+	}
+	if opts.Service != "" {
+		op := "=="
+		if opts.NegateService {
+			op = "!="
+		}
+		whereParts = append(whereParts, fmt.Sprintf("service.name %s \"%s\"", op, opts.Service))
+	}
+	if opts.Resource != "" {
+		op := "=="
+		if opts.NegateResource {
+			op = "!="
+		}
+		whereParts = append(whereParts, fmt.Sprintf("resource.attributes.deployment.environment %s \"%s\"", op, opts.Resource))
+	}
+
+	if len(whereParts) > 0 {
+		sb.WriteString("| WHERE ")
+		sb.WriteString(strings.Join(whereParts, " AND "))
+		sb.WriteString("\n")
+	}
+
+	// Simple stats to show there's data
+	sb.WriteString("| STATS doc_count = COUNT(*)")
+
+	return sb.String()
 }
 
 func parseAggResponse(body io.Reader, fields []MetricFieldInfo, bucketSize string) (*MetricsAggResult, error) {
@@ -320,4 +406,218 @@ func extractNestedFloat(data map[string]interface{}, path string) float64 {
 		return f
 	}
 	return 0
+}
+
+// AggregateESQL retrieves aggregated statistics for metrics using ES|QL.
+// This version uses ES|QL for stats computation, making the query available for Kibana.
+// Note: Sparkline buckets are not available in ES|QL mode (date_histogram not supported).
+func AggregateESQL(ctx context.Context, exec Executor, opts AggregateMetricsOptions) (*MetricsAggResult, error) {
+	index := exec.GetIndex()
+
+	// Discover metrics using field_caps, filtering for ES|QL-compatible types
+	// (excludes histogram and counter types which ES|QL can't aggregate)
+	metricFields, err := GetFieldNamesForESQL(ctx, exec, index)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(metricFields) == 0 {
+		return &MetricsAggResult{Metrics: []AggregatedMetric{}, BucketSize: opts.BucketSize}, nil
+	}
+
+	// Limit to 20 metrics to avoid huge ES|QL queries
+	maxMetrics := 20
+	if len(metricFields) > maxMetrics {
+		metricFields = metricFields[:maxMetrics]
+	}
+
+	// Build ES|QL query for stats
+	query := buildMetricsESQLQuery(index, metricFields, opts)
+
+	// Execute stats query
+	statsResult, err := exec.ExecuteESQLQuery(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("ES|QL metrics stats query failed: %w", err)
+	}
+
+	// Parse stats results
+	result := parseESQLStatsResult(statsResult, metricFields, opts.BucketSize)
+	result.Query = query
+
+	// Get latest values with a separate query
+	latestQuery := buildLatestValueQuery(index, metricFields, opts)
+	latestResult, err := exec.ExecuteESQLQuery(ctx, latestQuery)
+	if err == nil {
+		enrichWithLatestValues(result, latestResult, metricFields)
+	}
+
+	return result, nil
+}
+
+// buildMetricsESQLQuery constructs an ES|QL query for metric statistics
+func buildMetricsESQLQuery(index string, fields []MetricFieldInfo, opts AggregateMetricsOptions) string {
+	var sb strings.Builder
+
+	sb.WriteString(fmt.Sprintf("FROM %s\n", index))
+
+	// Build WHERE clause
+	whereParts := []string{}
+	if opts.Lookback != "" {
+		whereParts = append(whereParts, fmt.Sprintf("@timestamp >= NOW() - %s", traces.LookbackToESQLInterval(opts.Lookback)))
+	}
+	if opts.Service != "" {
+		op := "=="
+		if opts.NegateService {
+			op = "!="
+		}
+		whereParts = append(whereParts, fmt.Sprintf("service.name %s \"%s\"", op, opts.Service))
+	}
+	if opts.Resource != "" {
+		op := "=="
+		if opts.NegateResource {
+			op = "!="
+		}
+		whereParts = append(whereParts, fmt.Sprintf("resource.attributes.deployment.environment %s \"%s\"", op, opts.Resource))
+	}
+
+	if len(whereParts) > 0 {
+		sb.WriteString("| WHERE ")
+		sb.WriteString(strings.Join(whereParts, " AND "))
+		sb.WriteString("\n")
+	}
+
+	// Build STATS clause for each metric
+	sb.WriteString("| STATS\n")
+	statsParts := []string{}
+	for i, mf := range fields {
+		// Use backticks for field names with dots
+		fieldRef := fmt.Sprintf("`%s`", mf.Name)
+		statsParts = append(statsParts,
+			fmt.Sprintf("    m%d_min = MIN(%s), m%d_max = MAX(%s), m%d_avg = AVG(%s)", i, fieldRef, i, fieldRef, i, fieldRef))
+	}
+	sb.WriteString(strings.Join(statsParts, ",\n"))
+
+	return sb.String()
+}
+
+// buildLatestValueQuery constructs an ES|QL query to get the latest value for each metric
+func buildLatestValueQuery(index string, fields []MetricFieldInfo, opts AggregateMetricsOptions) string {
+	var sb strings.Builder
+
+	sb.WriteString(fmt.Sprintf("FROM %s\n", index))
+
+	// Build WHERE clause (same as stats query)
+	whereParts := []string{}
+	if opts.Lookback != "" {
+		whereParts = append(whereParts, fmt.Sprintf("@timestamp >= NOW() - %s", traces.LookbackToESQLInterval(opts.Lookback)))
+	}
+	if opts.Service != "" {
+		op := "=="
+		if opts.NegateService {
+			op = "!="
+		}
+		whereParts = append(whereParts, fmt.Sprintf("service.name %s \"%s\"", op, opts.Service))
+	}
+	if opts.Resource != "" {
+		op := "=="
+		if opts.NegateResource {
+			op = "!="
+		}
+		whereParts = append(whereParts, fmt.Sprintf("resource.attributes.deployment.environment %s \"%s\"", op, opts.Resource))
+	}
+
+	if len(whereParts) > 0 {
+		sb.WriteString("| WHERE ")
+		sb.WriteString(strings.Join(whereParts, " AND "))
+		sb.WriteString("\n")
+	}
+
+	// Sort by timestamp descending and get first row
+	sb.WriteString("| SORT @timestamp DESC\n")
+	sb.WriteString("| LIMIT 1\n")
+
+	// Keep only the metric fields
+	keepFields := []string{"@timestamp"}
+	for _, mf := range fields {
+		keepFields = append(keepFields, fmt.Sprintf("`%s`", mf.Name))
+	}
+	sb.WriteString("| KEEP ")
+	sb.WriteString(strings.Join(keepFields, ", "))
+
+	return sb.String()
+}
+
+// parseESQLStatsResult parses the ES|QL stats result into MetricsAggResult
+func parseESQLStatsResult(result *traces.ESQLResult, fields []MetricFieldInfo, bucketSize string) *MetricsAggResult {
+	aggResult := &MetricsAggResult{
+		Metrics:    make([]AggregatedMetric, len(fields)),
+		BucketSize: bucketSize,
+	}
+
+	// Build column index map
+	colIndex := make(map[string]int)
+	for i, col := range result.Columns {
+		colIndex[col.Name] = i
+	}
+
+	// Initialize metrics with field info
+	for i, mf := range fields {
+		aggResult.Metrics[i] = AggregatedMetric{
+			Name:      mf.Name,
+			ShortName: mf.ShortName,
+			Type:      mf.TimeSeriesType,
+		}
+	}
+
+	// Parse the single result row (STATS without BY returns one row)
+	if len(result.Values) > 0 {
+		row := result.Values[0]
+
+		for i := range fields {
+			minCol := fmt.Sprintf("m%d_min", i)
+			maxCol := fmt.Sprintf("m%d_max", i)
+			avgCol := fmt.Sprintf("m%d_avg", i)
+
+			if idx, ok := colIndex[minCol]; ok && idx < len(row) {
+				if v, ok := row[idx].(float64); ok {
+					aggResult.Metrics[i].Min = v
+				}
+			}
+			if idx, ok := colIndex[maxCol]; ok && idx < len(row) {
+				if v, ok := row[idx].(float64); ok {
+					aggResult.Metrics[i].Max = v
+				}
+			}
+			if idx, ok := colIndex[avgCol]; ok && idx < len(row) {
+				if v, ok := row[idx].(float64); ok {
+					aggResult.Metrics[i].Avg = v
+				}
+			}
+		}
+	}
+
+	return aggResult
+}
+
+// enrichWithLatestValues adds latest values from the latest query result
+func enrichWithLatestValues(result *MetricsAggResult, latestResult *traces.ESQLResult, fields []MetricFieldInfo) {
+	if len(latestResult.Values) == 0 {
+		return
+	}
+
+	// Build column index map
+	colIndex := make(map[string]int)
+	for i, col := range latestResult.Columns {
+		colIndex[col.Name] = i
+	}
+
+	row := latestResult.Values[0]
+
+	for i, mf := range fields {
+		if idx, ok := colIndex[mf.Name]; ok && idx < len(row) {
+			if v, ok := row[idx].(float64); ok {
+				result.Metrics[i].Latest = v
+			}
+		}
+	}
 }

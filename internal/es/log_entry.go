@@ -122,10 +122,18 @@ func extractLogEntry(raw map[string]interface{}) LogEntry {
 	// Priority: resource.attributes.service.name (OTel) > resource.service.name > attributes.service.name > service.name
 	if resource, ok := raw["resource"].(map[string]interface{}); ok {
 		entry.Resource = resource
-		// OTel semconv: resource.attributes.service.name
+		// OTel semconv: resource.attributes.service.name (flat key)
 		if attrs, ok := resource["attributes"].(map[string]interface{}); ok {
 			if svcName, ok := attrs["service.name"].(string); ok && svcName != "" {
 				entry.ServiceName = svcName
+			}
+			// Nested: resource.attributes.service.name
+			if entry.ServiceName == "" {
+				if service, ok := attrs["service"].(map[string]interface{}); ok {
+					if name, ok := service["name"].(string); ok && name != "" {
+						entry.ServiceName = name
+					}
+				}
 			}
 		}
 		// Flat resource.service.name
@@ -135,18 +143,34 @@ func extractLogEntry(raw map[string]interface{}) LogEntry {
 			}
 		}
 	}
-	// Attributes-level service name
+	// Attributes-level service name (flat key)
 	if entry.ServiceName == "" {
 		if attrs, ok := raw["attributes"].(map[string]interface{}); ok {
 			if svcName, ok := attrs["service.name"].(string); ok && svcName != "" {
 				entry.ServiceName = svcName
 			}
+			// Nested: attributes.service.name
+			if entry.ServiceName == "" {
+				if service, ok := attrs["service"].(map[string]interface{}); ok {
+					if name, ok := service["name"].(string); ok && name != "" {
+						entry.ServiceName = name
+					}
+				}
+			}
 		}
 	}
-	// Top-level service.name
+	// Top-level service.name (flat key)
 	if entry.ServiceName == "" {
 		if svcName, ok := raw["service.name"].(string); ok && svcName != "" {
 			entry.ServiceName = svcName
+		}
+	}
+	// Nested service object: service.name
+	if entry.ServiceName == "" {
+		if service, ok := raw["service"].(map[string]interface{}); ok {
+			if name, ok := service["name"].(string); ok && name != "" {
+				entry.ServiceName = name
+			}
 		}
 	}
 

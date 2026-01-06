@@ -5,6 +5,7 @@ package tui
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -18,6 +19,7 @@ type requestKind int
 const (
 	requestLogs requestKind = iota
 	requestMetricsAgg
+	requestMetricDetailDocs
 	requestTransactionNames
 	requestSpans
 	requestPerspective
@@ -28,6 +30,21 @@ const (
 type requestState struct {
 	cancel context.CancelFunc
 	id     int64
+}
+
+// requestManager handles in-flight request tracking with thread-safe access.
+// It's stored as a pointer in Model so it remains shared when Model is copied
+// (which happens frequently in bubbletea's value-receiver pattern).
+type requestManager struct {
+	mu      sync.Mutex
+	cancels map[requestKind]requestState
+	seq     int64
+}
+
+func newRequestManager() *requestManager {
+	return &requestManager{
+		cancels: make(map[requestKind]requestState),
+	}
 }
 
 func (m *Model) fetchLogs() tea.Cmd {
@@ -129,6 +146,34 @@ func (m Model) fetchAggregatedMetrics() tea.Cmd {
 		}
 
 		return metricsAggMsg{result: result}
+	}
+}
+
+// fetchMetricDetailDocs fetches the latest 10 documents containing the selected metric
+func (m *Model) fetchMetricDetailDocs() tea.Cmd {
+	// Capture the metric name before returning the command
+	if m.aggregatedMetrics == nil || m.metricsCursor >= len(m.aggregatedMetrics.Metrics) {
+		return nil
+	}
+	metricName := m.aggregatedMetrics.Metrics[m.metricsCursor].Name
+
+	return func() tea.Msg {
+		ctx, done := m.startRequest(requestMetricDetailDocs, 10*time.Second)
+		defer done()
+
+		opts := es.TailOptions{
+			Size:        10,
+			Lookback:    m.lookback.ESRange(),
+			MetricField: metricName, // Filter for docs containing this metric
+			SortAsc:     false,      // Latest first
+		}
+
+		result, _, err := m.client.TailESQL(ctx, opts)
+		if err != nil {
+			return metricDetailDocsMsg{err: err}
+		}
+
+		return metricDetailDocsMsg{docs: result.Logs}
 	}
 }
 
@@ -277,20 +322,24 @@ func min(a, b int) int {
 }
 
 // startRequest cancels any in-flight request of the same kind, and returns a timeout-scoped context.
+// This method is safe to call concurrently from multiple goroutines (e.g., batch commands).
 func (m *Model) startRequest(kind requestKind, timeout time.Duration) (context.Context, context.CancelFunc) {
-	if m.cancels == nil {
-		m.cancels = make(map[requestKind]requestState)
-	}
-	if st, ok := m.cancels[kind]; ok {
+	rm := m.requests
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
+	if st, ok := rm.cancels[kind]; ok {
 		st.cancel()
 	}
-	m.requestSeq++
-	id := m.requestSeq
+	rm.seq++
+	id := rm.seq
 	ctx, cancel := context.WithTimeout(m.ctx, timeout)
-	m.cancels[kind] = requestState{cancel: cancel, id: id}
+	rm.cancels[kind] = requestState{cancel: cancel, id: id}
 	return ctx, func() {
-		if cur, ok := m.cancels[kind]; ok && cur.id == id {
-			delete(m.cancels, kind)
+		rm.mu.Lock()
+		defer rm.mu.Unlock()
+		if cur, ok := rm.cancels[kind]; ok && cur.id == id {
+			delete(rm.cancels, kind)
 		}
 		cancel()
 	}

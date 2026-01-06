@@ -1,4 +1,4 @@
-.PHONY: build install clean up down logs test fmt fmt-check license-check license-add
+.PHONY: build install clean up down logs test fmt fmt-check license-check license-add notice
 
 # Build the elasticat binary
 build:
@@ -73,3 +73,16 @@ license-add:
 test-log:
 	@echo '{"timestamp":"$(shell date -Iseconds)","level":"INFO","message":"Test log from Makefile","service":"test-service"}' | \
 		curl -X POST -H "Content-Type: application/json" -d @- http://localhost:4318/v1/logs || true
+
+# Generate the NOTICE.txt file with third-party license information
+notice:
+	@echo "Generating NOTICE.txt"
+	go mod tidy
+	go mod download
+	go list -m -json all | go run go.elastic.co/go-licence-detector \
+		-includeIndirect \
+		-rules scripts/notice/rules.json \
+		-overrides scripts/notice/overrides.json \
+		-noticeTemplate scripts/notice/NOTICE.txt.tmpl \
+		-noticeOut NOTICE.txt \
+		-depsOut ""

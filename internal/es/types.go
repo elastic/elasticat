@@ -63,6 +63,7 @@ type TailOptions struct {
 	ProcessorEvent  string // Filter on attributes.processor.event (e.g., "transaction" for traces)
 	TransactionName string // Filter on transaction name (for traces)
 	TraceID         string // Filter on trace_id (for viewing spans)
+	MetricField     string // Filter for docs containing this metric field (for metric detail view)
 }
 
 // SearchOptions configures the search query

@@ -15,12 +15,16 @@ import (
 func GetByField(ctx context.Context, exec Executor, lookback string, field string) ([]PerspectiveAgg, error) {
 	lookbackInterval := traces.LookbackToESQLInterval(lookback)
 
+	// Use data_stream.type to distinguish signal types:
+	// - "logs" for log documents
+	// - "traces" for trace documents (transactions and spans)
+	// - "metrics" for metric documents
 	query := fmt.Sprintf(`FROM %s
 | WHERE @timestamp >= NOW() - %s
 | STATS
-    logs = COUNT(CASE(processor.event != "transaction" AND processor.event != "span", 1, null)),
-    traces = COUNT(CASE(processor.event == "transaction", 1, null)),
-    metrics = COUNT(CASE(metrics IS NOT NULL, 1, null))
+    logs = COUNT(CASE(data_stream.type == "logs", 1, null)),
+    traces = COUNT(CASE(data_stream.type == "traces", 1, null)),
+    metrics = COUNT(CASE(data_stream.type == "metrics", 1, null))
   BY %s
 | SORT logs DESC
 | LIMIT 100`, index.All, lookbackInterval, field)

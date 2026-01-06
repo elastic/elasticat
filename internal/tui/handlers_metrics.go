@@ -26,6 +26,9 @@ func (m Model) handleMetricsDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Enter detail view for the selected metric
 		if m.aggregatedMetrics != nil && m.metricsCursor < len(m.aggregatedMetrics.Metrics) {
 			m.mode = viewMetricDetail
+			m.metricDetailDocCursor = 0
+			m.metricDetailDocsLoading = true
+			return m, m.fetchMetricDetailDocs()
 		}
 	case "r":
 		m.metricsLoading = true
@@ -48,6 +51,10 @@ func (m Model) handleMetricsDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mode = viewSearch
 		m.searchInput.Focus()
 		return m, textinput.Blink
+	case "K":
+		// Open Kibana with a basic metrics query
+		m.openInKibana()
+		return m, nil
 	case "q":
 		return m, tea.Quit
 	}
@@ -61,19 +68,44 @@ func (m Model) handleMetricDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Return to metrics dashboard
 		m.mode = viewMetricsDashboard
 	case "left":
-		// Previous metric
+		// Previous metric (and re-fetch docs)
 		if m.metricsCursor > 0 {
 			m.metricsCursor--
+			m.metricDetailDocCursor = 0
+			m.metricDetailDocsLoading = true
+			return m, m.fetchMetricDetailDocs()
 		}
-	case "right", "l":
-		// Next metric
+	case "right":
+		// Next metric (and re-fetch docs)
 		if m.aggregatedMetrics != nil && m.metricsCursor < len(m.aggregatedMetrics.Metrics)-1 {
 			m.metricsCursor++
+			m.metricDetailDocCursor = 0
+			m.metricDetailDocsLoading = true
+			return m, m.fetchMetricDetailDocs()
+		}
+	case "h":
+		// Previous doc (Vim-style)
+		if m.metricDetailDocCursor > 0 {
+			m.metricDetailDocCursor--
+		}
+	case "l":
+		// Next doc (Vim-style)
+		if m.metricDetailDocCursor < len(m.metricDetailDocs)-1 {
+			m.metricDetailDocCursor++
 		}
 	case "r":
 		// Refresh
 		m.metricsLoading = true
-		return m, m.fetchAggregatedMetrics()
+		m.metricDetailDocsLoading = true
+		return m, tea.Batch(m.fetchAggregatedMetrics(), m.fetchMetricDetailDocs())
+	case "K":
+		// Open Kibana with this specific metric
+		if m.aggregatedMetrics != nil && m.metricsCursor < len(m.aggregatedMetrics.Metrics) {
+			metric := m.aggregatedMetrics.Metrics[m.metricsCursor]
+			// metric.Type contains the time series type: "gauge", "counter", or "histogram"
+			m.openMetricInKibana(metric.Name, metric.Type)
+		}
+		return m, nil
 	}
 
 	return m, nil

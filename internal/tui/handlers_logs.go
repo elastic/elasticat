@@ -132,6 +132,11 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "p":
 		return m, m.cyclePerspective()
 
+	case "K":
+		// Open current query in Kibana Discover
+		m.openInKibana()
+		return m, nil
+
 	case "d":
 		// Toggle between document view and aggregated view for metrics
 		if m.signalType == signalMetrics {

@@ -8,8 +8,8 @@ import (
 
 func TestStartRequestCancelsPrevious(t *testing.T) {
 	m := Model{
-		ctx:     context.Background(),
-		cancels: make(map[requestKind]requestState),
+		ctx:      context.Background(),
+		requests: newRequestManager(),
 	}
 
 	ctx1, done1 := m.startRequest(requestLogs, time.Hour)
@@ -35,15 +35,15 @@ func TestStartRequestCancelsPrevious(t *testing.T) {
 		t.Fatalf("second context should be active, got err=%v", ctx2.Err())
 	}
 
-	if len(m.cancels) != 1 {
-		t.Fatalf("expected one cancel entry, got %d", len(m.cancels))
+	if len(m.requests.cancels) != 1 {
+		t.Fatalf("expected one cancel entry, got %d", len(m.requests.cancels))
 	}
 }
 
 func TestStartRequestDoneDoesNotClearNewer(t *testing.T) {
 	m := Model{
-		ctx:     context.Background(),
-		cancels: make(map[requestKind]requestState),
+		ctx:      context.Background(),
+		requests: newRequestManager(),
 	}
 
 	_, done1 := m.startRequest(requestLogs, time.Hour)
@@ -53,7 +53,7 @@ func TestStartRequestDoneDoesNotClearNewer(t *testing.T) {
 	// Calling done1 (old request) should not remove the current cancel entry.
 	done1()
 
-	if _, ok := m.cancels[requestLogs]; !ok {
+	if _, ok := m.requests.cancels[requestLogs]; !ok {
 		t.Fatalf("newer request cancel should remain after old done")
 	}
 	if ctx2.Err() != nil {

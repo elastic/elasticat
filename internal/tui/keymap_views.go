@@ -40,19 +40,16 @@ func (m Model) keymapLogs() []KeyBinding {
 		{Keys: []string{"m"}, Label: "signal", Kind: KeyKindQuick, Group: "View"},
 	}
 
+	// Full list excludes items already in quick to avoid duplicates in help overlay
 	full := []KeyBinding{
-		{Keys: []string{"m"}, Label: "signal", Kind: KeyKindFull, Group: "View"},
 		{Keys: []string{"p"}, Label: "perspective", Kind: KeyKindFull, Group: "View"},
-		{Keys: []string{"l"}, Label: "lookback", Kind: KeyKindFull, Group: "Filter"},
-		{Keys: []string{"j", "k"}, Label: "scroll", Kind: KeyKindFull, Group: "Navigation"},
-		{Keys: []string{"/"}, Label: "search", Kind: KeyKindFull, Group: "Filter"},
-		{Keys: []string{"enter"}, Label: "details", Kind: KeyKindFull, Group: "View"},
 		{Keys: []string{"s"}, Label: "sort", Kind: KeyKindFull, Group: "View"},
 		{Keys: []string{"f"}, Label: "fields", Kind: KeyKindFull, Group: "View"},
 		{Keys: []string{"Q"}, Label: "query", Kind: KeyKindFull, Group: "View"},
+		{Keys: []string{"K"}, Label: "kibana", Kind: KeyKindFull, Group: "View"},
 		{Keys: []string{"r"}, Label: "refresh", Kind: KeyKindFull, Group: "View"},
 		{Keys: []string{"a"}, Label: "auto refresh", Kind: KeyKindFull, Group: "View"},
-		{Keys: []string{"0", "1", "2", "3", "4"}, Label: "level filters", Kind: KeyKindFull, Group: "Filter"},
+		{Keys: []string{"0-4"}, Label: "level filters", Kind: KeyKindFull, Group: "Filter"},
 		{Keys: []string{"q"}, Label: "quit", Kind: KeyKindFull, Group: "System"},
 	}
 
@@ -74,13 +71,8 @@ func (m Model) keymapDetail() []KeyBinding {
 		{Keys: []string{"y"}, Label: "copy", Kind: KeyKindQuick, Group: "Clipboard"},
 		{Keys: []string{"esc"}, Label: "close", Kind: KeyKindQuick, Group: "Navigation"},
 	}
-	full := []KeyBinding{
-		{Keys: []string{"←", "→"}, Label: "prev/next", Kind: KeyKindFull, Group: "Navigation"},
-		{Keys: []string{"↑", "↓"}, Label: "scroll", Kind: KeyKindFull, Group: "Navigation"},
-		{Keys: []string{"j"}, Label: "JSON", Kind: KeyKindFull, Group: "View"},
-		{Keys: []string{"y"}, Label: "copy", Kind: KeyKindFull, Group: "Clipboard"},
-		{Keys: []string{"esc"}, Label: "close", Kind: KeyKindFull, Group: "Navigation"},
-	}
+	// Full list only adds items not in quick
+	full := []KeyBinding{}
 	if m.signalType == signalTraces {
 		full = append(full, KeyBinding{Keys: []string{"s"}, Label: "spans", Kind: KeyKindFull, Group: "View"})
 	}
@@ -106,14 +98,11 @@ func (m Model) keymapMetricsDashboard() []KeyBinding {
 		{Keys: []string{"p"}, Label: "perspective", Kind: KeyKindQuick, Group: "View"},
 		{Keys: []string{"m"}, Label: "signal", Kind: KeyKindQuick, Group: "View"},
 	}
+	// Full list only adds items not in quick
 	full := []KeyBinding{
-		{Keys: []string{"j", "k"}, Label: "scroll", Kind: KeyKindFull, Group: "Navigation"},
-		{Keys: []string{"enter"}, Label: "detail", Kind: KeyKindFull, Group: "View"},
-		{Keys: []string{"l"}, Label: "lookback", Kind: KeyKindFull, Group: "Filter"},
-		{Keys: []string{"p"}, Label: "perspective", Kind: KeyKindFull, Group: "View"},
-		{Keys: []string{"m"}, Label: "signal", Kind: KeyKindFull, Group: "View"},
 		{Keys: []string{"r"}, Label: "refresh", Kind: KeyKindFull, Group: "View"},
 		{Keys: []string{"d"}, Label: "documents", Kind: KeyKindFull, Group: "View"},
+		{Keys: []string{"K"}, Label: "kibana", Kind: KeyKindFull, Group: "View"},
 		{Keys: []string{"/"}, Label: "search", Kind: KeyKindFull, Group: "Filter"},
 		{Keys: []string{"q"}, Label: "quit", Kind: KeyKindFull, Group: "System"},
 	}
@@ -124,14 +113,10 @@ func (m Model) keymapMetricDetail() []KeyBinding {
 	quick := []KeyBinding{
 		{Keys: []string{"←", "→"}, Label: "prev/next", Kind: KeyKindQuick, Group: "Navigation"},
 		{Keys: []string{"r"}, Label: "refresh", Kind: KeyKindQuick, Group: "View"},
+		{Keys: []string{"K"}, Label: "kibana", Kind: KeyKindQuick, Group: "View"},
 		{Keys: []string{"esc"}, Label: "back", Kind: KeyKindQuick, Group: "Navigation"},
 	}
-	full := []KeyBinding{
-		{Keys: []string{"←", "→"}, Label: "prev/next", Kind: KeyKindFull, Group: "Navigation"},
-		{Keys: []string{"r"}, Label: "refresh", Kind: KeyKindFull, Group: "View"},
-		{Keys: []string{"esc"}, Label: "back", Kind: KeyKindFull, Group: "Navigation"},
-	}
-	return append(quick, full...)
+	return quick
 }
 
 func (m Model) keymapTraceNames() []KeyBinding {
@@ -142,12 +127,8 @@ func (m Model) keymapTraceNames() []KeyBinding {
 		{Keys: []string{"p"}, Label: "perspective", Kind: KeyKindQuick, Group: "View"},
 		{Keys: []string{"m"}, Label: "signal", Kind: KeyKindQuick, Group: "View"},
 	}
+	// Full list only adds items not in quick
 	full := []KeyBinding{
-		{Keys: []string{"j", "k"}, Label: "scroll", Kind: KeyKindFull, Group: "Navigation"},
-		{Keys: []string{"enter"}, Label: "select", Kind: KeyKindFull, Group: "View"},
-		{Keys: []string{"l"}, Label: "lookback", Kind: KeyKindFull, Group: "Filter"},
-		{Keys: []string{"p"}, Label: "perspective", Kind: KeyKindFull, Group: "View"},
-		{Keys: []string{"m"}, Label: "signal", Kind: KeyKindFull, Group: "View"},
 		{Keys: []string{"/"}, Label: "search", Kind: KeyKindFull, Group: "Filter"},
 		{Keys: []string{"r"}, Label: "refresh", Kind: KeyKindFull, Group: "View"},
 		{Keys: []string{"q"}, Label: "quit", Kind: KeyKindFull, Group: "System"},
@@ -163,11 +144,8 @@ func (m Model) keymapPerspectiveList() []KeyBinding {
 		{Keys: []string{"l"}, Label: "lookback", Kind: KeyKindQuick, Group: "Filter"},
 		{Keys: []string{"esc"}, Label: "back", Kind: KeyKindQuick, Group: "Navigation"},
 	}
+	// Full list only adds items not in quick
 	full := []KeyBinding{
-		{Keys: []string{"j", "k"}, Label: "scroll", Kind: KeyKindFull, Group: "Navigation"},
-		{Keys: []string{"enter"}, Label: "include/exclude", Kind: KeyKindFull, Group: "Filter"},
-		{Keys: []string{"p"}, Label: "cycle", Kind: KeyKindFull, Group: "View"},
-		{Keys: []string{"l"}, Label: "lookback", Kind: KeyKindFull, Group: "Filter"},
 		{Keys: []string{"/"}, Label: "search", Kind: KeyKindFull, Group: "Filter"},
 		{Keys: []string{"r"}, Label: "refresh", Kind: KeyKindFull, Group: "View"},
 		{Keys: []string{"q"}, Label: "quit", Kind: KeyKindFull, Group: "System"},
@@ -176,6 +154,7 @@ func (m Model) keymapPerspectiveList() []KeyBinding {
 }
 
 func (m Model) keymapFields() []KeyBinding {
+	// All bindings fit in quick, no additional full-only bindings
 	quick := []KeyBinding{
 		{Keys: []string{"j", "k"}, Label: "scroll", Kind: KeyKindQuick, Group: "Navigation"},
 		{Keys: []string{"space", "enter"}, Label: "toggle", Kind: KeyKindQuick, Group: "View"},
@@ -183,14 +162,7 @@ func (m Model) keymapFields() []KeyBinding {
 		{Keys: []string{"r"}, Label: "reset", Kind: KeyKindQuick, Group: "View"},
 		{Keys: []string{"esc"}, Label: "close", Kind: KeyKindQuick, Group: "Navigation"},
 	}
-	full := []KeyBinding{
-		{Keys: []string{"j", "k"}, Label: "scroll", Kind: KeyKindFull, Group: "Navigation"},
-		{Keys: []string{"space", "enter"}, Label: "toggle", Kind: KeyKindFull, Group: "View"},
-		{Keys: []string{"/"}, Label: "search", Kind: KeyKindFull, Group: "Filter"},
-		{Keys: []string{"r"}, Label: "reset", Kind: KeyKindFull, Group: "View"},
-		{Keys: []string{"esc"}, Label: "close", Kind: KeyKindFull, Group: "Navigation"},
-	}
-	return append(quick, full...)
+	return quick
 }
 
 func (m Model) keymapErrorModal() []KeyBinding {

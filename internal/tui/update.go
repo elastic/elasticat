@@ -47,6 +47,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case metricsAggMsg:
 		return m.handleMetricsAggMsg(msg)
 
+	case metricDetailDocsMsg:
+		return m.handleMetricDetailDocsMsg(msg)
+
 	case transactionNamesMsg:
 		return m.handleTransactionNamesMsg(msg)
 
@@ -216,6 +219,28 @@ func (m Model) handleMetricsAggMsg(msg metricsAggMsg) (Model, tea.Cmd) {
 	}
 
 	m.aggregatedMetrics = msg.result
+	// Store the ES|QL query for Kibana integration
+	if msg.result != nil && msg.result.Query != "" {
+		m.lastQueryJSON = msg.result.Query
+		m.lastQueryIndex = m.client.GetIndex()
+	}
+	m.err = nil
+	return m, nil
+}
+
+func (m Model) handleMetricDetailDocsMsg(msg metricDetailDocsMsg) (Model, tea.Cmd) {
+	m.metricDetailDocsLoading = false
+	if msg.err != nil {
+		if isContextError(msg.err) {
+			return m, nil
+		}
+		m.err = msg.err
+		m.showErrorModal()
+		return m, nil
+	}
+
+	m.metricDetailDocs = msg.docs
+	m.metricDetailDocCursor = 0
 	m.err = nil
 	return m, nil
 }

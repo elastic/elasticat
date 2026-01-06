@@ -432,7 +432,9 @@ func (c *Client) GetMetricFieldNames(ctx context.Context) ([]metrics.MetricField
 	return metrics.GetFieldNames(ctx, c, c.index)
 }
 
-// AggregateMetrics retrieves aggregated statistics for all discovered metrics
+// AggregateMetrics retrieves aggregated statistics for all discovered metrics.
+// Uses Query DSL for full feature support (sparklines, histograms, counters),
+// but generates an ES|QL query string for Kibana integration.
 func (c *Client) AggregateMetrics(ctx context.Context, opts metrics.AggregateMetricsOptions) (*metrics.MetricsAggResult, error) {
 	return metrics.Aggregate(ctx, c, opts)
 }

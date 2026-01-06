@@ -373,6 +373,10 @@ type (
 		result *metrics.MetricsAggResult
 		err    error
 	}
+	metricDetailDocsMsg struct {
+		docs []es.LogEntry
+		err  error
+	}
 	transactionNamesMsg struct {
 		names []traces.TransactionNameAgg
 		err   error

@@ -31,6 +31,7 @@ func (c *Client) TailESQL(ctx context.Context, opts TailOptions) (*SearchResult,
 		processorEvent:  opts.ProcessorEvent,
 		transactionName: opts.TransactionName,
 		traceID:         opts.TraceID,
+		metricField:     opts.MetricField,
 	})
 
 	query := buildESQLDocsQuery(c.index, filters, opts.Size, opts.SortAsc)
@@ -110,6 +111,7 @@ type commonFilterOptions struct {
 	processorEvent  string
 	transactionName string
 	traceID         string
+	metricField     string
 	searchClause    string
 }
 
@@ -175,6 +177,12 @@ func buildCommonFilters(opts commonFilterOptions) esqlFilters {
 	// Trace ID filter
 	if opts.traceID != "" {
 		whereParts = append(whereParts, fmt.Sprintf("(trace.id == \"%s\" OR trace_id == \"%s\")", escapeESQLString(opts.traceID), escapeESQLString(opts.traceID)))
+	}
+
+	// Metric field filter (for metric detail view - filter docs containing this metric)
+	if opts.metricField != "" {
+		// Use backticks to escape the field name which may contain dots
+		whereParts = append(whereParts, fmt.Sprintf("`%s` IS NOT NULL", opts.metricField))
 	}
 
 	// Search clause from query string

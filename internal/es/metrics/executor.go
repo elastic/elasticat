@@ -6,6 +6,8 @@ package metrics
 import (
 	"context"
 	"io"
+
+	"github.com/elastic/elasticat/internal/es/traces"
 )
 
 // FieldCapsResponse represents the relevant parts of a field_caps API response
@@ -35,6 +37,9 @@ type Executor interface {
 
 	// SearchForMetrics executes a search query and returns the raw response
 	SearchForMetrics(ctx context.Context, index string, body []byte, size int) (*SearchResponse, error)
+
+	// ExecuteESQLQuery executes an ES|QL query and returns the result
+	ExecuteESQLQuery(ctx context.Context, query string) (*traces.ESQLResult, error)
 
 	// GetIndex returns the current index pattern
 	GetIndex() string

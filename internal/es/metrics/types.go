@@ -36,6 +36,7 @@ type AggregatedMetric struct {
 type MetricsAggResult struct {
 	Metrics    []AggregatedMetric
 	BucketSize string // ES interval (e.g., "10s", "1m")
+	Query      string // ES|QL query used (for Kibana integration)
 }
 
 // AggregateMetricsOptions configures the metrics aggregation query

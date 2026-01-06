@@ -90,6 +90,11 @@ type Model struct {
 	metricsLoading    bool
 	metricsCursor     int // Selected metric in dashboard
 
+	// Metric detail document browser
+	metricDetailDocs        []es.LogEntry // Latest 10 docs for selected metric
+	metricDetailDocCursor   int           // Current doc index (0-9)
+	metricDetailDocsLoading bool          // Loading state
+
 	// Traces navigation state
 	traceViewLevel     TraceViewLevel              // Current navigation level
 	transactionNames   []traces.TransactionNameAgg // Aggregated transaction names
@@ -107,10 +112,8 @@ type Model struct {
 	perspectiveCursor  int               // Cursor in perspective list
 	perspectiveLoading bool              // Loading perspective data
 
-	// In-flight cancel funcs keyed by request kind (logs, spans, metrics, etc.)
-	cancels map[requestKind]requestState
-	// Monotonic counter for request IDs (for supersede detection)
-	requestSeq int64
+	// Request manager for in-flight cancellation (pointer so it's shared when Model is copied)
+	requests *requestManager
 
 	// Help overlay state
 }
@@ -180,6 +183,6 @@ func NewModel(ctx context.Context, client *es.Client, signal SignalType) Model {
 		height:          24,
 		traceViewLevel:  traceViewNames,        // Start at transaction names for traces
 		metricsViewMode: metricsViewAggregated, // Start at aggregated view for metrics
-		cancels:         make(map[requestKind]requestState),
+		requests:        newRequestManager(),
 	}
 }

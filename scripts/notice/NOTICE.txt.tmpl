@@ -1,0 +1,34 @@
+Elasticat
+Copyright 2024-{{ currentYear }} Elasticsearch B.V.
+
+This product includes software developed by The Apache Software
+Foundation (http://www.apache.org/).
+
+{{ "=" | line }}
+Third party libraries used by the Elasticat project:
+{{ "=" | line }}
+
+{{ range .Direct }}
+{{ "-" | line }}
+Dependency: {{ .Name }}
+Version: {{ .Version }}
+Licence type (autodetected): {{ .LicenceType }}
+{{ "-" | line }}
+
+{{ . | licenceText }}
+{{ end }}
+{{ if .Indirect }}
+{{ "=" | line }}
+Indirect dependencies
+{{ "=" | line }}
+
+{{ range .Indirect }}
+{{ "-" | line }}
+Dependency: {{ .Name }}
+Version: {{ .Version }}
+Licence type (autodetected): {{ .LicenceType }}
+{{ "-" | line }}
+
+{{ . | licenceText }}
+{{ end }}
+{{ end }}

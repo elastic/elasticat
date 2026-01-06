@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/elastic/elasticat/internal/es/traces"
 )
 
 // mockExecutor implements the Executor interface for testing
@@ -20,6 +22,7 @@ type mockExecutor struct {
 	searchResponse   *SearchResponse
 	searchErr        error
 	lastSearchBody   []byte
+	esqlResult       *traces.ESQLResult
 }
 
 func (m *mockExecutor) GetIndex() string {
@@ -39,6 +42,11 @@ func (m *mockExecutor) SearchForMetrics(ctx context.Context, index string, body 
 		return nil, m.searchErr
 	}
 	return m.searchResponse, nil
+}
+
+// ExecuteESQLQuery is unused in these tests but required by the interface.
+func (m *mockExecutor) ExecuteESQLQuery(ctx context.Context, query string) (*traces.ESQLResult, error) {
+	return m.esqlResult, nil
 }
 
 func TestSortFields(t *testing.T) {

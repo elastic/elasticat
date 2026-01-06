@@ -129,7 +129,7 @@ func (m Model) renderMetricsCompactDetail() string {
 	return CompactDetailStyle.Width(m.width - 4).Height(compactDetailHeight).Render(b.String())
 }
 
-// renderMetricDetail renders a full-screen view of a single metric with a large chart
+// renderMetricDetail renders a split view: chart on top half, document details on bottom half
 func (m Model) renderMetricDetail() string {
 	contentHeight := m.getFullScreenHeight()
 
@@ -139,6 +139,25 @@ func (m Model) renderMetricDetail() string {
 	}
 
 	metric := m.aggregatedMetrics.Metrics[m.metricsCursor]
+
+	// Split the view: top half for chart, bottom half for docs
+	headerLines := 6 // Header + stats + time range + spacing
+	halfHeight := (contentHeight - headerLines) / 2
+	chartHeight := halfHeight
+	docsHeight := contentHeight - headerLines - chartHeight
+
+	if chartHeight < 5 {
+		chartHeight = 5
+	}
+	if docsHeight < 4 {
+		docsHeight = 4
+	}
+
+	chartWidth := m.width - 10
+	if chartWidth < 20 {
+		chartWidth = 20
+	}
+
 	var b strings.Builder
 
 	// Header: Metric name and type
@@ -148,7 +167,7 @@ func (m Model) renderMetricDetail() string {
 		b.WriteString("  ")
 		b.WriteString(DetailMutedStyle.Render(fmt.Sprintf("(%s)", metric.Type)))
 	}
-	b.WriteString("\n\n")
+	b.WriteString("\n")
 
 	// Stats line
 	b.WriteString(DetailKeyStyle.Render("Min: "))
@@ -162,7 +181,7 @@ func (m Model) renderMetricDetail() string {
 	b.WriteString("  ")
 	b.WriteString(DetailKeyStyle.Render("Latest: "))
 	b.WriteString(DetailValueStyle.Render(fmt.Sprintf("%.6f", metric.Latest)))
-	b.WriteString("\n\n")
+	b.WriteString("\n")
 
 	// Time range info
 	if len(metric.Buckets) > 0 {
@@ -173,22 +192,96 @@ func (m Model) renderMetricDetail() string {
 			metric.Buckets[len(metric.Buckets)-1].Timestamp.Format("15:04:05"),
 			len(metric.Buckets),
 			m.aggregatedMetrics.BucketSize)))
-		b.WriteString("\n\n")
 	}
+	b.WriteString("\n\n")
 
-	// Render the large chart - leave room for header and stats (8 lines)
-	chartHeight := contentHeight - 8
-	if chartHeight < 5 {
-		chartHeight = 5
-	}
-	chartWidth := m.width - 10
-	if chartWidth < 20 {
-		chartWidth = 20
-	}
-
+	// Top half: Chart
 	chart := m.renderLargeChart(metric.Buckets, metric.Min, metric.Max, chartWidth, chartHeight)
 	b.WriteString(chart)
+	b.WriteString("\n\n")
+
+	// Bottom half: Document details
+	b.WriteString(m.renderMetricDetailDocs(docsHeight))
 
 	return DetailStyle.Width(m.width - 4).Height(contentHeight).Render(b.String())
+}
+
+// renderMetricDetailDocs renders the document browser section in the metric detail view
+func (m Model) renderMetricDetailDocs(height int) string {
+	var b strings.Builder
+
+	// Header with navigation hint
+	docCount := len(m.metricDetailDocs)
+	if m.metricDetailDocsLoading {
+		b.WriteString(DetailKeyStyle.Render("Documents: "))
+		b.WriteString(LoadingStyle.Render("Loading..."))
+		return b.String()
+	}
+
+	if docCount == 0 {
+		b.WriteString(DetailKeyStyle.Render("Documents: "))
+		b.WriteString(DetailMutedStyle.Render("No documents found for this metric"))
+		return b.String()
+	}
+
+	// Navigation header
+	b.WriteString(DetailKeyStyle.Render("Documents: "))
+	b.WriteString(DetailValueStyle.Render(fmt.Sprintf("%d/%d", m.metricDetailDocCursor+1, docCount)))
+	b.WriteString("  ")
+	b.WriteString(DetailMutedStyle.Render("(h/l: prev/next)"))
+	b.WriteString("\n")
+
+	// Show current document
+	if m.metricDetailDocCursor < docCount {
+		doc := m.metricDetailDocs[m.metricDetailDocCursor]
+
+		// Timestamp and service
+		b.WriteString(DetailKeyStyle.Render("Time: "))
+		b.WriteString(DetailValueStyle.Render(doc.Timestamp.Format("2006-01-02 15:04:05.000")))
+		b.WriteString("  ")
+		b.WriteString(DetailKeyStyle.Render("Service: "))
+		service := doc.ServiceName
+		if service == "" {
+			service = "unknown"
+		}
+		b.WriteString(DetailValueStyle.Render(service))
+		b.WriteString("\n")
+
+		// Scope if available
+		if scopeName, ok := doc.Scope["name"].(string); ok && scopeName != "" {
+			b.WriteString(DetailKeyStyle.Render("Scope: "))
+			b.WriteString(DetailValueStyle.Render(scopeName))
+			b.WriteString("\n")
+		}
+
+		// Metrics data - show all metric values in this document
+		if len(doc.Metrics) > 0 {
+			b.WriteString(DetailKeyStyle.Render("Metrics: "))
+			b.WriteString("\n")
+			// Show each metric value (up to available height)
+			lineCount := 0
+			maxLines := height - 4 // Leave room for headers
+			for key, val := range doc.Metrics {
+				if lineCount >= maxLines {
+					b.WriteString(DetailMutedStyle.Render("  ... more metrics"))
+					break
+				}
+				b.WriteString("  ")
+				b.WriteString(DetailKeyStyle.Render(key + ": "))
+				b.WriteString(DetailValueStyle.Render(fmt.Sprintf("%v", val)))
+				b.WriteString("\n")
+				lineCount++
+			}
+		}
+
+		// Attributes if space allows
+		if len(doc.Attributes) > 0 && height > 6 {
+			b.WriteString(DetailKeyStyle.Render("Attrs: "))
+			attrs := formatKVPreview(doc.Attributes, 3, 0)
+			b.WriteString(DetailMutedStyle.Render(attrs))
+		}
+	}
+
+	return b.String()
 }
 
