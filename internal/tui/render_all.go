@@ -9,6 +9,63 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// renderBase renders the main view for a given mode (excluding modal overlays) and appends the help bar.
+func (m Model) renderBase(mode viewMode) string {
+	var b strings.Builder
+
+	// Calculate heights using helper method
+	logListHeight := m.getContentHeight(true)
+
+	// Title header (top)
+	b.WriteString(m.renderTitleHeader())
+	b.WriteString("\n")
+
+	// Status bar
+	b.WriteString(m.renderStatusBar())
+	b.WriteString("\n")
+
+	switch mode {
+	case viewLogs, viewSearch, viewIndex, viewQuery:
+		b.WriteString(m.renderLogListWithHeight(logListHeight))
+		b.WriteString("\n")
+		b.WriteString(m.renderCompactDetail())
+		if mode == viewSearch {
+			b.WriteString("\n")
+			b.WriteString(m.renderSearchInput())
+		}
+		if mode == viewIndex {
+			b.WriteString("\n")
+			b.WriteString(m.renderIndexInput())
+		}
+		if mode == viewQuery {
+			b.WriteString("\n")
+			b.WriteString(m.renderQueryOverlay())
+		}
+	case viewDetail, viewDetailJSON:
+		b.WriteString(m.renderDetailView())
+	case viewFields:
+		b.WriteString(m.renderFieldSelector())
+	case viewMetricsDashboard:
+		b.WriteString(m.renderMetricsDashboard(logListHeight))
+		b.WriteString("\n")
+		b.WriteString(m.renderMetricsCompactDetail())
+	case viewMetricDetail:
+		b.WriteString(m.renderMetricDetail())
+	case viewTraceNames:
+		b.WriteString(m.renderTransactionNames(logListHeight))
+	case viewPerspectiveList:
+		b.WriteString(m.renderPerspectiveList(logListHeight))
+		b.WriteString("\n")
+		b.WriteString(m.renderCompactDetail())
+	}
+
+	// Help bar (bottom)
+	b.WriteString("\n")
+	b.WriteString(m.renderHelpBar())
+
+	return AppStyle.Render(b.String())
+}
+
 // View is the main rendering entry point that routes to specific render functions.
 //
 // Render functions have been organized into separate files:
@@ -36,55 +93,22 @@ func (m Model) View() string {
 		return "Loading..."
 	}
 
-	// Calculate heights using helper method
-	logListHeight := m.getContentHeight(true)
-
-	var b strings.Builder
-
-	// Title header (top)
-	b.WriteString(m.renderTitleHeader())
-	b.WriteString("\n")
-
-	// Status bar
-	b.WriteString(m.renderStatusBar())
-	b.WriteString("\n")
-
 	// Main content based on mode
 	switch m.mode {
 	case viewLogs, viewSearch, viewIndex, viewQuery:
-		// Log list (fills available space)
-		b.WriteString(m.renderLogListWithHeight(logListHeight))
-		b.WriteString("\n")
-		// Compact detail (anchored to bottom, fixed height)
-		b.WriteString(m.renderCompactDetail())
-		if m.mode == viewSearch {
-			b.WriteString("\n")
-			b.WriteString(m.renderSearchInput())
-		}
-		if m.mode == viewIndex {
-			b.WriteString("\n")
-			b.WriteString(m.renderIndexInput())
-		}
-		if m.mode == viewQuery {
-			b.WriteString("\n")
-			b.WriteString(m.renderQueryOverlay())
-		}
+		return m.renderBase(m.mode)
 	case viewDetail, viewDetailJSON:
-		b.WriteString(m.renderDetailView())
+		return m.renderBase(m.mode)
 	case viewFields:
-		b.WriteString(m.renderFieldSelector())
+		return m.renderBase(m.mode)
 	case viewMetricsDashboard:
-		b.WriteString(m.renderMetricsDashboard(logListHeight))
-		b.WriteString("\n")
-		b.WriteString(m.renderMetricsCompactDetail())
+		return m.renderBase(m.mode)
 	case viewMetricDetail:
-		b.WriteString(m.renderMetricDetail())
+		return m.renderBase(m.mode)
 	case viewTraceNames:
-		b.WriteString(m.renderTransactionNames(logListHeight))
+		return m.renderBase(m.mode)
 	case viewPerspectiveList:
-		b.WriteString(m.renderPerspectiveList(logListHeight))
-		b.WriteString("\n")
-		b.WriteString(m.renderCompactDetail())
+		return m.renderBase(m.mode)
 	case viewErrorModal:
 		// Use lipgloss.Place to properly overlay the modal in the center of the screen
 		modal := m.renderErrorModal()
@@ -95,19 +119,37 @@ func (m Model) View() string {
 		)
 		return overlay
 	case viewHelp:
-		// Center the help overlay similar to error modal
-		modal := m.renderHelpOverlay()
-		overlay := lipgloss.Place(
+		// Render previous mode as background, then overlay help content
+		base := m.renderBase(m.previousMode)
+		modal := lipgloss.Place(
 			m.width, m.height,
 			lipgloss.Center, lipgloss.Center,
-			modal,
+			m.renderHelpOverlay(),
 		)
-		return overlay
+		return overlayCenter(base, modal, m.width, m.height)
+	}
+	return m.renderBase(m.mode)
+}
+
+// overlayCenter overlays 'top' onto 'base' by replacing centered lines, preserving background elsewhere.
+func overlayCenter(base, top string, width, height int) string {
+	baseLines := strings.Split(base, "\n")
+	topLines := strings.Split(top, "\n")
+
+	// Ensure base has at least height lines
+	for len(baseLines) < height {
+		baseLines = append(baseLines, "")
 	}
 
-	// Help bar (bottom)
-	b.WriteString("\n")
-	b.WriteString(m.renderHelpBar())
+	startY := max(0, (height-len(topLines))/2)
 
-	return AppStyle.Render(b.String())
+	for i, line := range topLines {
+		y := startY + i
+		if y >= len(baseLines) {
+			break
+		}
+		baseLines[y] = line
+	}
+
+	return strings.Join(baseLines, "\n")
 }

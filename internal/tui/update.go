@@ -9,8 +9,25 @@ import (
 	"time"
 
 	"fmt"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+// handleAsyncError is a helper that handles the common error pattern in async message handlers.
+// If err is nil, it returns (m, false) so the caller can proceed with success handling.
+// If err is a context error (canceled/timeout), it returns (m, true) to exit early.
+// Otherwise, it sets m.err, shows the error modal, and returns (m, true).
+func (m *Model) handleAsyncError(err error) (done bool) {
+	if err == nil {
+		return false
+	}
+	if isContextError(err) {
+		return true
+	}
+	m.err = err
+	m.showErrorModal()
+	return true
+}
 
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
@@ -119,12 +136,7 @@ func (m Model) handleWindowSize(msg tea.WindowSizeMsg) (Model, tea.Cmd) {
 func (m Model) handleLogsMsg(msg logsMsg) (Model, tea.Cmd) {
 	m.loading = false
 	m.lastRefresh = time.Now()
-	if msg.err != nil {
-		if isContextError(msg.err) {
-			return m, nil
-		}
-		m.err = msg.err
-		m.showErrorModal()
+	if m.handleAsyncError(msg.err) {
 		return m, nil
 	}
 
@@ -151,12 +163,7 @@ func (m Model) handleTickMsg() (Model, tea.Cmd) {
 
 func (m Model) handleFieldCapsMsg(msg fieldCapsMsg) (Model, tea.Cmd) {
 	m.fieldsLoading = false
-	if msg.err != nil {
-		if isContextError(msg.err) {
-			return m, nil
-		}
-		m.err = msg.err
-		m.showErrorModal()
+	if m.handleAsyncError(msg.err) {
 		return m, nil
 	}
 
@@ -165,31 +172,24 @@ func (m Model) handleFieldCapsMsg(msg fieldCapsMsg) (Model, tea.Cmd) {
 }
 
 func (m Model) handleAutoDetectMsg(msg autoDetectMsg) (Model, tea.Cmd) {
+	// Auto-detect has special error handling: on failure, use current lookback
 	if msg.err != nil {
 		if isContextError(msg.err) {
 			return m, nil
 		}
 		// Auto-detect failed, just use current lookback and fetch
-		m.loading = true
-		switch m.signalType {
-		case signalMetrics:
-			if m.metricsViewMode == metricsViewAggregated {
-				m.metricsLoading = true
-				return m, m.fetchAggregatedMetrics()
-			}
-		case signalTraces:
-			if m.traceViewLevel == traceViewNames {
-				m.tracesLoading = true
-				return m, m.fetchTransactionNames()
-			}
-		}
-		return m, m.fetchLogs()
+		return m.startInitialFetch()
 	}
 
 	m.lookback = msg.lookback
 	m.statusMessage = fmt.Sprintf("Found %d entries in %s", msg.total, msg.lookback.String())
 	m.statusTime = time.Now()
 
+	return m.startInitialFetch()
+}
+
+// startInitialFetch kicks off the appropriate fetch based on signal type.
+func (m Model) startInitialFetch() (Model, tea.Cmd) {
 	switch m.signalType {
 	case signalMetrics:
 		if m.metricsViewMode == metricsViewAggregated {
@@ -202,19 +202,13 @@ func (m Model) handleAutoDetectMsg(msg autoDetectMsg) (Model, tea.Cmd) {
 			return m, m.fetchTransactionNames()
 		}
 	}
-
 	m.loading = true
 	return m, m.fetchLogs()
 }
 
 func (m Model) handleMetricsAggMsg(msg metricsAggMsg) (Model, tea.Cmd) {
 	m.metricsLoading = false
-	if msg.err != nil {
-		if isContextError(msg.err) {
-			return m, nil
-		}
-		m.err = msg.err
-		m.showErrorModal()
+	if m.handleAsyncError(msg.err) {
 		return m, nil
 	}
 
@@ -230,12 +224,7 @@ func (m Model) handleMetricsAggMsg(msg metricsAggMsg) (Model, tea.Cmd) {
 
 func (m Model) handleMetricDetailDocsMsg(msg metricDetailDocsMsg) (Model, tea.Cmd) {
 	m.metricDetailDocsLoading = false
-	if msg.err != nil {
-		if isContextError(msg.err) {
-			return m, nil
-		}
-		m.err = msg.err
-		m.showErrorModal()
+	if m.handleAsyncError(msg.err) {
 		return m, nil
 	}
 
@@ -247,12 +236,7 @@ func (m Model) handleMetricDetailDocsMsg(msg metricDetailDocsMsg) (Model, tea.Cm
 
 func (m Model) handleTransactionNamesMsg(msg transactionNamesMsg) (Model, tea.Cmd) {
 	m.tracesLoading = false
-	if msg.err != nil {
-		if isContextError(msg.err) {
-			return m, nil
-		}
-		m.err = msg.err
-		m.showErrorModal()
+	if m.handleAsyncError(msg.err) {
 		return m, nil
 	}
 
@@ -263,12 +247,7 @@ func (m Model) handleTransactionNamesMsg(msg transactionNamesMsg) (Model, tea.Cm
 
 func (m Model) handleSpansMsg(msg spansMsg) (Model, tea.Cmd) {
 	m.spansLoading = false
-	if msg.err != nil {
-		if isContextError(msg.err) {
-			return m, nil
-		}
-		m.err = msg.err
-		m.showErrorModal()
+	if m.handleAsyncError(msg.err) {
 		return m, nil
 	}
 
@@ -279,12 +258,7 @@ func (m Model) handleSpansMsg(msg spansMsg) (Model, tea.Cmd) {
 
 func (m Model) handlePerspectiveDataMsg(msg perspectiveDataMsg) (Model, tea.Cmd) {
 	m.perspectiveLoading = false
-	if msg.err != nil {
-		if isContextError(msg.err) {
-			return m, nil
-		}
-		m.err = msg.err
-		m.showErrorModal()
+	if m.handleAsyncError(msg.err) {
 		return m, nil
 	}
 

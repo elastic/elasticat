@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/elastic/elasticat/internal/config"
 	"github.com/elastic/elasticat/internal/otlp"
 	"github.com/elastic/elasticat/internal/watch"
 	"github.com/spf13/cobra"
@@ -44,10 +45,11 @@ Examples:
 }
 
 func init() {
-	watchCmd.Flags().IntVarP(&watchLines, "lines", "n", 10, "Number of lines to show from end of file")
+	// Use config defaults (which respect env vars)
+	watchCmd.Flags().IntVarP(&watchLines, "lines", "n", config.DefaultTailLines, "Number of lines to show from end of file (env: ELASTICAT_TAIL_LINES)")
 	watchCmd.Flags().BoolVar(&watchNoColor, "no-color", false, "Disable colored output")
-	watchCmd.Flags().StringVarP(&serviceFlag, "service", "s", "", "Override service name (otherwise derived from filename)")
-	watchCmd.Flags().StringVar(&watchOTLP, "otlp", "localhost:4318", "OTLP HTTP endpoint")
+	watchCmd.Flags().StringVarP(&serviceFlag, "service", "s", "", "Override service name (env: ELASTICAT_SERVICE)")
+	watchCmd.Flags().StringVar(&watchOTLP, "otlp", config.DefaultOTLPEndpoint, "OTLP HTTP endpoint (env: ELASTICAT_OTLP_ENDPOINT)")
 	watchCmd.Flags().BoolVar(&watchNoSend, "no-send", false, "Don't send logs to Elasticsearch, display only")
 	watchCmd.Flags().BoolVar(&watchOneshot, "oneshot", false, "Import all logs and exit (don't follow)")
 
@@ -55,6 +57,11 @@ func init() {
 }
 
 func runWatch(cmd *cobra.Command, files []string) error {
+	cfg, ok := config.FromContext(cmd.Context())
+	if !ok {
+		return fmt.Errorf("configuration not loaded")
+	}
+
 	// Listen for SIGINT/SIGTERM and cancel the run context.
 	ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -63,11 +70,11 @@ func runWatch(cmd *cobra.Command, files []string) error {
 	watcher, err := watch.New(watch.Config{
 		Context:   ctx,
 		Files:     files,
-		Service:   serviceFlag,
-		TailLines: watchLines,
-		Follow:    !watchOneshot, // Don't follow in oneshot mode
-		NoColor:   watchNoColor,
-		Oneshot:   watchOneshot,
+		Service:   cfg.Watch.Service,
+		TailLines: cfg.Watch.TailLines,
+		Follow:    !cfg.Watch.Oneshot, // Don't follow in oneshot mode
+		NoColor:   cfg.Watch.NoColor,
+		Oneshot:   cfg.Watch.Oneshot,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create watcher: %w", err)
@@ -79,11 +86,11 @@ func runWatch(cmd *cobra.Command, files []string) error {
 
 	// Create OTLP client if sending is enabled
 	var otlpClient *otlp.Client
-	if !watchNoSend {
+	if !cfg.Watch.NoSend {
 		otlpClient, err = otlp.New(otlp.Config{
-			Endpoint:    watchOTLP,
-			ServiceName: serviceFlag,
-			Insecure:    true,
+			Endpoint:    cfg.OTLP.Endpoint,
+			ServiceName: cfg.Watch.Service,
+			Insecure:    cfg.OTLP.Insecure,
 		})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: Failed to create OTLP client: %v\n", err)
@@ -97,7 +104,7 @@ func runWatch(cmd *cobra.Command, files []string) error {
 	// Add handler for terminal output + OTLP sending
 	watcher.AddHandler(func(log watch.ParsedLog) {
 		// Print to terminal
-		fmt.Println(watch.FormatLog(log, watchNoColor, showFilename))
+		fmt.Println(watch.FormatLog(log, cfg.Watch.NoColor, showFilename))
 
 		// Send to OTLP if client is available
 		if otlpClient != nil {
@@ -106,22 +113,22 @@ func runWatch(cmd *cobra.Command, files []string) error {
 	})
 
 	// Print startup message
-	if watchOneshot {
+	if cfg.Watch.Oneshot {
 		fmt.Printf("Importing all logs from %d file(s)", watcher.FileCount())
 	} else {
 		fmt.Printf("Watching %d file(s)", watcher.FileCount())
 	}
-	if !watchNoSend {
-		fmt.Printf(" → sending to OTLP at %s", watchOTLP)
+	if !cfg.Watch.NoSend {
+		fmt.Printf(" → sending to OTLP at %s", cfg.OTLP.Endpoint)
 	}
 	fmt.Println()
-	if !watchOneshot {
+	if !cfg.Watch.Oneshot {
 		fmt.Println("Press Ctrl+C to stop")
 	}
 	fmt.Println()
 
 	// Oneshot mode: read all lines and exit
-	if watchOneshot {
+	if cfg.Watch.Oneshot {
 		lineCount, err := watcher.ReadAll()
 		if err != nil {
 			if errors.Is(err, context.Canceled) {

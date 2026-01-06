@@ -6,8 +6,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"time"
 
+	"github.com/elastic/elasticat/internal/config"
 	"github.com/elastic/elasticat/internal/es"
 	"github.com/spf13/cobra"
 )
@@ -35,12 +35,17 @@ func init() {
 }
 
 func runSearch(parentCtx context.Context, query string) error {
-	client, err := es.New([]string{esURL}, esIndex)
+	cfg, ok := config.FromContext(parentCtx)
+	if !ok {
+		return fmt.Errorf("configuration not loaded")
+	}
+
+	client, err := es.New([]string{cfg.ES.URL}, cfg.ES.Index)
 	if err != nil {
 		return fmt.Errorf("failed to create ES client: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(parentCtx, cfg.ES.Timeout)
 	defer cancel()
 
 	result, err := client.Search(ctx, query, es.SearchOptions{

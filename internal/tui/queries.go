@@ -49,7 +49,7 @@ func newRequestManager() *requestManager {
 
 func (m *Model) fetchLogs() tea.Cmd {
 	return func() tea.Msg {
-		ctx, done := m.startRequest(requestLogs, 10*time.Second)
+		ctx, done := m.startRequest(requestLogs, m.tuiConfig.LogsTimeout)
 		defer done()
 
 		var result *es.SearchResult
@@ -118,14 +118,14 @@ func (m *Model) fetchLogs() tea.Cmd {
 }
 
 func (m Model) tickCmd() tea.Cmd {
-	return tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
+	return tea.Tick(m.tuiConfig.TickInterval, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }
 
 func (m Model) fetchAggregatedMetrics() tea.Cmd {
 	return func() tea.Msg {
-		ctx, done := m.startRequest(requestMetricsAgg, 30*time.Second)
+		ctx, done := m.startRequest(requestMetricsAgg, m.tuiConfig.MetricsTimeout)
 		defer done()
 
 		lookbackRange := m.lookback.ESRange()
@@ -158,7 +158,7 @@ func (m *Model) fetchMetricDetailDocs() tea.Cmd {
 	metricName := m.aggregatedMetrics.Metrics[m.metricsCursor].Name
 
 	return func() tea.Msg {
-		ctx, done := m.startRequest(requestMetricDetailDocs, 10*time.Second)
+		ctx, done := m.startRequest(requestMetricDetailDocs, m.tuiConfig.MetricsTimeout)
 		defer done()
 
 		opts := es.TailOptions{
@@ -179,7 +179,7 @@ func (m *Model) fetchMetricDetailDocs() tea.Cmd {
 
 func (m *Model) fetchTransactionNames() tea.Cmd {
 	return func() tea.Msg {
-		ctx, done := m.startRequest(requestTransactionNames, 30*time.Second)
+		ctx, done := m.startRequest(requestTransactionNames, m.tuiConfig.TracesTimeout)
 		defer done()
 
 		lookbackRange := m.lookback.ESRange()
@@ -196,7 +196,7 @@ func (m *Model) fetchTransactionNames() tea.Cmd {
 // fetchSpans fetches all child spans for a given trace ID
 func (m Model) fetchSpans(traceID string) tea.Cmd {
 	return func() tea.Msg {
-		ctx, done := m.startRequest(requestSpans, 10*time.Second)
+		ctx, done := m.startRequest(requestSpans, m.tuiConfig.TracesTimeout)
 		defer done()
 
 		opts := es.TailOptions{
@@ -217,7 +217,7 @@ func (m Model) fetchSpans(traceID string) tea.Cmd {
 
 func (m *Model) fetchPerspectiveData() tea.Cmd {
 	return func() tea.Msg {
-		ctx, done := m.startRequest(requestPerspective, 10*time.Second)
+		ctx, done := m.startRequest(requestPerspective, m.tuiConfig.LogsTimeout)
 		defer done()
 
 		var aggs []perspectives.PerspectiveAgg
@@ -251,7 +251,7 @@ func (m *Model) fetchPerspectiveData() tea.Cmd {
 
 func (m *Model) autoDetectLookback() tea.Cmd {
 	return func() tea.Msg {
-		ctx, done := m.startRequest(requestAutoDetect, 30*time.Second)
+		ctx, done := m.startRequest(requestAutoDetect, m.tuiConfig.AutoDetectTimeout)
 		defer done()
 
 		// For traces, filter to only count transactions
@@ -302,7 +302,7 @@ func (m *Model) autoDetectLookback() tea.Cmd {
 
 func (m *Model) fetchFieldCaps() tea.Cmd {
 	return func() tea.Msg {
-		ctx, done := m.startRequest(requestFieldCaps, 10*time.Second)
+		ctx, done := m.startRequest(requestFieldCaps, m.tuiConfig.FieldCapsTimeout)
 		defer done()
 
 		fields, err := m.client.GetFieldCaps(ctx)

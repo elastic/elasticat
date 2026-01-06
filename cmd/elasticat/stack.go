@@ -9,8 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"time"
 
+	"github.com/elastic/elasticat/internal/config"
 	"github.com/elastic/elasticat/internal/es"
 	"github.com/spf13/cobra"
 )
@@ -200,12 +200,17 @@ func runDown() error {
 }
 
 func runStatus(parentCtx context.Context) error {
-	client, err := es.New([]string{esURL}, esIndex)
+	cfg, ok := config.FromContext(parentCtx)
+	if !ok {
+		return fmt.Errorf("configuration not loaded")
+	}
+
+	client, err := es.New([]string{cfg.ES.URL}, cfg.ES.Index)
 	if err != nil {
 		return fmt.Errorf("failed to create ES client: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(parentCtx, cfg.ES.PingTimeout)
 	defer cancel()
 
 	fmt.Println("ElastiCat Status")
@@ -213,7 +218,7 @@ func runStatus(parentCtx context.Context) error {
 	fmt.Println()
 
 	// Check Elasticsearch
-	fmt.Printf("Elasticsearch (%s): ", esURL)
+	fmt.Printf("Elasticsearch (%s): ", cfg.ES.URL)
 	if err := client.Ping(ctx); err != nil {
 		fmt.Println("NOT CONNECTED")
 		fmt.Printf("  Error: %v\n", err)

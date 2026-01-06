@@ -9,118 +9,176 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
+	"github.com/elastic/elasticat/internal/config"
 	"github.com/elastic/elasticat/internal/es"
 	"github.com/elastic/elasticat/internal/es/metrics"
 	"github.com/elastic/elasticat/internal/es/traces"
 )
 
-// Model is the main TUI model containing all application state
+// Model is the main TUI model containing all application state.
+//
+// The fields are organized into logical groups (see state.go for corresponding
+// types that document this structure):
+//   - Core: client, ctx, requests
+//   - UI: mode, dimensions, loading, error state
+//   - Filters: service, resource, level, search query
+//   - Logs: log entries and selection
+//   - Metrics: dashboard and detail state
+//   - Traces: navigation hierarchy state
+//   - Perspective: filtering by service/resource
+//   - Fields: field selection state
+//   - Components: text inputs and viewports
 type Model struct {
-	// ES client
-	client *es.Client
+	// === Core ===
+	client    DataSource       // Data source (interface for testability)
+	ctx       context.Context  // Parent context (canceled when app exits)
+	requests  *requestManager  // In-flight request management
+	tuiConfig config.TUIConfig // TUI timing/config
 
-	// Parent context (canceled when app exits)
-	ctx context.Context
-
-	// State
-	logs            []es.LogEntry
-	selectedIndex   int
-	userHasScrolled bool // Track if user manually scrolled (for tail -f behavior)
+	// === UI State ===
 	mode            viewMode
-	previousMode    viewMode // Store previous mode when showing error modal
-	err             error
-	loading         bool
-	total           int64
+	previousMode    viewMode        // For modal returns
+	err             error           // Current error
+	loading         bool            // General loading indicator
+	width           int             // Terminal width
+	height          int             // Terminal height
+	autoRefresh     bool            // Auto-refresh enabled
+	timeDisplayMode TimeDisplayMode // How timestamps display
+	sortAscending   bool            // Sort order
+	statusMessage   string          // Temporary status
+	statusTime      time.Time       // When status was set
+	lastRefresh     time.Time       // Last data refresh
 
-	// Filters
+	// === Filters ===
 	levelFilter    string
 	searchQuery    string
-	filterService  string // Active service filter (from perspectives or manual)
-	negateService  bool   // If true, exclude filterService instead of filtering to it
-	filterResource string // Active resource filter (from perspectives or manual)
-	negateResource bool   // If true, exclude filterResource instead of filtering to it
+	filterService  string // Service filter
+	negateService  bool   // Exclude service
+	filterResource string // Resource filter
+	negateResource bool   // Exclude resource
+	signalType     SignalType
+	lookback       LookbackDuration
 
-	// Auto-refresh
-	autoRefresh bool
-
-	// Time display
-	timeDisplayMode TimeDisplayMode // Clock, relative, or full timestamp
-
-	// Sort order
-	sortAscending bool // false = newest first (desc), true = oldest first (asc)
-
-	// Signal type (logs, traces, metrics)
-	signalType SignalType
-
-	// Lookback duration (time range relative to now)
-	lookback LookbackDuration
-
-	// Query display
-	lastQueryJSON  string      // Last ES query body as JSON
+	// === Query Display ===
+	lastQueryJSON  string      // Last ES query body
 	lastQueryIndex string      // Index pattern used
-	queryFormat    queryFormat // Kibana or curl format
-	statusMessage  string      // Temporary status message (e.g., "Copied!")
-	statusTime     time.Time   // When status was set (for auto-clear)
+	queryFormat    queryFormat // Kibana or curl
 
-	// Field selection
-	displayFields    []DisplayField // Currently configured display fields
-	availableFields  []es.FieldInfo // All fields from field_caps
-	fieldsCursor     int            // Cursor position in field selector
-	fieldsLoading    bool           // Loading field caps
-	fieldsSearchMode bool           // Whether we're in search mode within fields view
-	fieldsSearch     string         // Search filter for fields
+	// === Logs State ===
+	logs            []es.LogEntry
+	selectedIndex   int
+	userHasScrolled bool
+	total           int64
 
-	// Components
+	// === Fields State ===
+	displayFields    []DisplayField
+	availableFields  []es.FieldInfo
+	fieldsCursor     int
+	fieldsLoading    bool
+	fieldsSearchMode bool
+	fieldsSearch     string
+
+	// === Metrics State ===
+	metricsViewMode         MetricsViewMode
+	aggregatedMetrics       *metrics.MetricsAggResult
+	metricsLoading          bool
+	metricsCursor           int
+	metricDetailDocs        []es.LogEntry
+	metricDetailDocCursor   int
+	metricDetailDocsLoading bool
+
+	// === Traces State ===
+	traceViewLevel     TraceViewLevel
+	transactionNames   []traces.TransactionNameAgg
+	traceNamesCursor   int
+	selectedTxName     string
+	selectedTraceID    string
+	tracesLoading      bool
+	spans              []es.LogEntry
+	spansLoading       bool
+	lastFetchedTraceID string
+
+	// === Perspective State ===
+	currentPerspective PerspectiveType
+	perspectiveItems   []PerspectiveItem
+	perspectiveCursor  int
+	perspectiveLoading bool
+
+	// === UI Components ===
 	searchInput   textinput.Model
 	indexInput    textinput.Model
 	viewport      viewport.Model
-	errorViewport viewport.Model // For scrollable error modal
-	helpViewport  viewport.Model // For scrollable help overlay
-
-	// Dimensions
-	width  int
-	height int
-
-	// Last refresh time
-	lastRefresh time.Time
-
-	// Metrics dashboard state
-	metricsViewMode   MetricsViewMode
-	aggregatedMetrics *metrics.MetricsAggResult
-	metricsLoading    bool
-	metricsCursor     int // Selected metric in dashboard
-
-	// Metric detail document browser
-	metricDetailDocs        []es.LogEntry // Latest 10 docs for selected metric
-	metricDetailDocCursor   int           // Current doc index (0-9)
-	metricDetailDocsLoading bool          // Loading state
-
-	// Traces navigation state
-	traceViewLevel     TraceViewLevel              // Current navigation level
-	transactionNames   []traces.TransactionNameAgg // Aggregated transaction names
-	traceNamesCursor   int                         // Cursor in transaction names list
-	selectedTxName     string                      // Selected transaction name filter
-	selectedTraceID    string                      // Selected trace_id for spans view
-	tracesLoading      bool                        // Loading transaction names
-	spans              []es.LogEntry               // Child spans for selected trace
-	spansLoading       bool                        // Loading spans for trace
-	lastFetchedTraceID string                      // De-dupe span fetches for the same trace
-
-	// Perspective filtering state
-	currentPerspective PerspectiveType   // Current perspective being viewed
-	perspectiveItems   []PerspectiveItem // List of services or resources with counts
-	perspectiveCursor  int               // Cursor in perspective list
-	perspectiveLoading bool              // Loading perspective data
-
-	// Request manager for in-flight cancellation (pointer so it's shared when Model is copied)
-	requests *requestManager
-
-	// Help overlay state
+	errorViewport viewport.Model
+	helpViewport  viewport.Model
 }
 
 // Highlighter returns a Highlighter configured with the current search query
 func (m Model) Highlighter() *Highlighter {
 	return NewHighlighter(m.searchQuery)
+}
+
+// === State accessor methods ===
+// These methods provide a cleaner interface for accessing grouped state,
+// and will enable future refactoring to embedded structs.
+
+// Filters returns the current filter state as a struct.
+func (m Model) Filters() FilterState {
+	return FilterState{
+		LevelFilter:    m.levelFilter,
+		SearchQuery:    m.searchQuery,
+		FilterService:  m.filterService,
+		NegateService:  m.negateService,
+		FilterResource: m.filterResource,
+		NegateResource: m.negateResource,
+	}
+}
+
+// Logs returns the current logs state as a struct.
+func (m Model) Logs() LogsState {
+	return LogsState{
+		Logs:            m.logs,
+		SelectedIndex:   m.selectedIndex,
+		UserHasScrolled: m.userHasScrolled,
+		Total:           m.total,
+	}
+}
+
+// Metrics returns the current metrics state as a struct.
+func (m Model) Metrics() MetricsState {
+	return MetricsState{
+		ViewMode:          m.metricsViewMode,
+		AggregatedMetrics: m.aggregatedMetrics,
+		Loading:           m.metricsLoading,
+		Cursor:            m.metricsCursor,
+		DetailDocs:        m.metricDetailDocs,
+		DetailDocCursor:   m.metricDetailDocCursor,
+		DetailDocsLoading: m.metricDetailDocsLoading,
+	}
+}
+
+// Traces returns the current traces state as a struct.
+func (m Model) Traces() TracesState {
+	return TracesState{
+		ViewLevel:          m.traceViewLevel,
+		TransactionNames:   m.transactionNames,
+		NamesCursor:        m.traceNamesCursor,
+		SelectedTxName:     m.selectedTxName,
+		SelectedTraceID:    m.selectedTraceID,
+		Loading:            m.tracesLoading,
+		Spans:              m.spans,
+		SpansLoading:       m.spansLoading,
+		LastFetchedTraceID: m.lastFetchedTraceID,
+	}
+}
+
+// Perspective returns the current perspective state as a struct.
+func (m Model) Perspective() PerspectiveState {
+	return PerspectiveState{
+		Current: m.currentPerspective,
+		Items:   m.perspectiveItems,
+		Cursor:  m.perspectiveCursor,
+		Loading: m.perspectiveLoading,
+	}
 }
 
 // setViewportContent wraps content to the viewport width before rendering.
@@ -129,8 +187,10 @@ func (m *Model) setViewportContent(content string) {
 	m.viewport.SetContent(wrapped)
 }
 
-// NewModel creates a new TUI model
-func NewModel(ctx context.Context, client *es.Client, signal SignalType) Model {
+// NewModel creates a new TUI model.
+// The client parameter accepts any DataSource implementation, enabling
+// mock data sources for testing.
+func NewModel(ctx context.Context, client DataSource, signal SignalType, tuiCfg config.TUIConfig) Model {
 	ti := textinput.New()
 	ti.Placeholder = "Search... (supports ES query syntax)"
 	ti.CharLimit = 256
@@ -167,6 +227,7 @@ func NewModel(ctx context.Context, client *es.Client, signal SignalType) Model {
 	return Model{
 		ctx:             ctx,
 		client:          client,
+		tuiConfig:       tuiCfg,
 		logs:            []es.LogEntry{},
 		mode:            initialMode,
 		autoRefresh:     true,

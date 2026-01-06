@@ -81,12 +81,20 @@ func (m Model) handlePerspectiveListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.searchInput.Focus()
 		return m, textinput.Blink
 	case "esc":
-		// Return to appropriate view based on signal type
+		// Return to appropriate view based on signal type and drill-down level
 		switch m.signalType {
 		case signalMetrics:
 			m.mode = viewMetricsDashboard
 		case signalTraces:
-			m.mode = viewTraceNames
+			// Check trace view level to return to correct view
+			switch m.traceViewLevel {
+			case traceViewTransactions, traceViewSpans:
+				// User was viewing transactions or spans (which use viewLogs)
+				m.mode = viewLogs
+			default:
+				// User was at the top-level transaction names list
+				m.mode = viewTraceNames
+			}
 		default:
 			m.mode = viewLogs
 		}

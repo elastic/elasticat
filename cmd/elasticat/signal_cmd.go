@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/elastic/elasticat/internal/config"
 	"github.com/elastic/elasticat/internal/es"
 	"github.com/elastic/elasticat/internal/index"
 	"github.com/elastic/elasticat/internal/tui"
@@ -95,32 +96,32 @@ func runSignalCommand(cmd *cobra.Command, kind signalKind, args []string) error 
 }
 
 func runSignalCommandWithConfig(cmd *cobra.Command, cfg signalRunConfig, args []string) error {
+	appCfg, ok := config.FromContext(cmd.Context())
+	if !ok {
+		return fmt.Errorf("configuration not loaded")
+	}
+
 	preArgs, fields := fieldsForRun(cmd, args)
 	cfg.fieldsOverride = fields
 	// For tail, the first positional (pre-dash) arg is an optional service override.
 	if len(preArgs) > 0 {
 		cfg.serviceOverride = preArgs[0]
 	}
-	effective := effectiveIndex(cmd, cfg.kind.defaultIndex())
+	effective := effectiveIndex(appCfg, cfg.kind.defaultIndex())
 	useFollow := followFlag
 	if !cmd.Flags().Changed("follow") {
 		// If user did not set --follow, honor the command's default preference.
 		useFollow = cfg.defaultFollow
 	}
 	if useFollow {
-		return runSignalFollow(cfg, effective)
+		return runSignalFollow(appCfg, cfg, effective)
 	}
-	return runSignalOnce(cfg, effective)
+	return runSignalOnce(appCfg, cfg, effective)
 }
 
-func effectiveIndex(cmd *cobra.Command, defaultIndex string) string {
-	// `--index` is a persistent flag on rootCmd; Cobra/pflag flag lookup can be subtle
-	// across command flagsets, so check all relevant ones.
-	if cmd.Flags().Changed("index") || cmd.InheritedFlags().Changed("index") {
-		return esIndex
-	}
-	if rootCmd != nil && rootCmd.PersistentFlags().Changed("index") {
-		return esIndex
+func effectiveIndex(appCfg config.Config, defaultIndex string) string {
+	if appCfg.ES.Index != "" {
+		return appCfg.ES.Index
 	}
 	return defaultIndex
 }
@@ -145,13 +146,13 @@ func fieldsForRun(cmd *cobra.Command, args []string) (preDashArgs []string, fiel
 	return args, nil
 }
 
-func runSignalOnce(cfg signalRunConfig, indexPattern string) error {
-	client, err := es.New([]string{esURL}, indexPattern)
+func runSignalOnce(appCfg config.Config, cfg signalRunConfig, indexPattern string) error {
+	client, err := es.New([]string{appCfg.ES.URL}, indexPattern)
 	if err != nil {
 		return fmt.Errorf("failed to create ES client: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), appCfg.ES.Timeout)
 	defer cancel()
 
 	service := serviceForRun(cfg.serviceOverride)
@@ -165,8 +166,8 @@ func runSignalOnce(cfg signalRunConfig, indexPattern string) error {
 	return renderEntries(entries, renderer, true)
 }
 
-func runSignalFollow(cfg signalRunConfig, indexPattern string) error {
-	client, err := es.New([]string{esURL}, indexPattern)
+func runSignalFollow(appCfg config.Config, cfg signalRunConfig, indexPattern string) error {
+	client, err := es.New([]string{appCfg.ES.URL}, indexPattern)
 	if err != nil {
 		return fmt.Errorf("failed to create ES client: %w", err)
 	}
@@ -179,7 +180,7 @@ func runSignalFollow(cfg signalRunConfig, indexPattern string) error {
 	// Initial load (non-follow sort order for latest docs)
 	service := serviceForRun(cfg.serviceOverride)
 	opts := baseTailOptions(cfg.kind, service)
-	ctx, cancel := context.WithTimeout(notifyCtx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(notifyCtx, appCfg.ES.Timeout)
 	initial, err := fetchTailEntries(ctx, client, opts)
 	cancel()
 	if err != nil {
@@ -211,7 +212,7 @@ func runSignalFollow(cfg signalRunConfig, indexPattern string) error {
 		case <-notifyCtx.Done():
 			return nil
 		case <-ticker.C:
-			ctx, cancel := context.WithTimeout(notifyCtx, 10*time.Second)
+			ctx, cancel := context.WithTimeout(notifyCtx, appCfg.ES.Timeout)
 			opts := baseTailOptions(cfg.kind, service)
 			opts.SortAsc = true
 			if !lastTimestamp.IsZero() {

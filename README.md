@@ -89,6 +89,16 @@ cd ../../
 | `elasticat metrics` | Open the metrics viewer TUI |
 | `elasticat clear` | Delete all collected logs |
 
+## Configuration
+
+- **Precedence**: flags > environment variables > defaults.
+- **Environment variables** (Go duration strings where applicable, e.g., `5s`, `1m`):
+  - `ELASTICAT_ES_URL`, `ELASTICAT_ES_INDEX`, `ELASTICAT_ES_PING_TIMEOUT`
+  - `ELASTICAT_OTLP_ENDPOINT`, `ELASTICAT_OTLP_INSECURE`
+  - `ELASTICAT_WATCH_TAIL_LINES`, `ELASTICAT_WATCH_SERVICE`, `ELASTICAT_WATCH_NO_COLOR`, `ELASTICAT_WATCH_NO_SEND`, `ELASTICAT_WATCH_ONESHOT`
+  - `ELASTICAT_TUI_TICK_INTERVAL`, `ELASTICAT_TUI_LOGS_TIMEOUT`, `ELASTICAT_TUI_METRICS_TIMEOUT`, `ELASTICAT_TUI_TRACES_TIMEOUT`, `ELASTICAT_TUI_FIELD_CAPS_TIMEOUT`, `ELASTICAT_TUI_AUTO_DETECT_TIMEOUT`
+- **Fail-fast**: invalid values (e.g., bad durations) cause startup errors.
+
 ## Documentation
 
 - [PRFAQ.md](PRFAQ.md) - Project vision and capabilities

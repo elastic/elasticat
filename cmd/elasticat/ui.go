@@ -9,9 +9,9 @@ import (
 	"os"
 	osSignal "os/signal"
 	"syscall"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/elastic/elasticat/internal/config"
 	"github.com/elastic/elasticat/internal/es"
 	"github.com/elastic/elasticat/internal/tui"
 	"github.com/spf13/cobra"
@@ -47,16 +47,21 @@ func init() {
 }
 
 func runTUI(parentCtx context.Context, sig tui.SignalType) error {
+	cfg, ok := config.FromContext(parentCtx)
+	if !ok {
+		return fmt.Errorf("configuration not loaded")
+	}
+
 	notifyCtx, stop := osSignal.NotifyContext(parentCtx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	client, err := es.New([]string{esURL}, esIndex)
+	client, err := es.New([]string{cfg.ES.URL}, cfg.ES.Index)
 	if err != nil {
 		return fmt.Errorf("failed to create ES client: %w", err)
 	}
 
 	// Check connection
-	ctx, cancel := context.WithTimeout(notifyCtx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(notifyCtx, cfg.ES.PingTimeout)
 	defer cancel()
 
 	if err := client.Ping(ctx); err != nil {
@@ -65,7 +70,7 @@ func runTUI(parentCtx context.Context, sig tui.SignalType) error {
 		fmt.Println()
 	}
 
-	model := tui.NewModel(notifyCtx, client, sig)
+	model := tui.NewModel(notifyCtx, client, sig, cfg.TUI)
 	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithContext(notifyCtx))
 
 	if _, err := p.Run(); err != nil {

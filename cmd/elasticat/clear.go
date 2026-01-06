@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/elastic/elasticat/internal/config"
 	"github.com/elastic/elasticat/internal/es"
 	"github.com/spf13/cobra"
 )
@@ -36,11 +37,16 @@ func init() {
 }
 
 func runClear(parentCtx context.Context) error {
+	cfg, ok := config.FromContext(parentCtx)
+	if !ok {
+		return fmt.Errorf("configuration not loaded")
+	}
+
 	ctx, cancel := context.WithTimeout(parentCtx, 60*time.Second)
 	defer cancel()
 
 	// Create a client just for ping check (use logs index)
-	pingClient, err := es.New([]string{esURL}, "logs-*")
+	pingClient, err := es.New([]string{cfg.ES.URL}, cfg.ES.Index)
 	if err != nil {
 		return fmt.Errorf("failed to create ES client: %w", err)
 	}
@@ -68,14 +74,14 @@ func runClear(parentCtx context.Context) error {
 		name  string
 		index string
 	}{
-		{"logs", "logs-*"},
+		{"logs", cfg.ES.Index},
 		{"metrics", "metrics-*"},
 		{"traces", "traces-*"},
 	}
 
 	var totalDeleted int64
 	for _, sig := range signals {
-		client, err := es.New([]string{esURL}, sig.index)
+		client, err := es.New([]string{cfg.ES.URL}, sig.index)
 		if err != nil {
 			fmt.Printf("  Warning: failed to create client for %s: %v\n", sig.name, err)
 			continue

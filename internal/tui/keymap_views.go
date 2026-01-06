@@ -40,12 +40,12 @@ func (m Model) keymapLogs() []KeyBinding {
 		{Keys: []string{"enter"}, Label: "details", Kind: KeyKindQuick, Group: "View"},
 		{Keys: []string{"/"}, Label: "search", Kind: KeyKindQuick, Group: "Filter"},
 		{Keys: []string{"l"}, Label: "lookback", Kind: KeyKindQuick, Group: "Filter"},
+		{Keys: []string{"p"}, Label: "perspective", Kind: KeyKindQuick, Group: "View"},
 		{Keys: []string{"m"}, Label: "signal", Kind: KeyKindQuick, Group: "View"},
 	}
 
 	// Full list excludes items already in quick to avoid duplicates in help overlay
 	full := []KeyBinding{
-		{Keys: []string{"p"}, Label: "perspective", Kind: KeyKindFull, Group: "View"},
 		{Keys: []string{"s"}, Label: "sort", Kind: KeyKindFull, Group: "View"},
 		{Keys: []string{"f"}, Label: "fields", Kind: KeyKindFull, Group: "View"},
 		{Keys: []string{"Q"}, Label: "query", Kind: KeyKindFull, Group: "View"},
