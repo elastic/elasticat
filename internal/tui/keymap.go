@@ -1,3 +1,6 @@
+// Copyright 2026 Elasticsearch B.V.
+// SPDX-License-Identifier: Apache-2.0
+
 package tui
 
 // KeyKind indicates whether a binding is part of the quick (always shown) or full (overlay) set.
