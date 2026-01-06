@@ -101,4 +101,5 @@ jobs:
         with:
           name: ${{ matrix.binary }}
           path: bin/${{ matrix.binary }}
+          retention-days: 7
 
