@@ -1,6 +1,6 @@
 # ElastiCat
 
-**Local dev telemetry explorer for Elasticsearch** - watch log files, explore logs/metrics/traces in a beautiful terminal UI.
+**An Instant Open Telemetry TUI, powered by Elasticsearch**
 
 [![CI (main)](https://github.com/elastic/elasticat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/elastic/elasticat/actions/workflows/ci.yml?query=branch%3Amain)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
@@ -15,7 +15,7 @@
 
 - **Log File Watcher** - Tail files like `tail -F` and auto-ingest to Elasticsearch via OTLP
 - **Interactive TUI** - Browse logs, metrics, and traces with vim-style navigation
-- **CLI Commands** - Query and filter telemetry from scripts or pipelines
+- **CLI Commands** - Query and filter telemetry data in ES from scripts or pipelines with `elasticat {logs|metrics|traces}`
 - **One-Command Stack** - Spin up Elasticsearch + OTel Collector with `elasticat up`
 - **Multi-Signal Support** - Unified interface for logs, metrics, and traces
 - **Perspectives** - Filter by service, host, or any dimension with a single keystroke
