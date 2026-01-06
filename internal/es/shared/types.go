@@ -134,4 +134,3 @@ func splitPath(path string) []string {
 	}
 	return parts
 }
-

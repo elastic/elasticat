@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/elastic/elasticat/internal/es"
 	"golang.design/x/clipboard"
 )
