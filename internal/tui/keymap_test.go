@@ -13,8 +13,8 @@ func TestQuickBindings_PrependsHelpKey(t *testing.T) {
 	if len(b) == 0 {
 		t.Fatalf("QuickBindings() returned empty")
 	}
-	if len(b[0].Keys) != 1 || b[0].Keys[0] != "H" {
-		t.Fatalf("expected first quick binding to be help key H, got %+v", b[0])
+	if len(b[0].Keys) != 1 || b[0].Keys[0] != "?" {
+		t.Fatalf("expected first quick binding to be help key ?, got %+v", b[0])
 	}
 	if b[0].Label != "help" {
 		t.Fatalf("expected help binding label 'help', got %q", b[0].Label)
