@@ -151,4 +151,3 @@ func (m *Model) copyToClipboard(text, successMsg string) {
 	}
 	m.statusTime = time.Now()
 }
-

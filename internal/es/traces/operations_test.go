@@ -13,15 +13,15 @@ import (
 
 // mockExecutor implements the Executor interface for testing
 type mockExecutor struct {
-	index            string
-	searchResponse   *SearchResponse
-	searchErr        error
-	esqlResult       *ESQLResult
-	esqlErr          error
-	lastSearchBody   []byte
-	lastESQLQuery    string
-	esqlCallCount    int
-	esqlResults      []*ESQLResult // For multiple ESQL calls
+	index          string
+	searchResponse *SearchResponse
+	searchErr      error
+	esqlResult     *ESQLResult
+	esqlErr        error
+	lastSearchBody []byte
+	lastESQLQuery  string
+	esqlCallCount  int
+	esqlResults    []*ESQLResult // For multiple ESQL calls
 }
 
 func (m *mockExecutor) GetIndex() string {
@@ -66,7 +66,7 @@ func TestLookbackToESQLInterval(t *testing.T) {
 		{"now-24h", "24 hours"},
 		{"now-1d", "24 hours"},
 		{"now-1w", "7 days"},
-		{"", "24 hours"},       // Default
+		{"", "24 hours"},        // Default
 		{"invalid", "24 hours"}, // Unknown defaults
 	}
 
@@ -427,4 +427,3 @@ func TestGetNames_NoAggregations(t *testing.T) {
 		t.Errorf("Expected 0 results, got %d", len(results))
 	}
 }
-

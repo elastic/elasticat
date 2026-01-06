@@ -90,4 +90,3 @@ func TestIsNavKey(t *testing.T) {
 		}
 	})
 }
-

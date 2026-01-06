@@ -16,13 +16,13 @@ import (
 
 // mockExecutor implements the Executor interface for testing
 type mockExecutor struct {
-	index            string
-	fieldCapsResp    *FieldCapsResponse
-	fieldCapsErr     error
-	searchResponse   *SearchResponse
-	searchErr        error
-	lastSearchBody   []byte
-	esqlResult       *traces.ESQLResult
+	index          string
+	fieldCapsResp  *FieldCapsResponse
+	fieldCapsErr   error
+	searchResponse *SearchResponse
+	searchErr      error
+	lastSearchBody []byte
+	esqlResult     *traces.ESQLResult
 }
 
 func (m *mockExecutor) GetIndex() string {
@@ -534,4 +534,3 @@ func TestExtractNestedFloat(t *testing.T) {
 		})
 	}
 }
-

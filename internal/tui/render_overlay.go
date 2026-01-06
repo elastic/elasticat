@@ -143,4 +143,3 @@ func (m Model) renderErrorModal() string {
 	// Render modal - lipgloss.Place() in View() handles centering
 	return modalStyle.Render(content)
 }
-

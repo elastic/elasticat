@@ -14,9 +14,9 @@ func TestLookbackToBucketInterval(t *testing.T) {
 		{"now-1h", "1m"},
 		{"now-24h", "5m"},
 		{"now-1w", "30m"},
-		{"", "1h"},           // All time default
-		{"now-30d", "1h"},    // Unknown defaults to 1h
-		{"invalid", "1h"},    // Invalid defaults to 1h
+		{"", "1h"},        // All time default
+		{"now-30d", "1h"}, // Unknown defaults to 1h
+		{"invalid", "1h"}, // Invalid defaults to 1h
 	}
 
 	for _, tc := range tests {
@@ -28,4 +28,3 @@ func TestLookbackToBucketInterval(t *testing.T) {
 		})
 	}
 }
-

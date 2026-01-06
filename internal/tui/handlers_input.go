@@ -87,4 +87,3 @@ func (m Model) handleIndexKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.indexInput, cmd = m.indexInput.Update(msg)
 	return m, cmd
 }
-

@@ -673,9 +673,9 @@ func TestGetNestedValue(t *testing.T) {
 
 func TestLogEntry_GetFieldValue_DurationFormats(t *testing.T) {
 	tests := []struct {
-		name       string
-		duration   int64
-		wantMs     string
+		name     string
+		duration int64
+		wantMs   string
 	}{
 		{
 			name:     "milliseconds",
@@ -704,4 +704,3 @@ func TestLogEntry_GetFieldValue_DurationFormats(t *testing.T) {
 		})
 	}
 }
-

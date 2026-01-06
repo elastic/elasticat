@@ -271,4 +271,3 @@ func TestGetByField_MissingColumns(t *testing.T) {
 		t.Errorf("MetricCount = %d, want %d (missing column)", results[0].MetricCount, 0)
 	}
 }
-

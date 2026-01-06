@@ -235,4 +235,3 @@ func syntheticStock(symbol string) Stock {
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 	}
 }
-

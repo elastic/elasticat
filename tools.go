@@ -9,4 +9,3 @@ import (
 	// Tool dependencies - these are kept in go.mod but not compiled into the binary
 	_ "go.elastic.co/go-licence-detector"
 )
-

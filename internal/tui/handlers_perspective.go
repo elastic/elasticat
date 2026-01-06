@@ -97,4 +97,3 @@ func (m Model) handlePerspectiveListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	return m, nil
 }
-

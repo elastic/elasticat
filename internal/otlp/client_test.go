@@ -63,4 +63,3 @@ func TestLevelToSeverity_AllWatchLevels(t *testing.T) {
 		}
 	}
 }
-

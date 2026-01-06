@@ -98,4 +98,3 @@ func (m Model) renderPerspectiveList(listHeight int) string {
 	content := strings.Join(lines, "\n")
 	return LogListStyle.Width(m.width - 4).Height(listHeight).Render(content)
 }
-

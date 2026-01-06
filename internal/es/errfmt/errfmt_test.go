@@ -35,7 +35,7 @@ func TestFormatQueryError(t *testing.T) {
 			checks: []string{
 				"search failed: 500 Internal Server Error",
 				"server error",
-				"\"query\":",   // Indicates pretty printing added quotes on new lines
+				"\"query\":", // Indicates pretty printing added quotes on new lines
 				"\"bool\":",
 			},
 		},
@@ -106,4 +106,3 @@ func TestFormatQueryError_PrettyPrintsQuery(t *testing.T) {
 		t.Error("Expected query content to be preserved")
 	}
 }
-

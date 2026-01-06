@@ -240,15 +240,15 @@ func TestServiceFromFilename(t *testing.T) {
 
 func TestParseJSONLog(t *testing.T) {
 	tests := []struct {
-		name       string
-		line       string
-		wantNil    bool
-		wantMsg    string
-		wantLevel  LogLevel
-		wantAttrs  map[string]interface{}
-		checkTime  bool
-		wantTime   time.Time
-		fuzzyTime  bool // Check that time is recent, not zero
+		name      string
+		line      string
+		wantNil   bool
+		wantMsg   string
+		wantLevel LogLevel
+		wantAttrs map[string]interface{}
+		checkTime bool
+		wantTime  time.Time
+		fuzzyTime bool // Check that time is recent, not zero
 	}{
 		{
 			name:      "message field",
@@ -509,4 +509,3 @@ func TestColorReset(t *testing.T) {
 		t.Errorf("ColorReset() = %q, want %q", result, expected)
 	}
 }
-

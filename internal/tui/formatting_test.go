@@ -41,7 +41,7 @@ func TestTruncateWithEllipsis(t *testing.T) {
 		{"hello world", 11, "hello world"},
 		{"hello world", 10, "hello w..."},
 		{"hello world", 5, "he..."},
-		{"hello", 3, "hel"},       // Too short for ellipsis
+		{"hello", 3, "hel"}, // Too short for ellipsis
 		{"hi", 2, "hi"},
 		{"hello", 0, ""},
 	}
@@ -62,13 +62,13 @@ func TestPadOrTruncate(t *testing.T) {
 		width    int
 		expected string
 	}{
-		{"hello", 10, "hello     "},  // Pad
-		{"hello world", 5, "he..."},  // Truncate with ellipsis
-		{"hello", 5, "hello"},        // Exact
-		{"hi", 3, "hi "},             // Pad
-		{"abcd", 2, "ab"},            // Truncate without ellipsis (too short)
-		{"hello", 0, "hello"},        // Zero width returns original
-		{"", 5, "     "},             // Empty string pads
+		{"hello", 10, "hello     "}, // Pad
+		{"hello world", 5, "he..."}, // Truncate with ellipsis
+		{"hello", 5, "hello"},       // Exact
+		{"hi", 3, "hi "},            // Pad
+		{"abcd", 2, "ab"},           // Truncate without ellipsis (too short)
+		{"hello", 0, "hello"},       // Zero width returns original
+		{"", 5, "     "},            // Empty string pads
 	}
 
 	for _, tc := range tests {
@@ -83,10 +83,10 @@ func TestPadOrTruncate(t *testing.T) {
 
 func TestWrapText(t *testing.T) {
 	tests := []struct {
-		name     string
-		text     string
-		width    int
-		checkFn  func(t *testing.T, result string)
+		name    string
+		text    string
+		width   int
+		checkFn func(t *testing.T, result string)
 	}{
 		{
 			name:  "no wrap needed",
@@ -242,4 +242,3 @@ func TestSingleLine(t *testing.T) {
 		})
 	}
 }
-

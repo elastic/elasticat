@@ -34,4 +34,3 @@ func (m Model) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.helpViewport, cmd = m.helpViewport.Update(msg)
 	return m, cmd
 }
-

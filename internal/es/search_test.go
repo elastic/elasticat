@@ -11,9 +11,9 @@ import (
 
 func TestBuildTailQuery_TimeRange(t *testing.T) {
 	tests := []struct {
-		name     string
-		opts     TailOptions
-		checkFn  func(t *testing.T, query map[string]interface{})
+		name    string
+		opts    TailOptions
+		checkFn func(t *testing.T, query map[string]interface{})
 	}{
 		{
 			name: "lookback filter",
@@ -321,9 +321,9 @@ func TestBuildSearchQuery_CustomFields(t *testing.T) {
 
 func TestBuildSearchQuery_TimeRange(t *testing.T) {
 	tests := []struct {
-		name     string
-		opts     SearchOptions
-		checkFn  func(t *testing.T, query map[string]interface{})
+		name    string
+		opts    SearchOptions
+		checkFn func(t *testing.T, query map[string]interface{})
 	}{
 		{
 			name: "lookback takes priority over From/To",
@@ -531,4 +531,3 @@ func hasResourceFilter(clauses []map[string]interface{}, resource string) bool {
 	}
 	return false
 }
-

@@ -284,4 +284,3 @@ func (m Model) renderMetricDetailDocs(height int) string {
 
 	return b.String()
 }
-

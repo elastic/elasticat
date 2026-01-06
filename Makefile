@@ -1,4 +1,4 @@
-.PHONY: build install clean up down logs test fmt fmt-check license-check license-add notice dist dist-platform dist-clean
+.PHONY: build install clean up down logs test fmt fmt-check license-check license-add notice dist dist-platform dist-clean prep
 
 # Build the elasticat binary
 build:
@@ -123,3 +123,7 @@ dist-platform:
 # Clean distribution artifacts
 dist-clean:
 	rm -rf $(DIST_DIR)
+
+# Prepare code for PR (format, add license headers, update NOTICE)
+prep: fmt license-add notice
+	@echo "Code is ready for PR!"

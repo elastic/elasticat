@@ -185,10 +185,10 @@ func TestDisplayField_GetSearchFields(t *testing.T) {
 
 func TestCollectSearchFields(t *testing.T) {
 	fields := []DisplayField{
-		{Name: "@timestamp", SearchFields: nil},                                    // Not searchable
-		{Name: "severity_text", SearchFields: []string{"severity_text", "level"}},  // Two fields
-		{Name: "service.name", SearchFields: []string{"service.name", "level"}},    // One overlap (level)
-		{Name: "body.text", SearchFields: []string{}},                              // Uses Name
+		{Name: "@timestamp", SearchFields: nil},                                   // Not searchable
+		{Name: "severity_text", SearchFields: []string{"severity_text", "level"}}, // Two fields
+		{Name: "service.name", SearchFields: []string{"service.name", "level"}},   // One overlap (level)
+		{Name: "body.text", SearchFields: []string{}},                             // Uses Name
 	}
 
 	result := CollectSearchFields(fields)
@@ -214,9 +214,9 @@ func TestCollectSearchFields(t *testing.T) {
 
 func TestDefaultFields(t *testing.T) {
 	tests := []struct {
-		signal      SignalType
-		minFields   int
-		firstLabel  string
+		signal     SignalType
+		minFields  int
+		firstLabel string
 	}{
 		{SignalLogs, 4, "TIME"},
 		{SignalTraces, 5, "TIME"},
@@ -272,4 +272,3 @@ func TestNewHighlighter(t *testing.T) {
 		t.Errorf("Query = %q, want %q", h.Query, "test query")
 	}
 }
-
