@@ -5,7 +5,6 @@
 [![CI (main)](https://github.com/elastic/elasticat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/elastic/elasticat/actions/workflows/ci.yml?query=branch%3Amain)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
 [![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
-[![Releases](https://img.shields.io/github/v/release/elastic/elasticat?label=Latest)](https://github.com/elastic/elasticat/releases)
 
 <p align="center">
   <img src="docs/demo.gif" alt="ElastiCat TUI Demo" width="800">
@@ -40,19 +39,20 @@
 | Requirement | Notes |
 |-------------|-------|
 | **Docker** or **Podman** | Required for `elasticat up` (local stack) |
-| **macOS / Linux / Windows (WSL)** | Pre-built binaries available for all platforms |
+| **macOS / Linux / Windows (WSL)** | Pre-built binaries are available as CI artifacts from `main` |
 
-No Go installation required for binary installs.
+No Go installation required if you download a pre-built binary.
 
 ## Quick Start
 
-### 1. Install
+### 1. Get `elasticat`
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/elastic/elasticat/main/install.sh | bash
-```
+- Download the latest `main` build from GitHub Actions:
+  - Go to [CI workflow runs (main)](https://github.com/elastic/elasticat/actions/workflows/ci.yml?query=branch%3Amain)
+  - Open the most recent successful run
+  - Download the artifact for your platform and put it on your `PATH`
 
-Or download from [GitHub Releases](https://github.com/elastic/elasticat/releases).
+If you prefer building locally, see [Building from Source](#building-from-source).
 
 ### 2. Start the stack
 
