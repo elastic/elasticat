@@ -1,4 +1,4 @@
-.PHONY: build install clean up down logs test fmt fmt-check license-check license-add notice dist dist-platform dist-clean prep sloc release
+.PHONY: build install clean up down logs test fmt fmt-check license-check license-add notice dist dist-platform dist-clean prep sloc release demo
 
 # Build the elasticat binary
 build:
@@ -155,3 +155,11 @@ sloc:
 	@echo ""
 	@echo "Total:"
 	@find . -name '*.go' -not -path './examples/stock-tracker/*' | xargs wc -l | tail -1 | awk '{print "  " $$1 " lines"}'
+
+# Generate demo video using VHS (requires: brew install vhs ttyd ffmpeg)
+# Make sure elasticat is built and the stack is running with data first
+demo: build
+	@echo "Generating demo video..."
+	@echo "Note: Stack must be running with data (elasticat up + some telemetry)"
+	vhs demo.tape
+	@echo "Demo video saved to docs/demo.mp4"
