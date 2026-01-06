@@ -103,12 +103,12 @@ func (m Model) renderErrorModal() string {
 		copyButton = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("42")).
 			Bold(true).
-			Render("[y] Copy ✓ copied")
+			Render(keysHint("Copy ✓ copied", "y"))
 	} else {
 		copyButton = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("42")).
 			Bold(true).
-			Render("[y] Copy")
+			Render(actionHint(ActionCopy))
 	}
 
 	actions := lipgloss.JoinHorizontal(
@@ -117,11 +117,15 @@ func (m Model) renderErrorModal() string {
 		"  ",
 		lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240")).
-			Render("[j/k] Scroll"),
+			Render(keysHint("Scroll", "↑", "↓")),
 		"  ",
 		lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240")).
-			Render("[esc/q] Close"),
+			Render(actionHint(ActionBack)),
+		"  ",
+		lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")).
+			Render(actionHint(ActionQuit)),
 		scrollInfo,
 	)
 
@@ -141,5 +145,43 @@ func (m Model) renderErrorModal() string {
 	)
 
 	// Render modal - lipgloss.Place() in View() handles centering
+	return modalStyle.Render(content)
+}
+
+func (m Model) renderQuitConfirmModal() string {
+	// Modal dimensions
+	modalWidth := min(m.width-8, 80)
+
+	// Modal box style
+	modalStyle := lipgloss.NewStyle().
+		Width(modalWidth).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		Padding(1, 2).
+		Align(lipgloss.Left)
+
+	title := lipgloss.NewStyle().
+		Bold(true).
+		Render("Quit?")
+
+	body := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("245")).
+		Render("Are you sure you want to quit?")
+
+	actions := lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true).Render(keysHint("Yes", quitConfirmYesKey)),
+		"  ",
+		lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(keyHint([]string{quitConfirmNoKey, "esc"}, "No")),
+	)
+
+	content := lipgloss.JoinVertical(
+		lipgloss.Left,
+		title,
+		"",
+		body,
+		"",
+		actions,
+	)
 	return modalStyle.Render(content)
 }

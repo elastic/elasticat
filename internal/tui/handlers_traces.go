@@ -9,14 +9,17 @@ import (
 )
 
 func (m Model) handleTraceNamesKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
+	action := GetAction(key)
+
 	// Handle list navigation
-	if isNavKey(msg.String()) {
-		m.traceNamesCursor = listNav(m.traceNamesCursor, len(m.transactionNames), msg.String())
+	if isNavKey(key) {
+		m.traceNamesCursor = listNav(m.traceNamesCursor, len(m.transactionNames), key)
 		return m, nil
 	}
 
-	switch msg.String() {
-	case "enter":
+	switch action {
+	case ActionSelect:
 		// Select transaction name and show transactions
 		if len(m.transactionNames) > 0 && m.traceNamesCursor < len(m.transactionNames) {
 			m.selectedTxName = m.transactionNames[m.traceNamesCursor].Name
@@ -26,23 +29,21 @@ func (m Model) handleTraceNamesKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.loading = true
 			return m, m.fetchLogs()
 		}
-	case "r":
+	case ActionRefresh:
 		m.tracesLoading = true
 		return m, m.fetchTransactionNames()
-	case "p":
+	case ActionPerspective:
 		return m, m.cyclePerspective()
-	case "l":
+	case ActionCycleLookback:
 		m.cycleLookback()
 		m.tracesLoading = true
 		return m, m.fetchTransactionNames()
-	case "m":
+	case ActionCycleSignal:
 		return m, m.cycleSignalType()
-	case "/":
+	case ActionSearch:
 		m.pushView(viewSearch)
 		m.searchInput.Focus()
 		return m, textinput.Blink
-	case "q":
-		return m, tea.Quit
 	}
 
 	return m, nil

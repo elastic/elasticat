@@ -9,8 +9,12 @@ import (
 )
 
 func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc":
+	key := msg.String()
+	action := GetAction(key)
+
+	// Handle navigation actions
+	switch action {
+	case ActionBack:
 		// For traces, go back up the hierarchy
 		if m.signalType == signalTraces {
 			switch m.traceViewLevel {
@@ -30,45 +34,82 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return m, m.fetchTransactionNames()
 			}
 		}
-	case "up", "k":
+		// For metrics in documents view, go back to dashboard
+		if m.signalType == signalMetrics && m.metricsViewMode == metricsViewDocuments {
+			m.metricsViewMode = metricsViewAggregated
+			m.mode = viewMetricsDashboard
+			m.metricsLoading = true
+			return m, m.fetchAggregatedMetrics()
+		}
+	case ActionScrollUp:
 		if m.moveSelection(-1) {
 			return m, m.maybeFetchSpansForSelection()
 		}
-	case "down", "j":
+	case ActionScrollDown:
 		if m.moveSelection(1) {
 			return m, m.maybeFetchSpansForSelection()
 		}
-	case "home", "g":
+	case ActionGoTop:
 		if m.setSelectedIndex(0) {
 			return m, m.maybeFetchSpansForSelection()
 		}
-	case "end", "G":
+	case ActionGoBottom:
 		if m.setSelectedIndex(len(m.logs) - 1) {
 			return m, m.maybeFetchSpansForSelection()
 		}
-	case "pgup":
+	case ActionPageUp:
 		if m.moveSelection(-10) {
 			return m, m.maybeFetchSpansForSelection()
 		}
-	case "pgdown":
+	case ActionPageDown:
 		if m.moveSelection(10) {
 			return m, m.maybeFetchSpansForSelection()
 		}
-	case "/":
+	case ActionSearch:
 		m.pushView(viewSearch)
 		m.searchInput.Focus()
 		return m, textinput.Blink
-	case "enter":
+	case ActionSelect:
 		if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
 			m.pushView(viewDetail)
 			m.setViewportContent(m.renderLogDetail(m.logs[m.selectedIndex]))
 			m.viewport.GotoTop()
 		}
-	case "r":
+	case ActionRefresh:
 		m.loading = true
 		return m, m.fetchLogs()
-	case "a":
+	case ActionAutoRefresh:
 		m.autoRefresh = !m.autoRefresh
+	case ActionQuery:
+		m.pushView(viewQuery)
+		m.queryFormat = formatKibana
+	case ActionFields:
+		m.pushView(viewFields)
+		m.fieldsCursor = 0
+		m.fieldsSearch = ""
+		m.fieldsSearchMode = false
+		m.fieldsLoading = true
+		return m, m.fetchFieldCaps()
+	case ActionSort:
+		m.sortAscending = !m.sortAscending
+		m.loading = true
+		return m, m.fetchLogs()
+	case ActionCycleLookback:
+		m.cycleLookback()
+		m.loading = true
+		return m, m.fetchLogs()
+	case ActionCycleSignal:
+		return m, m.cycleSignalType()
+	case ActionPerspective:
+		return m, m.cyclePerspective()
+	case ActionKibana:
+		// Open current query in Kibana Discover
+		m.openInKibana()
+		return m, nil
+	}
+
+	// Handle view-specific keys that aren't common actions
+	switch key {
 	case "1":
 		m.levelFilter = "ERROR"
 		m.userHasScrolled = false // Reset for tail -f behavior
@@ -108,35 +149,6 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		default:
 			m.timeDisplayMode = timeDisplayClock
 		}
-	case "Q":
-		m.pushView(viewQuery)
-		m.queryFormat = formatKibana
-	case "f":
-		m.pushView(viewFields)
-		m.fieldsCursor = 0
-		m.fieldsSearch = ""
-		m.fieldsSearchMode = false
-		m.fieldsLoading = true
-		return m, m.fetchFieldCaps()
-	case "s":
-		m.sortAscending = !m.sortAscending
-		m.loading = true
-		return m, m.fetchLogs()
-	case "l":
-		m.cycleLookback()
-		m.loading = true
-		return m, m.fetchLogs()
-	case "m":
-		return m, m.cycleSignalType()
-
-	case "p":
-		return m, m.cyclePerspective()
-
-	case "K":
-		// Open current query in Kibana Discover
-		m.openInKibana()
-		return m, nil
-
 	case "d":
 		// Toggle between document view and aggregated view for metrics
 		if m.signalType == signalMetrics {

@@ -320,18 +320,20 @@ func TestAggregate_Histogram(t *testing.T) {
 		},
 	}
 
-	// Create mock aggregation response with percentiles format
+	// Create mock aggregation response with histogram-specific min/max/avg format
 	now := time.Now()
 	aggResponse := map[string]interface{}{
 		"aggregations": map[string]interface{}{
 			"m0": map[string]interface{}{
 				"doc_count": float64(142),
-				"stats": map[string]interface{}{
-					"values": map[string]interface{}{
-						"0.0":   float64(0),
-						"50.0":  float64(179.08),
-						"100.0": float64(125632.78),
-					},
+				"hist_min": map[string]interface{}{
+					"value": float64(0),
+				},
+				"hist_max": map[string]interface{}{
+					"value": float64(125632.78),
+				},
+				"hist_avg": map[string]interface{}{
+					"value": float64(179.08),
 				},
 				"over_time": map[string]interface{}{
 					"buckets": []interface{}{
@@ -339,18 +341,14 @@ func TestAggregate_Histogram(t *testing.T) {
 							"key":       float64(now.Add(-10 * time.Minute).UnixMilli()),
 							"doc_count": float64(70),
 							"value": map[string]interface{}{
-								"values": map[string]interface{}{
-									"50.0": float64(150.5),
-								},
+								"value": float64(150.5),
 							},
 						},
 						map[string]interface{}{
 							"key":       float64(now.UnixMilli()),
 							"doc_count": float64(72),
 							"value": map[string]interface{}{
-								"values": map[string]interface{}{
-									"50.0": float64(200.3),
-								},
+								"value": float64(200.3),
 							},
 						},
 					},

@@ -10,13 +10,16 @@ import (
 )
 
 func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc", "q":
+	key := msg.String()
+	action := GetAction(key)
+
+	switch action {
+	case ActionBack, ActionQuit:
 		// Return to previous view via stack
 		m.popView()
 		m.statusMessage = ""
 		return m, nil
-	case "left", "h":
+	case ActionPrevItem:
 		// Navigate to previous entry
 		if m.selectedIndex > 0 {
 			m.selectedIndex--
@@ -27,7 +30,7 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
-	case "right", "l":
+	case ActionNextItem:
 		// Navigate to next entry
 		if m.selectedIndex < len(m.logs)-1 {
 			m.selectedIndex++
@@ -38,7 +41,7 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
-	case "enter":
+	case ActionSelect:
 		// Toggle between detail and JSON view (same stack level)
 		if m.mode == viewDetail {
 			m.mode = viewDetailJSON
@@ -54,10 +57,29 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
-	case "j":
+	case ActionCopy:
+		// Copy raw JSON to clipboard
+		if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
+			m.copyToClipboard(es.PrettyJSON(m.logs[m.selectedIndex].RawJSON), "Copied JSON to clipboard!")
+		}
+		return m, nil
+	case ActionKibana:
+		// Open trace in Kibana (only for traces)
+		if m.signalType == signalTraces && len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
+			log := m.logs[m.selectedIndex]
+			if log.TraceID != "" {
+				m.openTraceInKibana(log.TraceID)
+			}
+		}
+		return m, nil
+	}
+
+	// Handle JSON toggle (J) and spans (S)
+	switch action {
+	case ActionJSON:
 		// Toggle JSON view on/off
 		if m.mode == viewDetailJSON {
-			// If we came from metric detail (via j key), pop back to it
+			// If we came from metric detail (via J key), pop back to it
 			if m.peekViewStack() == viewMetricDetail {
 				m.popView()
 			} else {
@@ -76,13 +98,7 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
-	case "y":
-		// Copy raw JSON to clipboard
-		if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
-			m.copyToClipboard(es.PrettyJSON(m.logs[m.selectedIndex].RawJSON), "Copied JSON to clipboard!")
-		}
-		return m, nil
-	case "s":
+	case ActionSpans:
 		// Show spans for this trace (only for traces)
 		if m.signalType == signalTraces && len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
 			log := m.logs[m.selectedIndex]
@@ -93,15 +109,6 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.selectedIndex = 0
 				m.loading = true
 				return m, m.fetchLogs()
-			}
-		}
-		return m, nil
-	case "K":
-		// Open trace in Kibana (only for traces)
-		if m.signalType == signalTraces && len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
-			log := m.logs[m.selectedIndex]
-			if log.TraceID != "" {
-				m.openTraceInKibana(log.TraceID)
 			}
 		}
 		return m, nil

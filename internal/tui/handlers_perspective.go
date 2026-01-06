@@ -12,14 +12,17 @@ import (
 )
 
 func (m Model) handlePerspectiveListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
+	action := GetAction(key)
+
 	// Handle list navigation (adds pgup/pgdown, home/end support)
-	if isNavKey(msg.String()) {
-		m.perspectiveCursor = listNav(m.perspectiveCursor, len(m.perspectiveItems), msg.String())
+	if isNavKey(key) {
+		m.perspectiveCursor = listNav(m.perspectiveCursor, len(m.perspectiveItems), key)
 		return m, nil
 	}
 
-	switch msg.String() {
-	case "enter":
+	switch action {
+	case ActionSelect:
 		// Cycle through filter states: unset → include → exclude → unset
 		if len(m.perspectiveItems) > 0 {
 			selected := m.perspectiveItems[m.perspectiveCursor]
@@ -65,27 +68,25 @@ func (m Model) handlePerspectiveListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// Stay in perspective view - user can navigate back with 'esc' when ready
 		}
 		return m, nil
-	case "p":
+	case ActionPerspective:
 		return m, m.cyclePerspective()
-	case "l":
+	case ActionCycleLookback:
 		m.cycleLookback()
 		m.perspectiveLoading = true
 		return m, m.fetchPerspectiveData()
-	case "r":
+	case ActionRefresh:
 		// Refresh perspective data
 		m.perspectiveLoading = true
 		return m, m.fetchPerspectiveData()
-	case "/":
+	case ActionSearch:
 		// Enter search mode (consistent with other list views)
 		m.pushView(viewSearch)
 		m.searchInput.Focus()
 		return m, textinput.Blink
-	case "esc":
+	case ActionBack:
 		// Return to previous view via stack
 		m.popView()
 		return m, nil
-	case "q":
-		return m, tea.Quit
 	}
 
 	return m, nil

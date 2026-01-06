@@ -155,12 +155,22 @@ func Aggregate(ctx context.Context, exec Executor, opts AggregateMetricsOptions)
 			},
 		}
 
-		if mf.Type == "histogram" {
-			// For histogram fields, use percentiles instead of extended_stats
-			subAggs["stats"] = map[string]interface{}{
-				"percentiles": map[string]interface{}{
-					"field":    mf.Name,
-					"percents": []float64{0, 50, 100},
+		if mf.Type == "histogram" || mf.Type == "aggregate_metric_double" {
+			// For histogram and aggregate_metric_double fields, use individual min/max/avg aggregations
+			// (extended_stats doesn't work with these pre-aggregated field types and causes shard failures)
+			subAggs["hist_min"] = map[string]interface{}{
+				"min": map[string]interface{}{
+					"field": mf.Name,
+				},
+			}
+			subAggs["hist_max"] = map[string]interface{}{
+				"max": map[string]interface{}{
+					"field": mf.Name,
+				},
+			}
+			subAggs["hist_avg"] = map[string]interface{}{
+				"avg": map[string]interface{}{
+					"field": mf.Name,
 				},
 			}
 			subAggs["over_time"] = map[string]interface{}{
@@ -170,9 +180,8 @@ func Aggregate(ctx context.Context, exec Executor, opts AggregateMetricsOptions)
 				},
 				"aggs": map[string]interface{}{
 					"value": map[string]interface{}{
-						"percentiles": map[string]interface{}{
-							"field":    mf.Name,
-							"percents": []float64{50}, // median for sparkline
+						"avg": map[string]interface{}{
+							"field": mf.Name,
 						},
 					},
 				},
@@ -370,36 +379,39 @@ func parseAggResponse(body io.Reader, fields []MetricFieldInfo, bucketSize strin
 
 		// Mark if this is a histogram type for display purposes
 		isHistogram := mf.Type == "histogram"
+		isPreAggregated := mf.Type == "histogram" || mf.Type == "aggregate_metric_double"
 		if isHistogram {
 			am.Type = "histogram"
 		}
 
-		// Extract stats - handle both extended_stats and percentiles responses
-		if stats, ok := metricAgg["stats"].(map[string]interface{}); ok {
-			if isHistogram {
-				// Percentiles response: {"values": {"0.0": x, "50.0": y, "100.0": z}}
-				if values, ok := stats["values"].(map[string]interface{}); ok {
-					if min, ok := values["0.0"].(float64); ok {
-						am.Min = min
-					}
-					if avg, ok := values["50.0"].(float64); ok {
-						am.Avg = avg // Using median (p50) as "avg" for histograms
-					}
-					if max, ok := values["100.0"].(float64); ok {
-						am.Max = max
-					}
+		// Extract stats - handle both extended_stats and pre-aggregated field types
+		if isPreAggregated {
+			// For histogram and aggregate_metric_double, we use separate min/max/avg aggregations
+			if histMin, ok := metricAgg["hist_min"].(map[string]interface{}); ok {
+				if v, ok := histMin["value"].(float64); ok {
+					am.Min = v
 				}
-			} else {
-				// extended_stats response
-				if min, ok := stats["min"].(float64); ok {
-					am.Min = min
+			}
+			if histMax, ok := metricAgg["hist_max"].(map[string]interface{}); ok {
+				if v, ok := histMax["value"].(float64); ok {
+					am.Max = v
 				}
-				if max, ok := stats["max"].(float64); ok {
-					am.Max = max
+			}
+			if histAvg, ok := metricAgg["hist_avg"].(map[string]interface{}); ok {
+				if v, ok := histAvg["value"].(float64); ok {
+					am.Avg = v
 				}
-				if avg, ok := stats["avg"].(float64); ok {
-					am.Avg = avg
-				}
+			}
+		} else if stats, ok := metricAgg["stats"].(map[string]interface{}); ok {
+			// extended_stats response for regular numeric fields
+			if min, ok := stats["min"].(float64); ok {
+				am.Min = min
+			}
+			if max, ok := stats["max"].(float64); ok {
+				am.Max = max
+			}
+			if avg, ok := stats["avg"].(float64); ok {
+				am.Avg = avg
 			}
 		}
 
@@ -420,18 +432,9 @@ func parseAggResponse(body io.Reader, fields []MetricFieldInfo, bucketSize strin
 						mb.Count = int64(count)
 					}
 					if value, ok := bucket["value"].(map[string]interface{}); ok {
-						if isHistogram {
-							// Percentiles response for histogram: {"values": {"50.0": x}}
-							if values, ok := value["values"].(map[string]interface{}); ok {
-								if v, ok := values["50.0"].(float64); ok {
-									mb.Value = v
-								}
-							}
-						} else {
-							// Avg response for regular metrics
-							if v, ok := value["value"].(float64); ok {
-								mb.Value = v
-							}
+						// All metrics now use avg for over_time buckets
+						if v, ok := value["value"].(float64); ok {
+							mb.Value = v
 						}
 					}
 					am.Buckets = append(am.Buckets, mb)

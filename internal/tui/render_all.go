@@ -118,6 +118,15 @@ func (m Model) View() string {
 			modal,
 		)
 		return overlay
+	case viewQuitConfirm:
+		// Use lipgloss.Place to properly overlay the modal in the center of the screen
+		modal := m.renderQuitConfirmModal()
+		overlay := lipgloss.Place(
+			m.width, m.height,
+			lipgloss.Center, lipgloss.Center,
+			modal,
+		)
+		return overlay
 	case viewHelp:
 		// Render previous mode as background, then overlay help content
 		base := m.renderBase(m.peekViewStack())

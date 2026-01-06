@@ -21,7 +21,7 @@ func (m Model) renderMetricsDashboard(listHeight int) string {
 
 	if m.aggregatedMetrics == nil || len(m.aggregatedMetrics.Metrics) == 0 {
 		return LogListStyle.Width(m.width - 4).Height(listHeight).Render(
-			LoadingStyle.Render("No metrics found. Press 'd' for document view."))
+			LoadingStyle.Render("No metrics found. " + keysHint("documents view", "d")))
 	}
 
 	// Calculate column widths
@@ -138,7 +138,7 @@ func (m Model) renderMetricsCompactDetail() string {
 	return CompactDetailStyle.Width(m.width - 4).Height(compactDetailHeight).Render(b.String())
 }
 
-// renderMetricDetail renders a split view: chart on top half, document details on bottom half
+// renderMetricDetail renders the metric detail view using the viewport for scrolling
 func (m Model) renderMetricDetail() string {
 	contentHeight := m.getFullScreenHeight()
 
@@ -147,21 +147,21 @@ func (m Model) renderMetricDetail() string {
 			DetailMutedStyle.Render("No metric selected"))
 	}
 
+	// Use viewport for scrollable content
+	content := m.viewport.View()
+	return DetailStyle.Width(m.width - 4).Height(contentHeight).Render(content)
+}
+
+// renderMetricDetailContent generates the full content for the metric detail viewport
+func (m Model) renderMetricDetailContent() string {
+	if m.aggregatedMetrics == nil || m.metricsCursor >= len(m.aggregatedMetrics.Metrics) {
+		return DetailMutedStyle.Render("No metric selected")
+	}
+
 	metric := m.aggregatedMetrics.Metrics[m.metricsCursor]
 
-	// Split the view: top half for chart, bottom half for docs
-	headerLines := 6 // Header + stats + time range + spacing
-	halfHeight := (contentHeight - headerLines) / 2
-	chartHeight := halfHeight
-	docsHeight := contentHeight - headerLines - chartHeight
-
-	if chartHeight < 5 {
-		chartHeight = 5
-	}
-	if docsHeight < 4 {
-		docsHeight = 4
-	}
-
+	// Calculate chart dimensions
+	chartHeight := 12 // Fixed height for chart
 	chartWidth := m.width - 10
 	if chartWidth < 20 {
 		chartWidth = 20
@@ -204,19 +204,19 @@ func (m Model) renderMetricDetail() string {
 	}
 	b.WriteString("\n\n")
 
-	// Top half: Chart
+	// Chart
 	chart := m.renderLargeChart(metric.Buckets, metric.Min, metric.Max, chartWidth, chartHeight)
 	b.WriteString(chart)
 	b.WriteString("\n\n")
 
-	// Bottom half: Document details
-	b.WriteString(m.renderMetricDetailDocs(docsHeight))
+	// Document details (no height limit - viewport handles scrolling)
+	b.WriteString(m.renderMetricDetailDocs())
 
-	return DetailStyle.Width(m.width - 4).Height(contentHeight).Render(b.String())
+	return b.String()
 }
 
 // renderMetricDetailDocs renders the document browser section in the metric detail view
-func (m Model) renderMetricDetailDocs(height int) string {
+func (m Model) renderMetricDetailDocs() string {
 	var b strings.Builder
 
 	// Header with navigation hint
@@ -237,7 +237,7 @@ func (m Model) renderMetricDetailDocs(height int) string {
 	b.WriteString(DetailKeyStyle.Render("Documents: "))
 	b.WriteString(DetailValueStyle.Render(fmt.Sprintf("%d/%d", m.metricDetailDocCursor+1, docCount)))
 	b.WriteString("  ")
-	b.WriteString(DetailMutedStyle.Render("(a/d: prev/next)"))
+	b.WriteString(DetailMutedStyle.Render("(n/N: prev/next doc)"))
 	b.WriteString("\n")
 
 	// Show current document
@@ -263,31 +263,38 @@ func (m Model) renderMetricDetailDocs(height int) string {
 			b.WriteString("\n")
 		}
 
-		// Metrics data - show all metric values in this document
+		// Metrics data - show all metric values in this document (no truncation)
 		if len(doc.Metrics) > 0 {
-			b.WriteString(DetailKeyStyle.Render("Metrics: "))
+			b.WriteString(DetailKeyStyle.Render("Metrics:"))
 			b.WriteString("\n")
-			// Show each metric value (up to available height)
-			lineCount := 0
-			maxLines := height - 4 // Leave room for headers
 			for key, val := range doc.Metrics {
-				if lineCount >= maxLines {
-					b.WriteString(DetailMutedStyle.Render("  ... more metrics"))
-					break
-				}
 				b.WriteString("  ")
 				b.WriteString(DetailKeyStyle.Render(key + ": "))
 				b.WriteString(DetailValueStyle.Render(fmt.Sprintf("%v", val)))
 				b.WriteString("\n")
-				lineCount++
 			}
 		}
 
-		// Attributes if space allows
-		if len(doc.Attributes) > 0 && height > 6 {
-			b.WriteString(DetailKeyStyle.Render("Attrs: "))
-			attrs := formatKVPreview(doc.Attributes, 3, 0)
-			b.WriteString(DetailMutedStyle.Render(attrs))
+		// Attributes - show as nested list like in log detail view
+		if len(doc.Attributes) > 0 {
+			b.WriteString(DetailKeyStyle.Render("Attributes:"))
+			b.WriteString("\n")
+			for k, v := range doc.Attributes {
+				b.WriteString(fmt.Sprintf("  %s: ", k))
+				b.WriteString(DetailValueStyle.Render(fmt.Sprintf("%v", v)))
+				b.WriteString("\n")
+			}
+		}
+
+		// Resource attributes if available
+		if len(doc.Resource) > 0 {
+			b.WriteString(DetailKeyStyle.Render("Resource:"))
+			b.WriteString("\n")
+			for k, v := range doc.Resource {
+				b.WriteString(fmt.Sprintf("  %s: ", k))
+				b.WriteString(DetailValueStyle.Render(fmt.Sprintf("%v", v)))
+				b.WriteString("\n")
+			}
 		}
 	}
 

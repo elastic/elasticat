@@ -230,6 +230,11 @@ func (m Model) handleMetricDetailDocsMsg(msg metricDetailDocsMsg) (Model, tea.Cm
 	m.metricDetailDocs = msg.docs
 	m.metricDetailDocCursor = 0
 	m.err = nil
+
+	// Refresh viewport with updated content
+	if m.mode == viewMetricDetail {
+		m.updateMetricDetailViewport()
+	}
 	return m, nil
 }
 

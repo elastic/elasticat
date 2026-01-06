@@ -26,6 +26,26 @@ func (m Model) renderLargeChart(buckets []metrics.MetricBucket, minVal, maxVal f
 		chartWidth = 10
 	}
 
+	// Calculate actual min/max from bucket values for better scaling
+	// This is important for histogram types where min/max can be extreme outliers
+	// but the bucket values (averages) are much more constrained
+	actualMin, actualMax := buckets[0].Value, buckets[0].Value
+	for _, bucket := range buckets {
+		if bucket.Value < actualMin {
+			actualMin = bucket.Value
+		}
+		if bucket.Value > actualMax {
+			actualMax = bucket.Value
+		}
+	}
+
+	// Use actual bucket range for chart scaling (better visualization)
+	// Fall back to provided min/max if bucket range is zero
+	if actualMax > actualMin {
+		minVal = actualMin
+		maxVal = actualMax
+	}
+
 	// Handle constant values
 	valRange := maxVal - minVal
 	if valRange == 0 {

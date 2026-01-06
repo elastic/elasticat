@@ -12,15 +12,20 @@ import (
 // handleKey routes key events to mode-specific handlers
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Global keys
-	switch msg.String() {
-	case "ctrl+c", "q":
-		if m.mode == viewLogs {
-			return m, tea.Quit
+	key := msg.String()
+	action := GetAction(key)
+
+	switch key {
+	case "ctrl+c":
+		return m, tea.Quit
+
+	case "q":
+		// Open quit confirmation anywhere (except during text entry).
+		// If we're already showing the quit modal, let it handle keys.
+		if m.mode != viewQuitConfirm && !m.isTextInputActive() {
+			m.pushView(viewQuitConfirm)
+			return m, nil
 		}
-		// Exit current mode
-		m.mode = viewLogs
-		m.searchInput.Blur()
-		return m, nil
 
 	case "esc":
 		// Close error modal and return to previous view
@@ -30,7 +35,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		// Let metric and trace views handle their own escape
-		if m.mode == viewMetricDetail || m.mode == viewMetricsDashboard || m.mode == viewTraceNames {
+		if m.mode == viewMetricDetail || m.mode == viewMetricsDashboard || m.mode == viewTraceNames || m.mode == viewQuitConfirm {
 			break // Fall through to mode-specific handler
 		}
 		if m.mode != viewLogs {
@@ -38,7 +43,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.searchInput.Blur()
 			return m, nil
 		}
-	case "h":
+	}
+
+	// Action-based global keys
+	switch action {
+	case ActionHelp:
 		// Global help only when enabled and not in text-input modes
 		if m.HelpEnabled() && !m.isTextInputActive() {
 			m.pushView(viewHelp)
@@ -71,6 +80,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handlePerspectiveListKey(msg)
 	case viewErrorModal:
 		return m.handleErrorModalKey(msg)
+	case viewQuitConfirm:
+		return m.handleQuitConfirmKey(msg)
 	case viewHelp:
 		return m.handleHelpKey(msg)
 	}

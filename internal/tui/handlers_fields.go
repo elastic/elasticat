@@ -11,16 +11,21 @@ import (
 )
 
 func (m Model) handleFieldsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
+	action := GetAction(key)
+
 	// If in search mode, handle text input
 	if m.fieldsSearchMode {
-		switch msg.String() {
-		case "esc":
+		switch action {
+		case ActionBack:
 			m.fieldsSearchMode = false
 			m.fieldsSearch = ""
 			return m, nil
-		case "enter":
+		case ActionSelect:
 			m.fieldsSearchMode = false
 			return m, nil
+		}
+		switch key {
 		case "backspace":
 			if len(m.fieldsSearch) > 0 {
 				m.fieldsSearch = m.fieldsSearch[:len(m.fieldsSearch)-1]
@@ -28,8 +33,8 @@ func (m Model) handleFieldsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		default:
 			// Add character to search
-			if len(msg.String()) == 1 {
-				m.fieldsSearch += msg.String()
+			if len(key) == 1 {
+				m.fieldsSearch += key
 			}
 			return m, nil
 		}
@@ -38,44 +43,44 @@ func (m Model) handleFieldsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Get the sorted field list for navigation
 	sortedFields := m.getSortedFieldList()
 
-	switch msg.String() {
-	case "esc", "q":
+	switch action {
+	case ActionBack, ActionQuit:
 		m.popView()
 		return m, nil
-	case "up", "k":
+	case ActionScrollUp:
 		if m.fieldsCursor > 0 {
 			m.fieldsCursor--
 		}
-	case "down", "j":
+	case ActionScrollDown:
 		if m.fieldsCursor < len(sortedFields)-1 {
 			m.fieldsCursor++
 		}
-	case "home", "g":
+	case ActionGoTop:
 		m.fieldsCursor = 0
-	case "end", "G":
+	case ActionGoBottom:
 		if len(sortedFields) > 0 {
 			m.fieldsCursor = len(sortedFields) - 1
 		}
-	case "pgup":
+	case ActionPageUp:
 		m.fieldsCursor -= 10
 		if m.fieldsCursor < 0 {
 			m.fieldsCursor = 0
 		}
-	case "pgdown":
+	case ActionPageDown:
 		m.fieldsCursor += 10
 		if m.fieldsCursor >= len(sortedFields) {
 			m.fieldsCursor = len(sortedFields) - 1
 		}
-	case " ", "enter":
+	case ActionToggle, ActionSelect:
 		// Toggle field selection
 		if m.fieldsCursor < len(sortedFields) {
 			fieldName := sortedFields[m.fieldsCursor].Name
 			m.toggleField(fieldName)
 		}
-	case "/":
+	case ActionSearch:
 		m.fieldsSearchMode = true
 		m.fieldsSearch = ""
-	case "r":
+	case ActionReset:
 		// Reset to defaults for current signal type
 		m.displayFields = DefaultFields(m.signalType)
 	}

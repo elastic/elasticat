@@ -35,6 +35,7 @@ const (
 	viewTraceNames       // Aggregated transaction names for traces
 	viewPerspectiveList  // List of services or resources for perspective filtering
 	viewErrorModal       // Error dialog with copy/close options
+	viewQuitConfirm      // Quit confirmation modal
 	viewHelp             // Hotkeys overlay
 )
 

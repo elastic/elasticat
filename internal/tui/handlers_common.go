@@ -17,31 +17,32 @@ import (
 // cursor: current position, listLen: total items, key: the pressed key.
 // Returns -1 if the key is not a navigation key.
 func listNav(cursor, listLen int, key string) int {
-	switch key {
-	case "up", "k":
+	action := GetAction(key)
+	switch action {
+	case ActionScrollUp:
 		if cursor > 0 {
 			return cursor - 1
 		}
 		return cursor
-	case "down", "j":
+	case ActionScrollDown:
 		if cursor < listLen-1 {
 			return cursor + 1
 		}
 		return cursor
-	case "home", "g":
+	case ActionGoTop:
 		return 0
-	case "end", "G":
+	case ActionGoBottom:
 		if listLen > 0 {
 			return listLen - 1
 		}
 		return 0
-	case "pgup":
+	case ActionPageUp:
 		newCursor := cursor - 10
 		if newCursor < 0 {
 			return 0
 		}
 		return newCursor
-	case "pgdown":
+	case ActionPageDown:
 		newCursor := cursor + 10
 		if listLen > 0 && newCursor >= listLen {
 			return listLen - 1
@@ -56,34 +57,31 @@ func listNav(cursor, listLen int, key string) int {
 
 // isNavKey returns true if the key is a list navigation key
 func isNavKey(key string) bool {
-	switch key {
-	case "up", "k", "down", "j", "home", "g", "end", "G", "pgup", "pgdown":
-		return true
-	}
-	return false
+	return IsListNavAction(GetAction(key))
 }
 
 // viewportScroll handles standard viewport scrolling keys.
 // Returns true if the key was handled, false otherwise.
 // The viewport is modified in place.
 func viewportScroll(vp *viewport.Model, key string) bool {
-	switch key {
-	case "j", "down":
+	action := GetAction(key)
+	switch action {
+	case ActionScrollDown:
 		vp.ScrollDown(1)
 		return true
-	case "k", "up":
+	case ActionScrollUp:
 		vp.ScrollUp(1)
 		return true
-	case "d", "pgdown":
+	case ActionPageDown:
 		vp.HalfPageDown()
 		return true
-	case "u", "pgup":
+	case ActionPageUp:
 		vp.HalfPageUp()
 		return true
-	case "g", "home":
+	case ActionGoTop:
 		vp.GotoTop()
 		return true
-	case "G", "end":
+	case ActionGoBottom:
 		vp.GotoBottom()
 		return true
 	}
