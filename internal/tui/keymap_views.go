@@ -78,6 +78,7 @@ func (m Model) keymapDetail() []KeyBinding {
 	full := []KeyBinding{}
 	if m.signalType == signalTraces {
 		full = append(full, KeyBinding{Keys: []string{"s"}, Label: "spans", Kind: KeyKindFull, Group: "View"})
+		full = append(full, KeyBinding{Keys: []string{"K"}, Label: "kibana", Kind: KeyKindFull, Group: "View"})
 	}
 	return append(quick, full...)
 }

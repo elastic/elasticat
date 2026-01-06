@@ -28,3 +28,18 @@ func TestLookbackToBucketInterval(t *testing.T) {
 		})
 	}
 }
+
+func TestParseUnsupportedFieldTypeFromESQLResponse(t *testing.T) {
+	body := []byte(`{"error":{"root_cause":[{"type":"verification_exception","reason":"Found 1 problem\nline 2:42: Cannot use field [metrics.transaction.duration.histogram] with unsupported type [histogram]"}],"type":"verification_exception","reason":"Found 1 problem\nline 2:42: Cannot use field [metrics.transaction.duration.histogram] with unsupported type [histogram]"},"status":400}`)
+
+	field, typ, ok := parseUnsupportedFieldTypeFromESQLResponse(body)
+	if !ok {
+		t.Fatal("expected ok=true")
+	}
+	if field != "metrics.transaction.duration.histogram" {
+		t.Fatalf("field=%q, want %q", field, "metrics.transaction.duration.histogram")
+	}
+	if typ != "histogram" {
+		t.Fatalf("type=%q, want %q", typ, "histogram")
+	}
+}

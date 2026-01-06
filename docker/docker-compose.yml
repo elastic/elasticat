@@ -1,3 +1,5 @@
+name: elasticat
+
 services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:9.2.3
@@ -80,6 +82,7 @@ services:
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
       - xpack.security.enabled=false
+      - xpack.spaces.defaultSolution=observability
       - server.name=elasticat-kibana
     ports:
       - "5601:5601"

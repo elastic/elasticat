@@ -406,6 +406,21 @@ func TestGetNamesESSQL_Error(t *testing.T) {
 	}
 }
 
+func TestGetNamesESSQL_UnknownIndex_EmptyState(t *testing.T) {
+	mock := &mockExecutor{
+		index:   "traces-*",
+		esqlErr: &shared.ESQLUnknownIndexError{Index: "traces-*", Status: "400 Bad Request"},
+	}
+
+	results, err := GetNamesESSQL(context.Background(), mock, "now-1h", "", "", false, false)
+	if err != nil {
+		t.Fatalf("Expected nil error, got %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("Expected 0 results, got %d", len(results))
+	}
+}
+
 func TestGetNames_NoAggregations(t *testing.T) {
 	// Response with no aggregations key
 	responseJSON := `{}`

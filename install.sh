@@ -43,6 +43,19 @@ detect_os() {
     esac
 }
 
+# Find the data directory for elasticat assets (compose stack, etc.)
+find_data_dir() {
+    local os="$1"
+    if [ "$os" = "darwin" ]; then
+        echo "$HOME/Library/Application Support/elasticat"
+        return
+    fi
+
+    # Linux and other unix-likes: use XDG
+    local xdg_data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+    echo "${xdg_data_home}/elasticat"
+}
+
 # Detect architecture
 detect_arch() {
     local arch
@@ -188,6 +201,19 @@ main() {
         mkdir -p "$doc_dir"
         cp "${extracted_dir}/LICENSE.txt" "${extracted_dir}/NOTICE.txt" "${extracted_dir}/README.md" "$doc_dir/"
     fi
+
+    # Install docker compose assets (stack)
+    local data_dir=$(find_data_dir "$os")
+    local compose_src="${extracted_dir}/docker"
+    local compose_dst="${data_dir}/docker"
+    if [ -d "$compose_src" ]; then
+        info "Installing docker compose stack to: ${compose_dst}"
+        mkdir -p "$data_dir"
+        rm -rf "$compose_dst"
+        cp -R "$compose_src" "$compose_dst"
+    else
+        warn "docker compose stack not found in archive (missing ./docker). 'elasticat up' may fail unless you provide --dir."
+    fi
     
     # Clean up
     rm -rf "$tmp_dir"
@@ -200,10 +226,16 @@ main() {
         echo ""
         echo "  License: Apache 2.0"
         echo "  License files installed to: ${doc_dir}"
+        if [ -d "$compose_dst" ]; then
+            echo "  Docker stack installed to: ${compose_dst}"
+        fi
         echo ""
     else
         success "Binary installed to ${install_path}"
         success "License files installed to ${doc_dir}"
+        if [ -d "$compose_dst" ]; then
+            success "Docker stack installed to ${compose_dst}"
+        fi
         check_path "$install_dir"
     fi
 }

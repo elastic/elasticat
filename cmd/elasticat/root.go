@@ -40,7 +40,7 @@ Your AI assistant can query logs via the Elasticsearch MCP server.`,
 func init() {
 	// Global flags (Viper precedence: flags > env > defaults)
 	rootCmd.PersistentFlags().StringVar(&esURL, "es-url", config.DefaultESURL, "Elasticsearch URL (env: ELASTICAT_ES_URL)")
-	rootCmd.PersistentFlags().StringVarP(&esIndex, "index", "i", config.DefaultIndex, "Elasticsearch index/data stream pattern (env: ELASTICAT_INDEX)")
+	rootCmd.PersistentFlags().StringVarP(&esIndex, "index", "i", config.DefaultIndex, "Elasticsearch index/data stream pattern (env: ELASTICAT_ES_INDEX)")
 	pingTimeoutFlag = config.DefaultPingTimeout
-	rootCmd.PersistentFlags().DurationVar(&pingTimeoutFlag, "ping-timeout", config.DefaultPingTimeout, "Elasticsearch ping timeout (env: ELASTICAT_PING_TIMEOUT)")
+	rootCmd.PersistentFlags().DurationVar(&pingTimeoutFlag, "ping-timeout", config.DefaultPingTimeout, "Elasticsearch ping timeout (env: ELASTICAT_ES_PING_TIMEOUT)")
 }

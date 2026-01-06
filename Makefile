@@ -99,6 +99,7 @@ dist: build
 	@cp LICENSE.txt $(DIST_DIR)/
 	@cp NOTICE.txt $(DIST_DIR)/
 	@cp README.md $(DIST_DIR)/
+	@cp -R docker $(DIST_DIR)/docker
 	@echo "Distribution files ready in $(DIST_DIR)/"
 
 # Cross-compile and package for a specific platform (used by CI)
@@ -112,6 +113,7 @@ dist-platform:
 	$(eval ARCHIVE := elasticat-$(VERSION)-$(GOOS)-$(GOARCH)$(ARCHIVE_EXT))
 	@GOOS=$(GOOS) GOARCH=$(GOARCH) go build -ldflags="-s -w" -o $(DIST_DIR)/$(BINARY) ./cmd/elasticat
 	@cp LICENSE.txt NOTICE.txt README.md $(DIST_DIR)/
+	@cp -R docker $(DIST_DIR)/docker
 	@cd $(DIST_DIR) && \
 		if [ "$(GOOS)" = "windows" ]; then \
 			zip $(ARCHIVE) $(BINARY) LICENSE.txt NOTICE.txt README.md; \

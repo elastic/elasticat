@@ -10,11 +10,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/elastic/go-elasticsearch/v8"
 
 	"github.com/elastic/elasticat/internal/es/metrics"
 	"github.com/elastic/elasticat/internal/es/perspectives"
+	"github.com/elastic/elasticat/internal/es/shared"
 	"github.com/elastic/elasticat/internal/es/traces"
 )
 
@@ -216,6 +218,21 @@ func (c *Client) ExecuteESQLQuery(ctx context.Context, query string) (*ESQLResul
 
 	if res.StatusCode >= 400 {
 		bodyBytes, _ := io.ReadAll(res.Body)
+		if idx, ok := parseUnknownIndexFromESQLResponse(bodyBytes); ok {
+			return nil, &shared.ESQLUnknownIndexError{
+				Index:  idx,
+				Status: res.Status,
+				Body:   string(bodyBytes),
+			}
+		}
+		if field, typ, ok := parseUnsupportedFieldTypeFromESQLResponse(bodyBytes); ok {
+			return nil, &shared.ESQLUnsupportedFieldTypeError{
+				Field:  field,
+				Type:   typ,
+				Status: res.Status,
+				Body:   string(bodyBytes),
+			}
+		}
 		return nil, fmt.Errorf("ES|QL query failed: %s\nError: %s\n\nQuery:\n%s", res.Status, string(bodyBytes), query)
 	}
 
@@ -226,6 +243,96 @@ func (c *Client) ExecuteESQLQuery(ctx context.Context, query string) (*ESQLResul
 	}
 
 	return &result, nil
+}
+
+func parseUnknownIndexFromESQLResponse(body []byte) (string, bool) {
+	// Typical response:
+	// {"error":{"root_cause":[{"type":"verification_exception","reason":"... Unknown index [traces-*]"}], ...}}
+	var resp struct {
+		Error struct {
+			Reason    string `json:"reason"`
+			RootCause []struct {
+				Reason string `json:"reason"`
+			} `json:"root_cause"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return "", false
+	}
+
+	check := func(s string) (string, bool) {
+		const prefix = "Unknown index ["
+		i := strings.Index(s, prefix)
+		if i == -1 {
+			return "", false
+		}
+		start := i + len(prefix)
+		end := strings.Index(s[start:], "]")
+		if end == -1 {
+			return "", false
+		}
+		return s[start : start+end], true
+	}
+
+	if idx, ok := check(resp.Error.Reason); ok {
+		return idx, true
+	}
+	for _, rc := range resp.Error.RootCause {
+		if idx, ok := check(rc.Reason); ok {
+			return idx, true
+		}
+	}
+	return "", false
+}
+
+func parseUnsupportedFieldTypeFromESQLResponse(body []byte) (field string, typ string, ok bool) {
+	// Typical response:
+	// {"error":{"root_cause":[{"type":"verification_exception","reason":"... Cannot use field [X] with unsupported type [histogram]"}], ...}}
+	var resp struct {
+		Error struct {
+			Reason    string `json:"reason"`
+			RootCause []struct {
+				Reason string `json:"reason"`
+			} `json:"root_cause"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return "", "", false
+	}
+
+	check := func(s string) (string, string, bool) {
+		const fieldPrefix = "Cannot use field ["
+		const typePrefix = "] with unsupported type ["
+
+		i := strings.Index(s, fieldPrefix)
+		if i == -1 {
+			return "", "", false
+		}
+		fieldStart := i + len(fieldPrefix)
+		j := strings.Index(s[fieldStart:], typePrefix)
+		if j == -1 {
+			return "", "", false
+		}
+		f := s[fieldStart : fieldStart+j]
+
+		typeStart := fieldStart + j + len(typePrefix)
+		k := strings.Index(s[typeStart:], "]")
+		if k == -1 {
+			return "", "", false
+		}
+		t := s[typeStart : typeStart+k]
+		return f, t, true
+	}
+
+	if f, t, ok := check(resp.Error.Reason); ok {
+		return f, t, true
+	}
+	for _, rc := range resp.Error.RootCause {
+		if f, t, ok := check(rc.Reason); ok {
+			return f, t, true
+		}
+	}
+	return "", "", false
 }
 
 // === Field capabilities ===

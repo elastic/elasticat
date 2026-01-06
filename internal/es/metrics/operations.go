@@ -421,6 +421,9 @@ func AggregateESQL(ctx context.Context, exec Executor, opts AggregateMetricsOpti
 	// Execute stats query
 	statsResult, err := exec.ExecuteESQLQuery(ctx, query)
 	if err != nil {
+		if _, ok := shared.IsESQLUnknownIndex(err); ok {
+			return &MetricsAggResult{Metrics: []AggregatedMetric{}, BucketSize: opts.BucketSize, Query: query}, nil
+		}
 		return nil, fmt.Errorf("ES|QL metrics stats query failed: %w", err)
 	}
 

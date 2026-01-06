@@ -148,6 +148,35 @@ func (m *Model) openMetricInKibana(metricName, metricType string) {
 	m.statusTime = time.Now()
 }
 
+// openTraceInKibana opens Kibana with an ES|QL query for a specific trace ID.
+// Shows all spans/events for the trace within the current lookback period.
+func (m *Model) openTraceInKibana(traceID string) {
+	if traceID == "" {
+		m.statusMessage = "No trace ID to open in Kibana"
+		m.statusTime = time.Now()
+		return
+	}
+
+	index := m.client.GetIndex()
+	esqlInterval := m.lookback.ToESQLInterval()
+
+	// Query with both trace.id and trace_id field variants for compatibility
+	query := fmt.Sprintf(`FROM %s
+| WHERE @timestamp >= NOW() - %s AND (trace.id == "%s" OR trace_id == "%s")
+| SORT @timestamp ASC
+| LIMIT 1000`,
+		index, esqlInterval, traceID, traceID)
+
+	kibanaURL := buildKibanaDiscoverURL(defaultKibanaURL, query, m.lookback)
+
+	if err := openURLInBrowser(kibanaURL); err != nil {
+		m.statusMessage = fmt.Sprintf("Failed to open browser: %v", err)
+	} else {
+		m.statusMessage = "Opened trace in Kibana"
+	}
+	m.statusTime = time.Now()
+}
+
 // ToESQLInterval returns the ES|QL time interval string for the lookback duration.
 // ES|QL uses format like "24 hours", "1 hour", "5 minutes"
 func (l LookbackDuration) ToESQLInterval() string {

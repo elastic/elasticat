@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/elastic/elasticat/internal/es/shared"
 	"github.com/elastic/elasticat/internal/es/traces"
 )
 
@@ -229,44 +230,89 @@ func buildESQLDocsQuery(indexPattern string, filters esqlFilters, size int, sort
 }
 
 func (c *Client) executeESQLDocs(ctx context.Context, query string, countQuery string) (*SearchResult, int64, error) {
-	dataRes, err := c.ExecuteESQLQuery(ctx, query)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	entries := make([]LogEntry, 0, len(dataRes.Values))
-	for _, row := range dataRes.Values {
-		rowMap := esqlRowToMap(dataRes.Columns, row)
-		normalizeESQLCompatibility(rowMap)
-		entry := extractLogEntry(rowMap)
-		if raw, err := json.Marshal(rowMap); err == nil {
-			entry.RawJSON = string(raw)
+	// ES|QL returns a 400 verification_exception when the FROM pattern matches no indices.
+	// Treat that condition as an empty state; if multiple patterns are used, drop the missing
+	// pattern and retry.
+	currentQuery := query
+	currentCountQuery := countQuery
+	for {
+		dataRes, err := c.ExecuteESQLQuery(ctx, currentQuery)
+		if err != nil {
+			// Unsupported field types (e.g., histogram) should render as empty state, not error.
+			if _, _, ok := shared.IsESQLUnsupportedFieldType(err); ok {
+				return &SearchResult{Logs: []LogEntry{}, Total: 0}, 0, nil
+			}
+			if missing, ok := shared.IsESQLUnknownIndex(err); ok {
+				from, ok := esqlExtractFromPattern(currentQuery)
+				if !ok {
+					// Can't safely rewrite; default to empty state.
+					return &SearchResult{Logs: []LogEntry{}, Total: 0}, 0, nil
+				}
+				newFrom := removeIndexPattern(from, missing)
+				if newFrom == "" {
+					return &SearchResult{Logs: []LogEntry{}, Total: 0}, 0, nil
+				}
+				currentQuery = esqlRewriteFromPattern(currentQuery, newFrom)
+				if currentCountQuery != "" {
+					currentCountQuery = esqlRewriteFromPattern(currentCountQuery, newFrom)
+				}
+				continue
+			}
+			return nil, 0, err
 		}
-		entries = append(entries, entry)
-	}
 
-	total := int64(len(entries))
-	if countQuery != "" {
-		if count, err := c.executeESQLCount(ctx, countQuery); err == nil {
-			total = count
+		entries := make([]LogEntry, 0, len(dataRes.Values))
+		for _, row := range dataRes.Values {
+			rowMap := esqlRowToMap(dataRes.Columns, row)
+			normalizeESQLCompatibility(rowMap)
+			entry := extractLogEntry(rowMap)
+			if raw, err := json.Marshal(rowMap); err == nil {
+				entry.RawJSON = string(raw)
+			}
+			entries = append(entries, entry)
 		}
-	}
 
-	return &SearchResult{Logs: entries, Total: total}, total, nil
+		total := int64(len(entries))
+		if currentCountQuery != "" {
+			if count, err := c.executeESQLCount(ctx, currentCountQuery); err == nil {
+				total = count
+			}
+		}
+
+		return &SearchResult{Logs: entries, Total: total}, total, nil
+	}
 }
 
 func (c *Client) executeESQLCount(ctx context.Context, query string) (int64, error) {
-	res, err := c.ExecuteESQLQuery(ctx, query)
-	if err != nil {
-		return 0, err
+	currentQuery := query
+	for {
+		res, err := c.ExecuteESQLQuery(ctx, currentQuery)
+		if err != nil {
+			if _, _, ok := shared.IsESQLUnsupportedFieldType(err); ok {
+				return 0, nil
+			}
+			if missing, ok := shared.IsESQLUnknownIndex(err); ok {
+				from, ok := esqlExtractFromPattern(currentQuery)
+				if !ok {
+					return 0, nil
+				}
+				newFrom := removeIndexPattern(from, missing)
+				if newFrom == "" {
+					return 0, nil
+				}
+				currentQuery = esqlRewriteFromPattern(currentQuery, newFrom)
+				continue
+			}
+			return 0, err
+		}
+		if len(res.Values) == 0 || len(res.Values[0]) == 0 {
+			return 0, nil
+		}
+		if v, ok := res.Values[0][0].(float64); ok {
+			return int64(v), nil
+		}
+		return 0, fmt.Errorf("unexpected ES|QL count result shape")
 	}
-	if len(res.Values) == 0 || len(res.Values[0]) == 0 {
-		return 0, nil
-	}
-	if v, ok := res.Values[0][0].(float64); ok {
-		return int64(v), nil
-	}
-	return 0, fmt.Errorf("unexpected ES|QL count result shape")
 }
 
 func esqlRowToMap(columns []ESQLColumn, row []interface{}) map[string]interface{} {
@@ -316,6 +362,43 @@ func setPathValue(dst map[string]interface{}, path string, value interface{}) {
 		}
 		current = next
 	}
+}
+
+func esqlExtractFromPattern(query string) (string, bool) {
+	q := strings.TrimSpace(query)
+	if !strings.HasPrefix(q, "FROM ") {
+		return "", false
+	}
+	rest := strings.TrimPrefix(q, "FROM ")
+	if i := strings.IndexByte(rest, '\n'); i >= 0 {
+		return strings.TrimSpace(rest[:i]), true
+	}
+	return strings.TrimSpace(rest), true
+}
+
+func esqlRewriteFromPattern(query string, newFrom string) string {
+	q := strings.TrimSpace(query)
+	if !strings.HasPrefix(q, "FROM ") {
+		return query
+	}
+	rest := strings.TrimPrefix(q, "FROM ")
+	if i := strings.IndexByte(rest, '\n'); i >= 0 {
+		return "FROM " + newFrom + "\n" + rest[i+1:]
+	}
+	return "FROM " + newFrom
+}
+
+func removeIndexPattern(from string, missing string) string {
+	parts := strings.Split(from, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" || p == missing {
+			continue
+		}
+		out = append(out, p)
+	}
+	return strings.Join(out, ",")
 }
 
 // Note: getNestedMapValue has been replaced by GetNestedParts in json_helpers.go

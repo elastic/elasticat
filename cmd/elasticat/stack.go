@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 
 	"github.com/elastic/elasticat/internal/config"
 	"github.com/elastic/elasticat/internal/es"
@@ -19,6 +20,7 @@ var (
 	dockerDir  string
 	withKibana bool
 	withMCP    bool
+	noKibana   bool
 )
 
 var upCmd = &cobra.Command{
@@ -26,6 +28,10 @@ var upCmd = &cobra.Command{
 	Short: "Start the ElastiCat stack (Elasticsearch + OTel Collector)",
 	Long:  `Starts the Docker Compose stack including Elasticsearch and the OpenTelemetry Collector.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Kibana is enabled by default; allow users to explicitly disable it.
+		if noKibana {
+			withKibana = false
+		}
 		return runUp()
 	},
 }
@@ -48,7 +54,8 @@ var statusCmd = &cobra.Command{
 
 func init() {
 	upCmd.Flags().StringVar(&dockerDir, "dir", "", "Docker compose directory (default: auto-detect)")
-	upCmd.Flags().BoolVar(&withKibana, "kibana", false, "Also start Kibana for advanced visualization")
+	upCmd.Flags().BoolVar(&withKibana, "kibana", true, "Start Kibana for advanced visualization (default: true)")
+	upCmd.Flags().BoolVar(&noKibana, "no-kibana", false, "Disable Kibana (overrides --kibana)")
 	upCmd.Flags().BoolVar(&withMCP, "mcp", false, "Also start the Elasticsearch MCP server for AI assistant integration")
 
 	rootCmd.AddCommand(upCmd)
@@ -56,30 +63,93 @@ func init() {
 	rootCmd.AddCommand(statusCmd)
 }
 
+type dockerDirSearch struct {
+	getwd              func() (string, error)
+	executable         func() (string, error)
+	stat               func(string) (os.FileInfo, error)
+	elasticatDataDirFn func() (string, error)
+}
+
+func defaultDockerDirSearch() dockerDirSearch {
+	return dockerDirSearch{
+		getwd:              os.Getwd,
+		executable:         os.Executable,
+		stat:               os.Stat,
+		elasticatDataDirFn: defaultElasticatDataDir,
+	}
+}
+
+func defaultElasticatDataDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	switch runtime.GOOS {
+	case "darwin":
+		return filepath.Join(home, "Library", "Application Support", "elasticat"), nil
+	case "windows":
+		if appData := os.Getenv("APPDATA"); appData != "" {
+			return filepath.Join(appData, "elasticat"), nil
+		}
+		return filepath.Join(home, "AppData", "Roaming", "elasticat"), nil
+	default:
+		if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
+			return filepath.Join(xdg, "elasticat"), nil
+		}
+		return filepath.Join(home, ".local", "share", "elasticat"), nil
+	}
+}
+
 func findDockerDir() (string, error) {
+	return findDockerDirWith(defaultDockerDirSearch())
+}
+
+func findDockerDirWith(s dockerDirSearch) (string, error) {
+	if s.getwd == nil {
+		s.getwd = os.Getwd
+	}
+	if s.executable == nil {
+		s.executable = os.Executable
+	}
+	if s.stat == nil {
+		s.stat = os.Stat
+	}
+	if s.elasticatDataDirFn == nil {
+		s.elasticatDataDirFn = defaultElasticatDataDir
+	}
+
 	// Check if we're in the elasticat directory
-	cwd, err := os.Getwd()
+	cwd, err := s.getwd()
 	if err != nil {
 		return "", err
 	}
 
 	// Check ./docker
 	dockerPath := filepath.Join(cwd, "docker")
-	if _, err := os.Stat(filepath.Join(dockerPath, "docker-compose.yml")); err == nil {
+	if _, err := s.stat(filepath.Join(dockerPath, "docker-compose.yml")); err == nil {
 		return dockerPath, nil
 	}
 
 	// Check if docker-compose.yml is in current dir
-	if _, err := os.Stat(filepath.Join(cwd, "docker-compose.yml")); err == nil {
+	if _, err := s.stat(filepath.Join(cwd, "docker-compose.yml")); err == nil {
 		return cwd, nil
 	}
 
+	// Check user data directory (release installs put docker/ here)
+	if dataDir, err := s.elasticatDataDirFn(); err == nil && dataDir != "" {
+		dataDockerPath := filepath.Join(dataDir, "docker")
+		if _, err := s.stat(filepath.Join(dataDockerPath, "docker-compose.yml")); err == nil {
+			return dataDockerPath, nil
+		}
+	}
+
 	// Check executable directory
-	exePath, err := os.Executable()
+	exePath, err := s.executable()
 	if err == nil {
 		exeDir := filepath.Dir(exePath)
 		dockerPath = filepath.Join(exeDir, "docker")
-		if _, err := os.Stat(filepath.Join(dockerPath, "docker-compose.yml")); err == nil {
+		if _, err := s.stat(filepath.Join(dockerPath, "docker-compose.yml")); err == nil {
 			return dockerPath, nil
 		}
 	}

@@ -46,9 +46,9 @@ Examples:
 
 func init() {
 	// Use config defaults (which respect env vars)
-	watchCmd.Flags().IntVarP(&watchLines, "lines", "n", config.DefaultTailLines, "Number of lines to show from end of file (env: ELASTICAT_TAIL_LINES)")
+	watchCmd.Flags().IntVarP(&watchLines, "lines", "n", config.DefaultTailLines, "Number of lines to show from end of file (env: ELASTICAT_WATCH_TAIL_LINES)")
 	watchCmd.Flags().BoolVar(&watchNoColor, "no-color", false, "Disable colored output")
-	watchCmd.Flags().StringVarP(&serviceFlag, "service", "s", "", "Override service name (env: ELASTICAT_SERVICE)")
+	watchCmd.Flags().StringVarP(&serviceFlag, "service", "s", "", "Override service name (env: ELASTICAT_WATCH_SERVICE)")
 	watchCmd.Flags().StringVar(&watchOTLP, "otlp", config.DefaultOTLPEndpoint, "OTLP HTTP endpoint (env: ELASTICAT_OTLP_ENDPOINT)")
 	watchCmd.Flags().BoolVar(&watchNoSend, "no-send", false, "Don't send logs to Elasticsearch, display only")
 	watchCmd.Flags().BoolVar(&watchOneshot, "oneshot", false, "Import all logs and exit (don't follow)")

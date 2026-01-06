@@ -2,7 +2,7 @@
   "name": "stock-tracker-traffic-gen",
   "private": true,
   "scripts": {
-    "traffic": "node --loader tsx traffic.ts",
+    "traffic": "tsx traffic.ts",
     "install-browsers": "npx playwright install chromium"
   },
   "dependencies": {

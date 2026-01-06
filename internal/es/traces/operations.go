@@ -10,6 +10,7 @@ import (
 	"io"
 
 	"github.com/elastic/elasticat/internal/es/errfmt"
+	"github.com/elastic/elasticat/internal/es/shared"
 )
 
 // LookbackToESQLInterval converts a lookback string (e.g., "now-5m") to ES|QL format (e.g., "5 minutes")
@@ -323,6 +324,12 @@ func GetNamesESSQL(ctx context.Context, exec Executor, lookback, service, resour
 
 	statsResult, err := exec.ExecuteESQLQuery(ctx, q1)
 	if err != nil {
+		// If there are no matching data streams for the FROM pattern, ES|QL returns
+		// a 400 verification_exception with "Unknown index [...]". Treat that as an
+		// empty state (not an error) for the UI.
+		if _, ok := shared.IsESQLUnknownIndex(err); ok {
+			return []TransactionNameAgg{}, nil
+		}
 		return nil, fmt.Errorf("failed to execute transaction stats query: %w", err)
 	}
 
@@ -377,6 +384,9 @@ func GetNamesESSQL(ctx context.Context, exec Executor, lookback, service, resour
 
 	mappingResult, err := exec.ExecuteESQLQuery(ctx, q2)
 	if err != nil {
+		if _, ok := shared.IsESQLUnknownIndex(err); ok {
+			return []TransactionNameAgg{}, nil
+		}
 		return nil, fmt.Errorf("failed to execute trace mapping query: %w", err)
 	}
 
@@ -409,6 +419,9 @@ func GetNamesESSQL(ctx context.Context, exec Executor, lookback, service, resour
 
 	spanResult, err := exec.ExecuteESQLQuery(ctx, q3)
 	if err != nil {
+		if _, ok := shared.IsESQLUnknownIndex(err); ok {
+			return []TransactionNameAgg{}, nil
+		}
 		return nil, fmt.Errorf("failed to execute span counts query: %w", err)
 	}
 

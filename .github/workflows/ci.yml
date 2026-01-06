@@ -95,18 +95,26 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libgl1-mesa-dev libxxf86vm-dev
 
-      - name: Build binary and create archive
+      - name: Build binary and create archive (Unix)
+        if: matrix.os != 'windows-latest'
         run: |
           mkdir -p dist/${{ matrix.binary }}
           go build -o dist/${{ matrix.binary }}/${{ matrix.binary }} ./cmd/elasticat
           cp LICENSE.txt NOTICE.txt README.md dist/${{ matrix.binary }}/
+          cp -R docker dist/${{ matrix.binary }}/docker
           cd dist
-          if [ "${{ matrix.archive_ext }}" = "zip" ]; then
-            zip -r ${{ matrix.binary }}.zip ${{ matrix.binary }}
-          else
-            tar -czvf ${{ matrix.binary }}.tar.gz ${{ matrix.binary }}
-          fi
+          tar -czvf ${{ matrix.binary }}.tar.gz ${{ matrix.binary }}
         shell: bash
+
+      - name: Build binary and create archive (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          New-Item -ItemType Directory -Force -Path dist/${{ matrix.binary }}
+          go build -o dist/${{ matrix.binary }}/${{ matrix.binary }} ./cmd/elasticat
+          Copy-Item LICENSE.txt, NOTICE.txt, README.md -Destination dist/${{ matrix.binary }}/
+          Copy-Item -Recurse docker -Destination dist/${{ matrix.binary }}/docker
+          Compress-Archive -Path dist/${{ matrix.binary }} -DestinationPath dist/${{ matrix.binary }}.zip
+        shell: pwsh
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
