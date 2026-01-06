@@ -213,6 +213,15 @@ func buildTailQuery(opts TailOptions) map[string]interface{} {
 		})
 	}
 
+	// Metric field filter (for metric detail view - filter docs containing this metric)
+	if opts.MetricField != "" {
+		must = append(must, map[string]interface{}{
+			"exists": map[string]interface{}{
+				"field": opts.MetricField,
+			},
+		})
+	}
+
 	if opts.Size == 0 {
 		opts.Size = 100
 	}

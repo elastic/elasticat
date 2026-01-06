@@ -16,6 +16,10 @@ import (
 // This interface decouples the TUI from the concrete es.Client,
 // enabling easier testing with mock implementations.
 type DataSource interface {
+	// Tail retrieves the most recent documents using Query DSL.
+	// Used for histogram metrics where ES|QL doesn't support the field type.
+	Tail(ctx context.Context, opts es.TailOptions) (*es.SearchResult, error)
+
 	// TailESQL retrieves the most recent documents via ES|QL.
 	// Returns the search result plus the rendered ES|QL query string for display.
 	TailESQL(ctx context.Context, opts es.TailOptions) (*es.SearchResult, string, error)

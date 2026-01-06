@@ -69,3 +69,26 @@ func IsESQLUnsupportedFieldType(err error) (string, string, bool) {
 	}
 	return "", "", false
 }
+
+// IsESQLEmptyStateError returns true if the error represents an expected
+// empty-state condition (no data yet, unsupported field type, etc.)
+// rather than an actual failure. Callers can use this to return empty
+// results instead of surfacing errors to the UI.
+func IsESQLEmptyStateError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if _, ok := IsESQLUnknownIndex(err); ok {
+		return true
+	}
+	if _, _, ok := IsESQLUnsupportedFieldType(err); ok {
+		return true
+	}
+	return false
+}
+
+// EmptyESQLResult returns an empty result suitable for returning when
+// an empty-state error is detected.
+func EmptyESQLResult() *ESQLResult {
+	return &ESQLResult{Columns: []ESQLColumn{}, Values: [][]interface{}{}}
+}

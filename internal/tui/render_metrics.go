@@ -25,11 +25,12 @@ func (m Model) renderMetricsDashboard(listHeight int) string {
 	}
 
 	// Calculate column widths
-	// METRIC (flex) | SPARKLINE (20) | MIN (10) | MAX (10) | AVG (10) | LATEST (10)
+	// METRIC (flex) | SPARKLINE (20) | MIN (10) | MAX (10) | AVG (10) | LATEST (10) | LAST SEEN (10)
 	sparklineWidth := 20
 	numWidth := 10
-	fixedWidth := sparklineWidth + (numWidth * 4) + 6 // 6 for separators
-	metricWidth := m.width - fixedWidth - 10          // padding
+	lastSeenWidth := 10
+	fixedWidth := sparklineWidth + (numWidth * 4) + lastSeenWidth + 7 // 7 for separators
+	metricWidth := m.width - fixedWidth - 10                          // padding
 	if metricWidth < 20 {
 		metricWidth = 20
 	}
@@ -41,7 +42,8 @@ func (m Model) renderMetricsDashboard(listHeight int) string {
 			PadOrTruncate("MIN", numWidth) + " " +
 			PadOrTruncate("MAX", numWidth) + " " +
 			PadOrTruncate("AVG", numWidth) + " " +
-			PadOrTruncate("LATEST", numWidth))
+			PadOrTruncate("LATEST", numWidth) + " " +
+			PadOrTruncate("LAST SEEN", lastSeenWidth))
 
 	// Calculate visible range using common helper
 	metrics := m.aggregatedMetrics.Metrics
@@ -63,13 +65,20 @@ func (m Model) renderMetricsDashboard(listHeight int) string {
 		avgStr := formatMetricValue(metric.Avg)
 		latestStr := formatMetricValue(metric.Latest)
 
+		// Format last seen
+		lastSeenStr := "-"
+		if !metric.LastSeen.IsZero() {
+			lastSeenStr = formatRelativeTime(metric.LastSeen)
+		}
+
 		// Build line
 		line := PadOrTruncate(metric.ShortName, metricWidth) + " " +
 			sparkline + " " +
 			PadOrTruncate(minStr, numWidth) + " " +
 			PadOrTruncate(maxStr, numWidth) + " " +
 			PadOrTruncate(avgStr, numWidth) + " " +
-			PadOrTruncate(latestStr, numWidth)
+			PadOrTruncate(latestStr, numWidth) + " " +
+			PadOrTruncate(lastSeenStr, lastSeenWidth)
 
 		if selected {
 			lines = append(lines, SelectedLogStyle.Width(m.width-6).Render(line))

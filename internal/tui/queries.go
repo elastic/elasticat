@@ -151,11 +151,11 @@ func (m Model) fetchAggregatedMetrics() tea.Cmd {
 
 // fetchMetricDetailDocs fetches the latest 10 documents containing the selected metric
 func (m *Model) fetchMetricDetailDocs() tea.Cmd {
-	// Capture the metric name before returning the command
+	// Capture the metric info before returning the command
 	if m.aggregatedMetrics == nil || m.metricsCursor >= len(m.aggregatedMetrics.Metrics) {
 		return nil
 	}
-	metricName := m.aggregatedMetrics.Metrics[m.metricsCursor].Name
+	metric := m.aggregatedMetrics.Metrics[m.metricsCursor]
 
 	return func() tea.Msg {
 		ctx, done := m.startRequest(requestMetricDetailDocs, m.tuiConfig.MetricsTimeout)
@@ -164,11 +164,22 @@ func (m *Model) fetchMetricDetailDocs() tea.Cmd {
 		opts := es.TailOptions{
 			Size:        10,
 			Lookback:    m.lookback.ESRange(),
-			MetricField: metricName, // Filter for docs containing this metric
-			SortAsc:     false,      // Latest first
+			MetricField: metric.Name, // Filter for docs containing this metric
+			SortAsc:     false,       // Latest first
 		}
 
-		result, _, err := m.client.TailESQL(ctx, opts)
+		var result *es.SearchResult
+		var err error
+
+		// Histogram fields can't be filtered with ES|QL `IS NOT NULL` because
+		// ES|QL doesn't support histogram types in that context. Use Query DSL
+		// which supports `exists` queries on histogram fields.
+		if metric.Type == "histogram" {
+			result, err = m.client.Tail(ctx, opts)
+		} else {
+			result, _, err = m.client.TailESQL(ctx, opts)
+		}
+
 		if err != nil {
 			return metricDetailDocsMsg{err: err}
 		}

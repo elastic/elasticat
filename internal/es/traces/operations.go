@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/elastic/elasticat/internal/es/errfmt"
 	"github.com/elastic/elasticat/internal/es/shared"
@@ -135,6 +136,11 @@ func GetNames(ctx context.Context, exec Executor, lookback, service, resource st
 									"field": "duration",
 								},
 							},
+							"last_seen": map[string]interface{}{
+								"max": map[string]interface{}{
+									"field": "@timestamp",
+								},
+							},
 							"unique_traces": map[string]interface{}{
 								"cardinality": map[string]interface{}{
 									"field": "trace.id",
@@ -258,6 +264,13 @@ func GetNames(ctx context.Context, exec Executor, lookback, service, resource st
 			}
 		}
 
+		// Extract last seen timestamp
+		if lastSeen, ok := bucket["last_seen"].(map[string]interface{}); ok {
+			if v, ok := lastSeen["value"].(float64); ok {
+				agg.LastSeen = time.UnixMilli(int64(v))
+			}
+		}
+
 		// Use global average spans per trace
 		agg.AvgSpans = globalAvgSpans
 
@@ -315,7 +328,8 @@ func GetNamesESSQL(ctx context.Context, exec Executor, lookback, service, resour
     min_duration = MIN(transaction.duration.us),
     avg_duration = AVG(transaction.duration.us),
     max_duration = MAX(transaction.duration.us),
-    error_count = COUNT(CASE(event.outcome == "failure", 1, null))
+    error_count = COUNT(CASE(event.outcome == "failure", 1, null)),
+    last_seen = MAX(@timestamp)
   BY transaction.name
 | EVAL error_rate = error_count / tx_count * 100
 | SORT tx_count DESC
@@ -324,10 +338,9 @@ func GetNamesESSQL(ctx context.Context, exec Executor, lookback, service, resour
 
 	statsResult, err := exec.ExecuteESQLQuery(ctx, q1)
 	if err != nil {
-		// If there are no matching data streams for the FROM pattern, ES|QL returns
-		// a 400 verification_exception with "Unknown index [...]". Treat that as an
-		// empty state (not an error) for the UI.
-		if _, ok := shared.IsESQLUnknownIndex(err); ok {
+		// Treat expected empty-state errors (no matching indices, unsupported field types)
+		// as empty results rather than surfacing errors to the UI.
+		if shared.IsESQLEmptyStateError(err) {
 			return []TransactionNameAgg{}, nil
 		}
 		return nil, fmt.Errorf("failed to execute transaction stats query: %w", err)
@@ -338,7 +351,7 @@ func GetNamesESSQL(ctx context.Context, exec Executor, lookback, service, resour
 	txNameToIndex := make(map[string]int) // Map tx name -> index in txStats slice
 
 	for _, row := range statsResult.Values {
-		if len(row) < 8 {
+		if len(row) < 9 {
 			continue // Skip malformed rows
 		}
 
@@ -361,10 +374,16 @@ func GetNamesESSQL(ctx context.Context, exec Executor, lookback, service, resour
 			agg.MaxDuration = v / 1_000_000 // nano to ms
 		}
 		// Skip row[5] - error_count (we use error_rate instead)
-		if v, ok := row[6].(string); ok {
+		// row[6] - last_seen timestamp
+		if ts, ok := row[6].(string); ok {
+			if parsed, err := time.Parse(time.RFC3339Nano, ts); err == nil {
+				agg.LastSeen = parsed
+			}
+		}
+		if v, ok := row[7].(string); ok {
 			agg.Name = v
 		}
-		if v, ok := row[7].(float64); ok {
+		if v, ok := row[8].(float64); ok {
 			agg.ErrorRate = v
 		}
 
@@ -384,7 +403,7 @@ func GetNamesESSQL(ctx context.Context, exec Executor, lookback, service, resour
 
 	mappingResult, err := exec.ExecuteESQLQuery(ctx, q2)
 	if err != nil {
-		if _, ok := shared.IsESQLUnknownIndex(err); ok {
+		if shared.IsESQLEmptyStateError(err) {
 			return []TransactionNameAgg{}, nil
 		}
 		return nil, fmt.Errorf("failed to execute trace mapping query: %w", err)
@@ -419,7 +438,7 @@ func GetNamesESSQL(ctx context.Context, exec Executor, lookback, service, resour
 
 	spanResult, err := exec.ExecuteESQLQuery(ctx, q3)
 	if err != nil {
-		if _, ok := shared.IsESQLUnknownIndex(err); ok {
+		if shared.IsESQLEmptyStateError(err) {
 			return []TransactionNameAgg{}, nil
 		}
 		return nil, fmt.Errorf("failed to execute span counts query: %w", err)

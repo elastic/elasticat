@@ -113,7 +113,8 @@ func (m *Model) openMetricInKibana(metricName, metricType string) {
 	var query string
 
 	// Check if the metric type is ES|QL compatible for aggregations
-	// ES|QL cannot aggregate counter types or histogram fields
+	// ES|QL cannot aggregate counter types or histogram fields with AVG/MIN/MAX,
+	// but it CAN filter on them with IS NOT NULL and count documents
 	isESQLCompatible := metricType != "histogram" && metricType != "counter"
 
 	if isESQLCompatible {
@@ -128,14 +129,15 @@ func (m *Model) openMetricInKibana(metricName, metricType string) {
 | SORT bucket`,
 			index, esqlInterval, metricName, bucketInterval)
 	} else {
-		// For counter/histogram types that ES|QL can't aggregate,
-		// show documents where this specific metric field exists
+		// For counter/histogram types, ES|QL can filter with IS NOT NULL but
+		// cannot aggregate the values. Show document counts over time instead.
 		query = fmt.Sprintf(`FROM %s
 | WHERE @timestamp >= NOW() - %s AND `+"`%s`"+` IS NOT NULL
-| KEEP @timestamp, `+"`%s`"+`
-| SORT @timestamp DESC
-| LIMIT 100`,
-			index, esqlInterval, metricName, metricName)
+| STATS
+    doc_count = COUNT(*)
+  BY bucket = DATE_TRUNC(%s, @timestamp)
+| SORT bucket`,
+			index, esqlInterval, metricName, bucketInterval)
 	}
 
 	kibanaURL := buildKibanaDiscoverURL(defaultKibanaURL, query, m.lookback)

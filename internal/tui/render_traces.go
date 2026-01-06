@@ -25,15 +25,16 @@ func (m Model) renderTransactionNames(listHeight int) string {
 	}
 
 	// Calculate column widths
-	// TRANSACTION NAME (flex) | COUNT (10) | MIN(ms) (10) | AVG(ms) (10) | MAX(ms) (10) | TRACES (8) | SPANS (8) | ERR% (8)
-	countWidth := 10
-	minWidth := 10
-	avgWidth := 10
-	maxWidth := 10
-	tracesWidth := 8
-	spansWidth := 8
-	errWidth := 8
-	fixedWidth := countWidth + minWidth + avgWidth + maxWidth + tracesWidth + spansWidth + errWidth + 7 // separators
+	// TRANSACTION NAME (flex) | COUNT (8) | MIN(ms) (9) | AVG(ms) (9) | MAX(ms) (9) | TRACES (7) | SPANS (6) | ERR% (6) | LAST SEEN (10)
+	countWidth := 8
+	minWidth := 9
+	avgWidth := 9
+	maxWidth := 9
+	tracesWidth := 7
+	spansWidth := 6
+	errWidth := 6
+	lastSeenWidth := 10
+	fixedWidth := countWidth + minWidth + avgWidth + maxWidth + tracesWidth + spansWidth + errWidth + lastSeenWidth + 8 // separators
 	nameWidth := m.width - fixedWidth - 10
 	if nameWidth < 20 {
 		nameWidth = 20
@@ -48,7 +49,8 @@ func (m Model) renderTransactionNames(listHeight int) string {
 			PadOrTruncate("MAX(ms)", maxWidth) + " " +
 			PadOrTruncate("TRACES", tracesWidth) + " " +
 			PadOrTruncate("SPANS", spansWidth) + " " +
-			PadOrTruncate("ERR%", errWidth))
+			PadOrTruncate("ERR%", errWidth) + " " +
+			PadOrTruncate("LAST SEEN", lastSeenWidth))
 
 	// Calculate visible range using common helper
 	startIdx, endIdx := calcVisibleRange(m.traceNamesCursor, len(m.transactionNames), listHeight)
@@ -69,6 +71,12 @@ func (m Model) renderTransactionNames(listHeight int) string {
 		spansStr := fmt.Sprintf("%.1f", tx.AvgSpans)
 		errStr := fmt.Sprintf("%.1f%%", tx.ErrorRate)
 
+		// Format last seen
+		lastSeenStr := "-"
+		if !tx.LastSeen.IsZero() {
+			lastSeenStr = formatRelativeTime(tx.LastSeen)
+		}
+
 		line := PadOrTruncate(tx.Name, nameWidth) + " " +
 			PadOrTruncate(countStr, countWidth) + " " +
 			PadOrTruncate(minStr, minWidth) + " " +
@@ -76,7 +84,8 @@ func (m Model) renderTransactionNames(listHeight int) string {
 			PadOrTruncate(maxStr, maxWidth) + " " +
 			PadOrTruncate(tracesStr, tracesWidth) + " " +
 			PadOrTruncate(spansStr, spansWidth) + " " +
-			PadOrTruncate(errStr, errWidth)
+			PadOrTruncate(errStr, errWidth) + " " +
+			PadOrTruncate(lastSeenStr, lastSeenWidth)
 
 		if selected {
 			lines = append(lines, SelectedLogStyle.Width(m.width-6).Render(line))

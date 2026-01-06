@@ -166,7 +166,7 @@ func Aggregate(ctx context.Context, exec Executor, opts AggregateMetricsOptions)
 						"sort": []map[string]interface{}{
 							{"@timestamp": "desc"},
 						},
-						"_source": []string{mf.Name},
+						"_source": []string{mf.Name, "@timestamp"},
 					},
 				},
 			},
@@ -371,13 +371,19 @@ func parseAggResponse(body io.Reader, fields []MetricFieldInfo, bucketSize strin
 			}
 		}
 
-		// Extract latest value from top_hits
+		// Extract latest value and timestamp from top_hits
 		if latest, ok := metricAgg["latest"].(map[string]interface{}); ok {
 			if hits, ok := latest["hits"].(map[string]interface{}); ok {
 				if hitsList, ok := hits["hits"].([]interface{}); ok && len(hitsList) > 0 {
 					if hit, ok := hitsList[0].(map[string]interface{}); ok {
 						if source, ok := hit["_source"].(map[string]interface{}); ok {
 							am.Latest = shared.GetNestedFloat(source, mf.Name)
+							// Extract @timestamp for LastSeen
+							if ts, ok := source["@timestamp"].(string); ok {
+								if parsed, err := time.Parse(time.RFC3339Nano, ts); err == nil {
+									am.LastSeen = parsed
+								}
+							}
 						}
 					}
 				}
@@ -421,7 +427,9 @@ func AggregateESQL(ctx context.Context, exec Executor, opts AggregateMetricsOpti
 	// Execute stats query
 	statsResult, err := exec.ExecuteESQLQuery(ctx, query)
 	if err != nil {
-		if _, ok := shared.IsESQLUnknownIndex(err); ok {
+		// Treat expected empty-state errors (no matching indices, unsupported field types)
+		// as empty results rather than surfacing errors to the UI.
+		if shared.IsESQLEmptyStateError(err) {
 			return &MetricsAggResult{Metrics: []AggregatedMetric{}, BucketSize: opts.BucketSize, Query: query}, nil
 		}
 		return nil, fmt.Errorf("ES|QL metrics stats query failed: %w", err)
@@ -600,11 +608,25 @@ func enrichWithLatestValues(result *MetricsAggResult, latestResult *shared.ESQLR
 
 	row := latestResult.Values[0]
 
+	// Extract @timestamp for LastSeen (same for all metrics since it's one row)
+	var lastSeen time.Time
+	if idx, ok := colIndex["@timestamp"]; ok && idx < len(row) {
+		if ts, ok := row[idx].(string); ok {
+			if parsed, err := time.Parse(time.RFC3339Nano, ts); err == nil {
+				lastSeen = parsed
+			}
+		}
+	}
+
 	for i, mf := range fields {
 		if idx, ok := colIndex[mf.Name]; ok && idx < len(row) {
 			if v, ok := row[idx].(float64); ok {
 				result.Metrics[i].Latest = v
 			}
+		}
+		// Set LastSeen for all metrics from the latest document
+		if !lastSeen.IsZero() {
+			result.Metrics[i].LastSeen = lastSeen
 		}
 	}
 }

@@ -29,6 +29,7 @@ type AggregatedMetric struct {
 	Max       float64
 	Avg       float64
 	Latest    float64
+	LastSeen  time.Time      // Timestamp of the most recent data point
 	Buckets   []MetricBucket // Time series data for sparkline
 }
 

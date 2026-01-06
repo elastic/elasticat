@@ -238,10 +238,7 @@ func (c *Client) executeESQLDocs(ctx context.Context, query string, countQuery s
 	for {
 		dataRes, err := c.ExecuteESQLQuery(ctx, currentQuery)
 		if err != nil {
-			// Unsupported field types (e.g., histogram) should render as empty state, not error.
-			if _, _, ok := shared.IsESQLUnsupportedFieldType(err); ok {
-				return &SearchResult{Logs: []LogEntry{}, Total: 0}, 0, nil
-			}
+			// Unknown index: try to remove that pattern and retry with remaining indices
 			if missing, ok := shared.IsESQLUnknownIndex(err); ok {
 				from, ok := esqlExtractFromPattern(currentQuery)
 				if !ok {
@@ -257,6 +254,10 @@ func (c *Client) executeESQLDocs(ctx context.Context, query string, countQuery s
 					currentCountQuery = esqlRewriteFromPattern(currentCountQuery, newFrom)
 				}
 				continue
+			}
+			// Other empty-state errors (e.g., unsupported field types): return empty
+			if shared.IsESQLEmptyStateError(err) {
+				return &SearchResult{Logs: []LogEntry{}, Total: 0}, 0, nil
 			}
 			return nil, 0, err
 		}
@@ -288,9 +289,7 @@ func (c *Client) executeESQLCount(ctx context.Context, query string) (int64, err
 	for {
 		res, err := c.ExecuteESQLQuery(ctx, currentQuery)
 		if err != nil {
-			if _, _, ok := shared.IsESQLUnsupportedFieldType(err); ok {
-				return 0, nil
-			}
+			// Unknown index: try to remove that pattern and retry with remaining indices
 			if missing, ok := shared.IsESQLUnknownIndex(err); ok {
 				from, ok := esqlExtractFromPattern(currentQuery)
 				if !ok {
@@ -302,6 +301,10 @@ func (c *Client) executeESQLCount(ctx context.Context, query string) (int64, err
 				}
 				currentQuery = esqlRewriteFromPattern(currentQuery, newFrom)
 				continue
+			}
+			// Other empty-state errors (e.g., unsupported field types): return 0 count
+			if shared.IsESQLEmptyStateError(err) {
+				return 0, nil
 			}
 			return 0, err
 		}

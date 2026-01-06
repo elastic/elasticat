@@ -44,6 +44,7 @@ func GetByField(ctx context.Context, exec Executor, lookback string, field strin
 		var err error
 		res, err = exec.ExecuteESQLQuery(ctx, query)
 		if err != nil {
+			// Unknown index: remove that pattern and retry with remaining indices
 			if missing, ok := shared.IsESQLUnknownIndex(err); ok {
 				from = removeIndexPattern(from, missing)
 				if from == "" {
@@ -51,6 +52,10 @@ func GetByField(ctx context.Context, exec Executor, lookback string, field strin
 				}
 				query = buildQuery(from)
 				continue
+			}
+			// Other empty-state errors (e.g., unsupported field types): return empty
+			if shared.IsESQLEmptyStateError(err) {
+				return []PerspectiveAgg{}, nil
 			}
 			return nil, fmt.Errorf("ES|QL perspective query failed: %w", err)
 		}

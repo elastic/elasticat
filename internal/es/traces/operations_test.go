@@ -297,12 +297,13 @@ func TestGetNamesESSQL_Success(t *testing.T) {
 					{Name: "avg_duration", Type: "double"},
 					{Name: "max_duration", Type: "double"},
 					{Name: "error_count", Type: "long"},
+					{Name: "last_seen", Type: "date"},
 					{Name: "transaction.name", Type: "keyword"},
 					{Name: "error_rate", Type: "double"},
 				},
 				Values: [][]interface{}{
-					{float64(100), float64(50), float64(500000000), float64(1500000000), float64(3000000000), float64(10), "GET /api/users", float64(10)},
-					{float64(50), float64(25), float64(1000000000), float64(2000000000), float64(4000000000), float64(0), "POST /api/orders", float64(0)},
+					{float64(100), float64(50), float64(500000000), float64(1500000000), float64(3000000000), float64(10), "2024-01-15T10:30:00.000Z", "GET /api/users", float64(10)},
+					{float64(50), float64(25), float64(1000000000), float64(2000000000), float64(4000000000), float64(0), "2024-01-15T09:30:00.000Z", "POST /api/orders", float64(0)},
 				},
 			},
 			// Query 2: Trace mapping
