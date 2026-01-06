@@ -484,6 +484,102 @@ Ensure the collector is listening on `localhost:4318` and `ELASTICAT_OTLP_INSECU
 
 `elasticat up` requires `podman compose` to be installed. Check error output for install hints.
 
+## Connecting to External Clusters
+
+ElastiCat works with any Elasticsearch cluster, not just the local Docker stack. Use profiles to save connections to multiple clusters.
+
+### Elastic Cloud
+
+```bash
+# Create a profile for your Elastic Cloud deployment
+elasticat config set-profile cloud \
+  --es-url https://my-deployment.es.us-east-1.aws.elastic.cloud:443 \
+  --es-api-key '${ELASTIC_CLOUD_API_KEY}' \
+  --kibana-url https://my-deployment.kb.us-east-1.aws.elastic.cloud:443
+
+# Switch to it
+elasticat config use-profile cloud
+
+# Now all commands use your cloud cluster
+elasticat ui
+```
+
+**Getting your credentials:**
+1. Log into [Elastic Cloud](https://cloud.elastic.co)
+2. Go to your deployment → **Management** → **API keys**
+3. Create a new API key with read access to your telemetry indices
+4. Copy the Elasticsearch and Kibana endpoints from the deployment overview
+
+**Tip:** Store the API key in an environment variable for security:
+```bash
+export ELASTIC_CLOUD_API_KEY="your-api-key-here"
+```
+
+### Self-Hosted Elasticsearch
+
+```bash
+# Basic auth
+elasticat config set-profile prod \
+  --es-url https://elasticsearch.internal:9200 \
+  --es-username elastic \
+  --es-password '${ES_PASSWORD}' \
+  --kibana-url https://kibana.internal:5601
+
+# Or with API key
+elasticat config set-profile prod \
+  --es-url https://elasticsearch.internal:9200 \
+  --es-api-key '${PROD_ES_API_KEY}' \
+  --kibana-url https://kibana.internal:5601
+```
+
+### Switching Between Clusters
+
+```bash
+# List all profiles
+elasticat config get-profiles
+
+# Switch default profile
+elasticat config use-profile cloud
+
+# Or use --profile for a single command
+elasticat --profile local ui logs
+elasticat --profile cloud ui traces
+```
+
+### Example: Local + Cloud Setup
+
+A common setup is to have both a local development stack and a cloud staging/production cluster:
+
+```bash
+# Local stack (default, no auth needed)
+elasticat config set-profile local \
+  --es-url http://localhost:9200 \
+  --kibana-url http://localhost:5601
+
+# Cloud staging
+elasticat config set-profile staging \
+  --es-url https://staging.es.us-east-1.aws.elastic.cloud:443 \
+  --es-api-key '${STAGING_API_KEY}' \
+  --kibana-url https://staging.kb.us-east-1.aws.elastic.cloud:443
+
+# Set local as default
+elasticat config use-profile local
+
+# Quick check on staging
+elasticat --profile staging ui logs
+```
+
+### Kibana Integration
+
+When you press `K` in the TUI to open a query in Kibana, ElastiCat uses the `--kibana-url` from your profile. Make sure to set it when creating profiles for external clusters:
+
+```bash
+elasticat config set-profile myprofile \
+  --es-url https://... \
+  --es-api-key '${...}' \
+  --kibana-url https://...   # Don't forget this!
+```
+
 ## Building from Source
 
 ```bash
