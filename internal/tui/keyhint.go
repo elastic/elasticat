@@ -39,5 +39,3 @@ func actionsHint(label string, actions ...Action) string {
 func keysHint(label string, keys ...string) string {
 	return keyHint(keys, label)
 }
-
-

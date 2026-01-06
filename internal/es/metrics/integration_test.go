@@ -1,3 +1,6 @@
+// Copyright 2026 Elasticsearch B.V.
+// SPDX-License-Identifier: Apache-2.0
+
 //go:build integration
 
 package metrics
@@ -11,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/elasticat/internal/es/shared"
+	"github.com/elastic/go-elasticsearch/v8"
 )
 
 type realExecutor struct {
@@ -80,6 +83,7 @@ func (e *realExecutor) SearchForMetrics(ctx context.Context, index string, body 
 }
 
 type bytesReader []byte
+
 func (b bytesReader) Read(p []byte) (n int, err error) {
 	return copy(p, b), io.EOF
 }

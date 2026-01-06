@@ -22,5 +22,3 @@ const (
 	quitConfirmYesKey = "y"
 	quitConfirmNoKey  = "n"
 )
-
-

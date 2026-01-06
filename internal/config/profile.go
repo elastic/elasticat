@@ -31,7 +31,7 @@ type Profile struct {
 // ESProfile holds Elasticsearch connection settings for a profile.
 type ESProfile struct {
 	URL      string `yaml:"url,omitempty"`
-	APIKey   string `yaml:"api-key,omitempty"`   // Supports ${ENV_VAR} syntax
+	APIKey   string `yaml:"api-key,omitempty"` // Supports ${ENV_VAR} syntax
 	Username string `yaml:"username,omitempty"`
 	Password string `yaml:"password,omitempty"` // Supports ${ENV_VAR} syntax
 }

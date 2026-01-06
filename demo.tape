@@ -1,5 +1,5 @@
 # ElastiCat Demo
-Output docs/demo.mp4
+Output docs/demo.gif
 
 # Terminal settings
 Set FontSize 18

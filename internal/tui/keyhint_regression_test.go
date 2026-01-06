@@ -42,5 +42,3 @@ func TestNoHardcodedKeyHintsInRenderers(t *testing.T) {
 		}
 	}
 }
-
-

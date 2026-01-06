@@ -14,13 +14,13 @@ import (
 
 // Flags for set-profile command
 var (
-	setProfileESURL      string
-	setProfileESAPIKey   string
-	setProfileESUsername string
-	setProfileESPassword string
-	setProfileOTLP       string
-	setProfileOTLPInsec  bool
-	setProfileKibanaURL  string
+	setProfileESURL       string
+	setProfileESAPIKey    string
+	setProfileESUsername  string
+	setProfileESPassword  string
+	setProfileOTLP        string
+	setProfileOTLPInsec   bool
+	setProfileKibanaURL   string
 	setProfileKibanaSpace string
 )
 

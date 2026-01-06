@@ -20,5 +20,3 @@ func TestQuickBindings_PrependsHelpKey(t *testing.T) {
 		t.Fatalf("expected help binding label 'help', got %q", b[0].Label)
 	}
 }
-
-
