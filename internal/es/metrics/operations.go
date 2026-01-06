@@ -135,41 +135,77 @@ func Aggregate(ctx context.Context, exec Executor, opts AggregateMetricsOptions)
 	aggs := make(map[string]interface{})
 	for i, mf := range metricFields {
 		aggName := fmt.Sprintf("m%d", i)
+
+		// Build sub-aggregations based on field type
+		subAggs := map[string]interface{}{
+			// Always add last_seen aggregation (works for all types)
+			"last_seen": map[string]interface{}{
+				"max": map[string]interface{}{
+					"field": "@timestamp",
+				},
+			},
+			"latest": map[string]interface{}{
+				"top_hits": map[string]interface{}{
+					"size": 1,
+					"sort": []map[string]interface{}{
+						{"@timestamp": "desc"},
+					},
+					"_source": []string{mf.Name, "@timestamp"},
+				},
+			},
+		}
+
+		if mf.Type == "histogram" {
+			// For histogram fields, use percentiles instead of extended_stats
+			subAggs["stats"] = map[string]interface{}{
+				"percentiles": map[string]interface{}{
+					"field":    mf.Name,
+					"percents": []float64{0, 50, 100},
+				},
+			}
+			subAggs["over_time"] = map[string]interface{}{
+				"date_histogram": map[string]interface{}{
+					"field":          "@timestamp",
+					"fixed_interval": opts.BucketSize,
+				},
+				"aggs": map[string]interface{}{
+					"value": map[string]interface{}{
+						"percentiles": map[string]interface{}{
+							"field":    mf.Name,
+							"percents": []float64{50}, // median for sparkline
+						},
+					},
+				},
+			}
+		} else {
+			// For regular numeric fields, use extended_stats and avg
+			subAggs["stats"] = map[string]interface{}{
+				"extended_stats": map[string]interface{}{
+					"field": mf.Name,
+				},
+			}
+			subAggs["over_time"] = map[string]interface{}{
+				"date_histogram": map[string]interface{}{
+					"field":          "@timestamp",
+					"fixed_interval": opts.BucketSize,
+				},
+				"aggs": map[string]interface{}{
+					"value": map[string]interface{}{
+						"avg": map[string]interface{}{
+							"field": mf.Name,
+						},
+					},
+				},
+			}
+		}
+
 		aggs[aggName] = map[string]interface{}{
 			"filter": map[string]interface{}{
 				"exists": map[string]interface{}{
 					"field": mf.Name,
 				},
 			},
-			"aggs": map[string]interface{}{
-				"stats": map[string]interface{}{
-					"extended_stats": map[string]interface{}{
-						"field": mf.Name,
-					},
-				},
-				"over_time": map[string]interface{}{
-					"date_histogram": map[string]interface{}{
-						"field":          "@timestamp",
-						"fixed_interval": opts.BucketSize,
-					},
-					"aggs": map[string]interface{}{
-						"value": map[string]interface{}{
-							"avg": map[string]interface{}{
-								"field": mf.Name,
-							},
-						},
-					},
-				},
-				"latest": map[string]interface{}{
-					"top_hits": map[string]interface{}{
-						"size": 1,
-						"sort": []map[string]interface{}{
-							{"@timestamp": "desc"},
-						},
-						"_source": []string{mf.Name, "@timestamp"},
-					},
-				},
-			},
+			"aggs": subAggs,
 		}
 	}
 
@@ -332,16 +368,38 @@ func parseAggResponse(body io.Reader, fields []MetricFieldInfo, bucketSize strin
 			Type:      mf.TimeSeriesType,
 		}
 
-		// Extract stats
+		// Mark if this is a histogram type for display purposes
+		isHistogram := mf.Type == "histogram"
+		if isHistogram {
+			am.Type = "histogram"
+		}
+
+		// Extract stats - handle both extended_stats and percentiles responses
 		if stats, ok := metricAgg["stats"].(map[string]interface{}); ok {
-			if min, ok := stats["min"].(float64); ok {
-				am.Min = min
-			}
-			if max, ok := stats["max"].(float64); ok {
-				am.Max = max
-			}
-			if avg, ok := stats["avg"].(float64); ok {
-				am.Avg = avg
+			if isHistogram {
+				// Percentiles response: {"values": {"0.0": x, "50.0": y, "100.0": z}}
+				if values, ok := stats["values"].(map[string]interface{}); ok {
+					if min, ok := values["0.0"].(float64); ok {
+						am.Min = min
+					}
+					if avg, ok := values["50.0"].(float64); ok {
+						am.Avg = avg // Using median (p50) as "avg" for histograms
+					}
+					if max, ok := values["100.0"].(float64); ok {
+						am.Max = max
+					}
+				}
+			} else {
+				// extended_stats response
+				if min, ok := stats["min"].(float64); ok {
+					am.Min = min
+				}
+				if max, ok := stats["max"].(float64); ok {
+					am.Max = max
+				}
+				if avg, ok := stats["avg"].(float64); ok {
+					am.Avg = avg
+				}
 			}
 		}
 
@@ -362,8 +420,18 @@ func parseAggResponse(body io.Reader, fields []MetricFieldInfo, bucketSize strin
 						mb.Count = int64(count)
 					}
 					if value, ok := bucket["value"].(map[string]interface{}); ok {
-						if v, ok := value["value"].(float64); ok {
-							mb.Value = v
+						if isHistogram {
+							// Percentiles response for histogram: {"values": {"50.0": x}}
+							if values, ok := value["values"].(map[string]interface{}); ok {
+								if v, ok := values["50.0"].(float64); ok {
+									mb.Value = v
+								}
+							}
+						} else {
+							// Avg response for regular metrics
+							if v, ok := value["value"].(float64); ok {
+								mb.Value = v
+							}
 						}
 					}
 					am.Buckets = append(am.Buckets, mb)
@@ -371,23 +439,33 @@ func parseAggResponse(body io.Reader, fields []MetricFieldInfo, bucketSize strin
 			}
 		}
 
-		// Extract latest value and timestamp from top_hits
+		// Extract last_seen from max aggregation (works for all types)
+		if lastSeen, ok := metricAgg["last_seen"].(map[string]interface{}); ok {
+			if v, ok := lastSeen["value"].(float64); ok {
+				am.LastSeen = time.UnixMilli(int64(v))
+			}
+		}
+
+		// Extract latest value from top_hits (may not work for histogram types)
 		if latest, ok := metricAgg["latest"].(map[string]interface{}); ok {
 			if hits, ok := latest["hits"].(map[string]interface{}); ok {
 				if hitsList, ok := hits["hits"].([]interface{}); ok && len(hitsList) > 0 {
 					if hit, ok := hitsList[0].(map[string]interface{}); ok {
 						if source, ok := hit["_source"].(map[string]interface{}); ok {
-							am.Latest = shared.GetNestedFloat(source, mf.Name)
-							// Extract @timestamp for LastSeen
-							if ts, ok := source["@timestamp"].(string); ok {
-								if parsed, err := time.Parse(time.RFC3339Nano, ts); err == nil {
-									am.LastSeen = parsed
-								}
+							// For histograms, latest value doesn't make sense (it's a distribution)
+							// We'll use the p50 (median) from the most recent percentiles instead
+							if !isHistogram {
+								am.Latest = shared.GetNestedFloat(source, mf.Name)
 							}
 						}
 					}
 				}
 			}
+		}
+
+		// For histograms, use the median (Avg which is p50) as "Latest" display value
+		if isHistogram && am.Latest == 0 {
+			am.Latest = am.Avg
 		}
 
 		result.Metrics = append(result.Metrics, am)

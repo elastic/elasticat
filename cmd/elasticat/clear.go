@@ -46,7 +46,7 @@ func runClear(parentCtx context.Context) error {
 	defer cancel()
 
 	// Create a client just for ping check (use logs index)
-	pingClient, err := es.New([]string{cfg.ES.URL}, cfg.ES.Index)
+	pingClient, err := es.NewFromConfig(cfg.ES.URL, cfg.ES.Index, cfg.ES.APIKey, cfg.ES.Username, cfg.ES.Password)
 	if err != nil {
 		return fmt.Errorf("failed to create ES client: %w", err)
 	}
@@ -81,7 +81,7 @@ func runClear(parentCtx context.Context) error {
 
 	var totalDeleted int64
 	for _, sig := range signals {
-		client, err := es.New([]string{cfg.ES.URL}, sig.index)
+		client, err := es.NewFromConfig(cfg.ES.URL, sig.index, cfg.ES.APIKey, cfg.ES.Username, cfg.ES.Password)
 		if err != nil {
 			fmt.Printf("  Warning: failed to create client for %s: %v\n", sig.name, err)
 			continue

@@ -10,16 +10,15 @@ import (
 	"runtime"
 	"strings"
 	"time"
-)
 
-// Default Kibana URL - can be overridden
-const defaultKibanaURL = "http://localhost:5601"
+	"github.com/elastic/elasticat/internal/config"
+)
 
 // buildKibanaDiscoverURL constructs a Kibana Discover URL with the given ES|QL query.
 // The URL format opens Kibana Discover in ES|QL mode with the query pre-populated.
 func buildKibanaDiscoverURL(kibanaBaseURL, esqlQuery string, lookback LookbackDuration) string {
 	if kibanaBaseURL == "" {
-		kibanaBaseURL = defaultKibanaURL
+		kibanaBaseURL = config.DefaultKibanaURL
 	}
 
 	// URL-encode the ES|QL query for embedding in the Kibana state
@@ -90,7 +89,7 @@ func (m *Model) openInKibana() {
 		return
 	}
 
-	kibanaURL := buildKibanaDiscoverURL(defaultKibanaURL, m.lastQueryJSON, m.lookback)
+	kibanaURL := buildKibanaDiscoverURL(m.kibanaURL, m.lastQueryJSON, m.lookback)
 
 	if err := openURLInBrowser(kibanaURL); err != nil {
 		m.statusMessage = fmt.Sprintf("Failed to open browser: %v", err)
@@ -140,7 +139,7 @@ func (m *Model) openMetricInKibana(metricName, metricType string) {
 			index, esqlInterval, metricName, bucketInterval)
 	}
 
-	kibanaURL := buildKibanaDiscoverURL(defaultKibanaURL, query, m.lookback)
+	kibanaURL := buildKibanaDiscoverURL(m.kibanaURL, query, m.lookback)
 
 	if err := openURLInBrowser(kibanaURL); err != nil {
 		m.statusMessage = fmt.Sprintf("Failed to open browser: %v", err)
@@ -169,7 +168,7 @@ func (m *Model) openTraceInKibana(traceID string) {
 | LIMIT 1000`,
 		index, esqlInterval, traceID, traceID)
 
-	kibanaURL := buildKibanaDiscoverURL(defaultKibanaURL, query, m.lookback)
+	kibanaURL := buildKibanaDiscoverURL(m.kibanaURL, query, m.lookback)
 
 	if err := openURLInBrowser(kibanaURL); err != nil {
 		m.statusMessage = fmt.Sprintf("Failed to open browser: %v", err)

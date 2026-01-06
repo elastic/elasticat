@@ -55,7 +55,7 @@ func runTUI(parentCtx context.Context, sig tui.SignalType) error {
 	notifyCtx, stop := osSignal.NotifyContext(parentCtx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	client, err := es.New([]string{cfg.ES.URL}, cfg.ES.Index)
+	client, err := es.NewFromConfig(cfg.ES.URL, cfg.ES.Index, cfg.ES.APIKey, cfg.ES.Username, cfg.ES.Password)
 	if err != nil {
 		return fmt.Errorf("failed to create ES client: %w", err)
 	}
@@ -70,7 +70,7 @@ func runTUI(parentCtx context.Context, sig tui.SignalType) error {
 		fmt.Println()
 	}
 
-	model := tui.NewModel(notifyCtx, client, sig, cfg.TUI)
+	model := tui.NewModel(notifyCtx, client, sig, cfg.TUI, cfg.Kibana.URL)
 	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithContext(notifyCtx))
 
 	if _, err := p.Run(); err != nil {

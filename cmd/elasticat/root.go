@@ -18,6 +18,7 @@ var (
 	pingTimeoutFlag time.Duration
 	serviceFlag     string
 	levelFlag       string
+	profileFlag     string // Profile name override
 )
 
 var rootCmd = &cobra.Command{
@@ -28,6 +29,9 @@ var rootCmd = &cobra.Command{
 Start the stack with 'elasticat up', then view logs with 'elasticat ui'.
 Your AI assistant can query logs via the Elasticsearch MCP server.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		// Set profile flag before loading config
+		config.SetProfileFlag(profileFlag)
+
 		cfg, err := config.Load(cmd)
 		if err != nil {
 			return err
@@ -38,7 +42,8 @@ Your AI assistant can query logs via the Elasticsearch MCP server.`,
 }
 
 func init() {
-	// Global flags (Viper precedence: flags > env > defaults)
+	// Global flags (Viper precedence: flags > env > profile > defaults)
+	rootCmd.PersistentFlags().StringVar(&profileFlag, "profile", "", "Configuration profile to use (overrides current-profile in config)")
 	rootCmd.PersistentFlags().StringVar(&esURL, "es-url", config.DefaultESURL, "Elasticsearch URL (env: ELASTICAT_ES_URL)")
 	rootCmd.PersistentFlags().StringVarP(&esIndex, "index", "i", config.DefaultIndex, "Elasticsearch index/data stream pattern (env: ELASTICAT_ES_INDEX)")
 	pingTimeoutFlag = config.DefaultPingTimeout

@@ -147,7 +147,7 @@ func fieldsForRun(cmd *cobra.Command, args []string) (preDashArgs []string, fiel
 }
 
 func runSignalOnce(appCfg config.Config, cfg signalRunConfig, indexPattern string) error {
-	client, err := es.New([]string{appCfg.ES.URL}, indexPattern)
+	client, err := es.NewFromConfig(appCfg.ES.URL, indexPattern, appCfg.ES.APIKey, appCfg.ES.Username, appCfg.ES.Password)
 	if err != nil {
 		return fmt.Errorf("failed to create ES client: %w", err)
 	}
@@ -167,7 +167,7 @@ func runSignalOnce(appCfg config.Config, cfg signalRunConfig, indexPattern strin
 }
 
 func runSignalFollow(appCfg config.Config, cfg signalRunConfig, indexPattern string) error {
-	client, err := es.New([]string{appCfg.ES.URL}, indexPattern)
+	client, err := es.NewFromConfig(appCfg.ES.URL, indexPattern, appCfg.ES.APIKey, appCfg.ES.Username, appCfg.ES.Password)
 	if err != nil {
 		return fmt.Errorf("failed to create ES client: %w", err)
 	}

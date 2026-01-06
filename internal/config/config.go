@@ -9,6 +9,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -19,10 +20,12 @@ import (
 
 // Config holds all application configuration.
 type Config struct {
-	ES    ESConfig    `mapstructure:"es"`
-	OTLP  OTLPConfig  `mapstructure:"otlp"`
-	Watch WatchConfig `mapstructure:"watch"`
-	TUI   TUIConfig   `mapstructure:"tui"`
+	ES          ESConfig     `mapstructure:"es"`
+	OTLP        OTLPConfig   `mapstructure:"otlp"`
+	Kibana      KibanaConfig `mapstructure:"kibana"`
+	Watch       WatchConfig  `mapstructure:"watch"`
+	TUI         TUIConfig    `mapstructure:"tui"`
+	ProfileName string       `mapstructure:"-"` // Active profile name (not persisted)
 }
 
 // ESConfig holds Elasticsearch connection settings.
@@ -31,6 +34,14 @@ type ESConfig struct {
 	Index       string        `mapstructure:"index"`        // Index pattern
 	Timeout     time.Duration `mapstructure:"timeout"`      // Query timeout
 	PingTimeout time.Duration `mapstructure:"ping_timeout"` // Ping timeout
+	APIKey      string        `mapstructure:"api_key"`      // API key for authentication
+	Username    string        `mapstructure:"username"`     // Username for basic auth
+	Password    string        `mapstructure:"password"`     // Password for basic auth
+}
+
+// KibanaConfig holds Kibana connection settings.
+type KibanaConfig struct {
+	URL string `mapstructure:"url"` // Kibana URL
 }
 
 // OTLPConfig holds OpenTelemetry Protocol settings.
@@ -74,6 +85,19 @@ const (
 	DefaultAutoDetectTimeout = 30 * time.Second
 )
 
+// profileFlag holds the --profile flag value, set by root command.
+var profileFlag string
+
+// SetProfileFlag sets the profile flag value (called from root command init).
+func SetProfileFlag(name string) {
+	profileFlag = name
+}
+
+// GetProfileFlag returns the current profile flag value.
+func GetProfileFlag() string {
+	return profileFlag
+}
+
 // ContextKey is used to store config in context.
 type ContextKey struct{}
 
@@ -88,7 +112,7 @@ func WithContext(ctx context.Context, cfg Config) context.Context {
 	return context.WithValue(ctx, ContextKey{}, cfg)
 }
 
-// Load builds a Config using Viper with precedence: flags > env > defaults.
+// Load builds a Config using Viper with precedence: flags > env > profile > defaults.
 // It binds flags from the command (and its parents) and fails fast on invalid values.
 func Load(cmd *cobra.Command) (Config, error) {
 	v := viper.New()
@@ -96,7 +120,16 @@ func Load(cmd *cobra.Command) (Config, error) {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 
+	// 1. Set defaults
 	setDefaults(v)
+
+	// 2. Load and apply profile (between defaults and env)
+	profileName, err := applyProfile(v)
+	if err != nil {
+		return Config{}, fmt.Errorf("apply profile: %w", err)
+	}
+
+	// 3. Bind flags (will override env and profile)
 	if err := bindFlagsRecursive(v, cmd); err != nil {
 		return Config{}, fmt.Errorf("bind flags: %w", err)
 	}
@@ -106,10 +139,59 @@ func Load(cmd *cobra.Command) (Config, error) {
 		return Config{}, fmt.Errorf("unmarshal config: %w", err)
 	}
 
+	cfg.ProfileName = profileName
+
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}
 	return cfg, nil
+}
+
+// applyProfile loads the profile configuration and applies the active profile
+// values to Viper. Returns the name of the active profile (empty if none).
+func applyProfile(v *viper.Viper) (string, error) {
+	profileCfg, err := LoadProfiles()
+	if err != nil {
+		// Log warning but don't fail - profiles are optional
+		fmt.Fprintf(os.Stderr, "Warning: could not load profiles: %v\n", err)
+		return "", nil
+	}
+
+	profile, name := profileCfg.GetActiveProfile(profileFlag)
+	if profile == nil {
+		return "", nil
+	}
+
+	// Resolve environment variable references in credentials
+	resolved, err := profile.Resolve()
+	if err != nil {
+		return "", fmt.Errorf("profile %q: %w", name, err)
+	}
+
+	// Apply profile values to Viper (these become defaults that env/flags can override)
+	if resolved.Elasticsearch.URL != "" {
+		v.Set("es.url", resolved.Elasticsearch.URL)
+	}
+	if resolved.Elasticsearch.APIKey != "" {
+		v.Set("es.api_key", resolved.Elasticsearch.APIKey)
+	}
+	if resolved.Elasticsearch.Username != "" {
+		v.Set("es.username", resolved.Elasticsearch.Username)
+	}
+	if resolved.Elasticsearch.Password != "" {
+		v.Set("es.password", resolved.Elasticsearch.Password)
+	}
+	if resolved.OTLP.Endpoint != "" {
+		v.Set("otlp.endpoint", resolved.OTLP.Endpoint)
+	}
+	if resolved.OTLP.Insecure != nil {
+		v.Set("otlp.insecure", *resolved.OTLP.Insecure)
+	}
+	if resolved.Kibana.URL != "" {
+		v.Set("kibana.url", resolved.Kibana.URL)
+	}
+
+	return name, nil
 }
 
 // setDefaults registers default values with Viper.
@@ -118,9 +200,14 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("es.index", DefaultIndex)
 	v.SetDefault("es.timeout", DefaultTimeout)
 	v.SetDefault("es.ping_timeout", DefaultPingTimeout)
+	v.SetDefault("es.api_key", "")
+	v.SetDefault("es.username", "")
+	v.SetDefault("es.password", "")
 
 	v.SetDefault("otlp.endpoint", DefaultOTLPEndpoint)
 	v.SetDefault("otlp.insecure", true)
+
+	v.SetDefault("kibana.url", DefaultKibanaURL)
 
 	v.SetDefault("watch.tail_lines", DefaultTailLines)
 	v.SetDefault("watch.no_color", false)

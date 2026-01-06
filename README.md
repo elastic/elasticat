@@ -214,6 +214,7 @@ These flags work on all commands:
 
 | Flag | Default | Description |
 |------|---------|-------------|
+| `--profile` | (none) | Configuration profile to use |
 | `--es-url` | `http://localhost:9200` | Elasticsearch URL |
 | `--index`, `-i` | `logs-*` | Index pattern (TUI auto-selects based on signal) |
 | `--ping-timeout` | `5s` | Elasticsearch ping timeout |
@@ -339,7 +340,89 @@ Deletes from: your configured index pattern, `metrics-*`, and `traces-*`.
 
 ## Configuration
 
-**Precedence:** flags > environment variables > defaults
+**Precedence:** flags > environment variables > profile > defaults
+
+### Profiles
+
+Profiles let you save and switch between multiple Elasticsearch/Kibana/OTLP configurations (similar to kubectl contexts). Configuration is stored in `~/.config/elasticat/config.yaml`.
+
+#### Quick Start
+
+```bash
+# Create a profile
+elasticat config set-profile staging \
+  --es-url https://staging.es.example.com:9243 \
+  --es-api-key '${STAGING_ES_API_KEY}' \
+  --kibana-url https://staging.kb.example.com
+
+# Switch to it
+elasticat config use-profile staging
+
+# List all profiles
+elasticat config get-profiles
+
+# Use a profile for a single command
+elasticat --profile staging ui logs
+```
+
+#### Profile Commands
+
+| Command | Description |
+|---------|-------------|
+| `elasticat config set-profile <name>` | Create or update a profile |
+| `elasticat config use-profile <name>` | Switch to a profile |
+| `elasticat config get-profiles` | List all profiles |
+| `elasticat config current-profile` | Show current profile name |
+| `elasticat config delete-profile <name>` | Delete a profile |
+| `elasticat config view` | Show full config (credentials masked) |
+| `elasticat config path` | Show config file path |
+
+#### Profile Settings
+
+| Flag | Description |
+|------|-------------|
+| `--es-url` | Elasticsearch URL |
+| `--es-api-key` | API key (supports `${ENV_VAR}` syntax) |
+| `--es-username` | Username for basic auth |
+| `--es-password` | Password (supports `${ENV_VAR}` syntax) |
+| `--otlp` | OTLP endpoint |
+| `--otlp-insecure` | Use insecure OTLP connection |
+| `--kibana-url` | Kibana URL |
+
+#### Credential Security
+
+Credentials can be stored as environment variable references (recommended) or plain text:
+
+```yaml
+# Recommended: Use env var references
+profiles:
+  production:
+    elasticsearch:
+      url: https://prod.es.example.com:9243
+      api-key: ${PROD_ES_API_KEY}
+
+# Also works: Plain text (warning shown on creation)
+profiles:
+  local:
+    elasticsearch:
+      url: http://localhost:9200
+      api-key: actual-key-here
+```
+
+Security features:
+- Config file is created with mode `0600` (owner read/write only)
+- Warnings shown if file has insecure permissions
+- `elasticat config view` always masks credential values
+- Missing env vars cause immediate errors (fail-fast)
+
+#### Global `--profile` Flag
+
+Override the current profile for a single command:
+
+```bash
+elasticat --profile production ui logs
+elasticat --profile staging search "error"
+```
 
 ### Environment Variables
 

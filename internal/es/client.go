@@ -34,10 +34,28 @@ import (
 // - Traces operations: traces/operations.go
 // - Perspectives operations: perspectives/operations.go
 
-// New creates a new Elasticsearch client
-func New(addresses []string, index string) (*Client, error) {
+// ClientOptions holds configuration for creating a new Elasticsearch client.
+type ClientOptions struct {
+	Addresses []string // Elasticsearch addresses (e.g., ["http://localhost:9200"])
+	Index     string   // Default index pattern
+	APIKey    string   // API key for authentication (base64 encoded)
+	Username  string   // Username for basic auth
+	Password  string   // Password for basic auth
+}
+
+// NewWithOptions creates a new Elasticsearch client with the given options.
+// Supports API key authentication and basic auth.
+func NewWithOptions(opts ClientOptions) (*Client, error) {
 	cfg := elasticsearch.Config{
-		Addresses: addresses,
+		Addresses: opts.Addresses,
+	}
+
+	// Configure authentication
+	if opts.APIKey != "" {
+		cfg.APIKey = opts.APIKey
+	} else if opts.Username != "" {
+		cfg.Username = opts.Username
+		cfg.Password = opts.Password
 	}
 
 	es, err := elasticsearch.NewClient(cfg)
@@ -47,13 +65,33 @@ func New(addresses []string, index string) (*Client, error) {
 
 	return &Client{
 		es:    es,
-		index: index,
+		index: opts.Index,
 	}, nil
+}
+
+// New creates a new Elasticsearch client (for backwards compatibility).
+func New(addresses []string, index string) (*Client, error) {
+	return NewWithOptions(ClientOptions{
+		Addresses: addresses,
+		Index:     index,
+	})
 }
 
 // NewDefault creates a client with default localhost configuration
 func NewDefault() (*Client, error) {
 	return New([]string{"http://localhost:9200"}, "logs")
+}
+
+// NewFromConfig creates a client from the application config.
+// This is the recommended way to create clients as it includes auth settings.
+func NewFromConfig(url, index, apiKey, username, password string) (*Client, error) {
+	return NewWithOptions(ClientOptions{
+		Addresses: []string{url},
+		Index:     index,
+		APIKey:    apiKey,
+		Username:  username,
+		Password:  password,
+	})
 }
 
 // SetIndex changes the index pattern

@@ -307,6 +307,128 @@ func TestAggregate_Success(t *testing.T) {
 	}
 }
 
+func TestAggregate_Histogram(t *testing.T) {
+	// Create mock field caps response with histogram field
+	mock := &mockExecutor{
+		index: "metrics-*",
+		fieldCapsResp: &shared.FieldCapsResponse{
+			Fields: map[string]map[string]shared.FieldCapsInfo{
+				"metrics.transaction.duration.histogram": {
+					"histogram": {Type: "histogram", Aggregatable: true},
+				},
+			},
+		},
+	}
+
+	// Create mock aggregation response with percentiles format
+	now := time.Now()
+	aggResponse := map[string]interface{}{
+		"aggregations": map[string]interface{}{
+			"m0": map[string]interface{}{
+				"doc_count": float64(142),
+				"stats": map[string]interface{}{
+					"values": map[string]interface{}{
+						"0.0":   float64(0),
+						"50.0":  float64(179.08),
+						"100.0": float64(125632.78),
+					},
+				},
+				"over_time": map[string]interface{}{
+					"buckets": []interface{}{
+						map[string]interface{}{
+							"key":       float64(now.Add(-10 * time.Minute).UnixMilli()),
+							"doc_count": float64(70),
+							"value": map[string]interface{}{
+								"values": map[string]interface{}{
+									"50.0": float64(150.5),
+								},
+							},
+						},
+						map[string]interface{}{
+							"key":       float64(now.UnixMilli()),
+							"doc_count": float64(72),
+							"value": map[string]interface{}{
+								"values": map[string]interface{}{
+									"50.0": float64(200.3),
+								},
+							},
+						},
+					},
+				},
+				"last_seen": map[string]interface{}{
+					"value": float64(now.UnixMilli()),
+				},
+				"latest": map[string]interface{}{
+					"hits": map[string]interface{}{
+						"hits": []interface{}{},
+					},
+				},
+			},
+		},
+	}
+
+	responseJSON, _ := json.Marshal(aggResponse)
+	mock.searchResponse = &shared.SearchResponse{
+		Body:       io.NopCloser(strings.NewReader(string(responseJSON))),
+		StatusCode: 200,
+		Status:     "200 OK",
+		IsError:    false,
+	}
+
+	opts := AggregateMetricsOptions{
+		Lookback:   "now-24h",
+		BucketSize: "10m",
+	}
+
+	result, err := Aggregate(context.Background(), mock, opts)
+	if err != nil {
+		t.Fatalf("Aggregate failed: %v", err)
+	}
+
+	if len(result.Metrics) != 1 {
+		t.Fatalf("Expected 1 metric, got %d", len(result.Metrics))
+	}
+
+	metric := result.Metrics[0]
+
+	// Verify histogram type is detected
+	if metric.Type != "histogram" {
+		t.Errorf("Type = %q, want %q", metric.Type, "histogram")
+	}
+
+	// Verify percentile values are parsed correctly
+	if metric.Min != 0 {
+		t.Errorf("Min = %f, want %f", metric.Min, 0.0)
+	}
+	if metric.Avg != 179.08 {
+		t.Errorf("Avg (p50) = %f, want %f", metric.Avg, 179.08)
+	}
+	if metric.Max != 125632.78 {
+		t.Errorf("Max = %f, want %f", metric.Max, 125632.78)
+	}
+
+	// Verify Latest is set to p50 for histograms
+	if metric.Latest != 179.08 {
+		t.Errorf("Latest = %f, want %f", metric.Latest, 179.08)
+	}
+
+	// Verify buckets use percentile values
+	if len(metric.Buckets) != 2 {
+		t.Fatalf("Expected 2 buckets, got %d", len(metric.Buckets))
+	}
+	if metric.Buckets[0].Value != 150.5 {
+		t.Errorf("Bucket[0].Value = %f, want %f", metric.Buckets[0].Value, 150.5)
+	}
+	if metric.Buckets[1].Value != 200.3 {
+		t.Errorf("Bucket[1].Value = %f, want %f", metric.Buckets[1].Value, 200.3)
+	}
+
+	// Verify LastSeen is set
+	if metric.LastSeen.IsZero() {
+		t.Error("LastSeen should be set")
+	}
+}
+
 func TestAggregate_WithFilters(t *testing.T) {
 	mock := &mockExecutor{
 		index: "metrics-*",

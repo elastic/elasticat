@@ -34,6 +34,7 @@ type Model struct {
 	ctx       context.Context  // Parent context (canceled when app exits)
 	requests  *requestManager  // In-flight request management
 	tuiConfig config.TUIConfig // TUI timing/config
+	kibanaURL string           // Kibana base URL for "Open in Kibana" feature
 
 	// === UI State ===
 	mode            viewMode
@@ -190,7 +191,7 @@ func (m *Model) setViewportContent(content string) {
 // NewModel creates a new TUI model.
 // The client parameter accepts any DataSource implementation, enabling
 // mock data sources for testing.
-func NewModel(ctx context.Context, client DataSource, signal SignalType, tuiCfg config.TUIConfig) Model {
+func NewModel(ctx context.Context, client DataSource, signal SignalType, tuiCfg config.TUIConfig, kibanaURL string) Model {
 	ti := textinput.New()
 	ti.Placeholder = "Search... (supports ES query syntax)"
 	ti.CharLimit = 256
@@ -224,10 +225,16 @@ func NewModel(ctx context.Context, client DataSource, signal SignalType, tuiCfg 
 		ctx = context.Background()
 	}
 
+	// Use default Kibana URL if not configured
+	if kibanaURL == "" {
+		kibanaURL = config.DefaultKibanaURL
+	}
+
 	return Model{
 		ctx:             ctx,
 		client:          client,
 		tuiConfig:       tuiCfg,
+		kibanaURL:       kibanaURL,
 		logs:            []es.LogEntry{},
 		mode:            initialMode,
 		autoRefresh:     true,

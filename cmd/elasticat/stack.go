@@ -275,7 +275,7 @@ func runStatus(parentCtx context.Context) error {
 		return fmt.Errorf("configuration not loaded")
 	}
 
-	client, err := es.New([]string{cfg.ES.URL}, cfg.ES.Index)
+	client, err := es.NewFromConfig(cfg.ES.URL, cfg.ES.Index, cfg.ES.APIKey, cfg.ES.Username, cfg.ES.Password)
 	if err != nil {
 		return fmt.Errorf("failed to create ES client: %w", err)
 	}
