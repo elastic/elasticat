@@ -10,24 +10,26 @@ permissions:
 
 jobs:
   build:
-    name: Build (${{ matrix.os }})
+    name: Build (${{ matrix.goos }}/${{ matrix.goarch }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
-            binary: elasticat-linux-amd64
-            asset_name: elasticat-linux-amd64
+            goos: linux
+            goarch: amd64
           - os: macos-latest
-            binary: elasticat-darwin-arm64
-            asset_name: elasticat-darwin-arm64
+            goos: darwin
+            goarch: arm64
           - os: windows-latest
-            binary: elasticat-windows-amd64.exe
-            asset_name: elasticat-windows-amd64.exe
+            goos: windows
+            goarch: amd64
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need tags for version
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -40,21 +42,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libgl1-mesa-dev libxxf86vm-dev
 
-      - name: Build binary (Unix)
-        if: matrix.os != 'windows-latest'
-        run: |
-          go build -ldflags="-s -w" -o bin/${{ matrix.binary }} ./cmd/elasticat
-
-      - name: Build binary (Windows)
-        if: matrix.os == 'windows-latest'
-        run: |
-          go build -ldflags="-s -w" -o bin/${{ matrix.binary }} ./cmd/elasticat
+      - name: Build distribution archive
+        run: make dist-platform GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} VERSION=${{ github.ref_name }}
+        shell: bash
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.binary }}
-          path: bin/${{ matrix.binary }}
+          name: elasticat-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/elasticat-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}.*
 
   release:
     name: Create Release
@@ -69,12 +65,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            artifacts/elasticat-linux-amd64/elasticat-linux-amd64
-            artifacts/elasticat-darwin-arm64/elasticat-darwin-arm64
-            artifacts/elasticat-windows-amd64.exe/elasticat-windows-amd64.exe
+          files: artifacts/*/*
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-

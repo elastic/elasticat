@@ -1,4 +1,4 @@
-.PHONY: build install clean up down logs test fmt fmt-check license-check license-add notice
+.PHONY: build install clean up down logs test fmt fmt-check license-check license-add notice dist dist-platform dist-clean
 
 # Build the elasticat binary
 build:
@@ -86,3 +86,40 @@ notice:
 		-noticeTemplate scripts/notice/NOTICE.txt.tmpl \
 		-noticeOut NOTICE.txt \
 		-depsOut ""
+
+# Distribution variables
+DIST_DIR := dist
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+
+# Build a distribution archive with binary + license files
+dist: build
+	@echo "Creating distribution archive..."
+	@mkdir -p $(DIST_DIR)
+	@cp bin/elasticat $(DIST_DIR)/
+	@cp LICENSE.txt $(DIST_DIR)/
+	@cp NOTICE.txt $(DIST_DIR)/
+	@cp README.md $(DIST_DIR)/
+	@echo "Distribution files ready in $(DIST_DIR)/"
+
+# Cross-compile and package for a specific platform (used by CI)
+# Usage: make dist-platform GOOS=linux GOARCH=amd64
+dist-platform:
+	@echo "Building for $(GOOS)/$(GOARCH)..."
+	@mkdir -p $(DIST_DIR)
+	$(eval EXT := $(if $(filter windows,$(GOOS)),.exe,))
+	$(eval ARCHIVE_EXT := $(if $(filter windows,$(GOOS)),.zip,.tar.gz))
+	$(eval BINARY := elasticat-$(GOOS)-$(GOARCH)$(EXT))
+	$(eval ARCHIVE := elasticat-$(VERSION)-$(GOOS)-$(GOARCH)$(ARCHIVE_EXT))
+	@GOOS=$(GOOS) GOARCH=$(GOARCH) go build -ldflags="-s -w" -o $(DIST_DIR)/$(BINARY) ./cmd/elasticat
+	@cp LICENSE.txt NOTICE.txt README.md $(DIST_DIR)/
+	@cd $(DIST_DIR) && \
+		if [ "$(GOOS)" = "windows" ]; then \
+			zip $(ARCHIVE) $(BINARY) LICENSE.txt NOTICE.txt README.md; \
+		else \
+			tar -czvf $(ARCHIVE) $(BINARY) LICENSE.txt NOTICE.txt README.md; \
+		fi
+	@echo "Created $(DIST_DIR)/$(ARCHIVE)"
+
+# Clean distribution artifacts
+dist-clean:
+	rm -rf $(DIST_DIR)
