@@ -54,6 +54,8 @@ func (m Model) handleMetricsDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Open Kibana with a basic metrics query
 		m.openInKibana()
 		return m, nil
+	case ActionQuit:
+		return m, tea.Quit
 	}
 
 	// View-specific keys

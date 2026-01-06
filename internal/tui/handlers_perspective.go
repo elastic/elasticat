@@ -87,6 +87,8 @@ func (m Model) handlePerspectiveListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Return to previous view via stack
 		m.popView()
 		return m, nil
+	case ActionQuit:
+		return m, tea.Quit
 	}
 
 	return m, nil

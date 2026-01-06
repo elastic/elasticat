@@ -41,7 +41,8 @@ type ESConfig struct {
 
 // KibanaConfig holds Kibana connection settings.
 type KibanaConfig struct {
-	URL string `mapstructure:"url"` // Kibana URL
+	URL   string `mapstructure:"url"`   // Kibana URL
+	Space string `mapstructure:"space"` // Kibana space (e.g., "elasticat")
 }
 
 // OTLPConfig holds OpenTelemetry Protocol settings.
@@ -83,6 +84,7 @@ const (
 	DefaultTracesTimeout     = 30 * time.Second
 	DefaultFieldCapsTimeout  = 10 * time.Second
 	DefaultAutoDetectTimeout = 30 * time.Second
+	DefaultKibanaSpace       = "elasticat" // Default space for local stack
 )
 
 // profileFlag holds the --profile flag value, set by root command.
@@ -141,6 +143,11 @@ func Load(cmd *cobra.Command) (Config, error) {
 
 	cfg.ProfileName = profileName
 
+	// Default to "elasticat" space when using localhost Kibana and no space is set
+	if cfg.Kibana.Space == "" && isLocalhostURL(cfg.Kibana.URL) {
+		cfg.Kibana.Space = DefaultKibanaSpace
+	}
+
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}
@@ -190,6 +197,9 @@ func applyProfile(v *viper.Viper) (string, error) {
 	if resolved.Kibana.URL != "" {
 		v.Set("kibana.url", resolved.Kibana.URL)
 	}
+	if resolved.Kibana.Space != "" {
+		v.Set("kibana.space", resolved.Kibana.Space)
+	}
 
 	return name, nil
 }
@@ -208,6 +218,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("otlp.insecure", true)
 
 	v.SetDefault("kibana.url", DefaultKibanaURL)
+	v.SetDefault("kibana.space", "")
 
 	v.SetDefault("watch.tail_lines", DefaultTailLines)
 	v.SetDefault("watch.no_color", false)
@@ -269,6 +280,14 @@ func bindFlagSet(v *viper.Viper, fs *pflag.FlagSet) error {
 		_ = v.BindPFlag(key, f)
 	})
 	return nil
+}
+
+// isLocalhostURL returns true if the URL points to localhost.
+func isLocalhostURL(rawURL string) bool {
+	if rawURL == "" {
+		return false
+	}
+	return strings.Contains(rawURL, "localhost") || strings.Contains(rawURL, "127.0.0.1")
 }
 
 // Validate enforces correctness and fails fast on invalid configuration.

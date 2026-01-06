@@ -70,7 +70,7 @@ func runTUI(parentCtx context.Context, sig tui.SignalType) error {
 		fmt.Println()
 	}
 
-	model := tui.NewModel(notifyCtx, client, sig, cfg.TUI, cfg.Kibana.URL)
+	model := tui.NewModel(notifyCtx, client, sig, cfg.TUI, cfg.Kibana.URL, cfg.Kibana.Space)
 	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithContext(notifyCtx))
 
 	if _, err := p.Run(); err != nil {

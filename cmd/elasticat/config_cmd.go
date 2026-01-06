@@ -21,6 +21,7 @@ var (
 	setProfileOTLP       string
 	setProfileOTLPInsec  bool
 	setProfileKibanaURL  string
+	setProfileKibanaSpace string
 )
 
 var configCmd = &cobra.Command{
@@ -118,6 +119,9 @@ Credentials can be stored as:
 		}
 		if setProfileKibanaURL != "" {
 			profile.Kibana.URL = setProfileKibanaURL
+		}
+		if setProfileKibanaSpace != "" {
+			profile.Kibana.Space = setProfileKibanaSpace
 		}
 
 		cfg.SetProfile(name, profile)
@@ -261,6 +265,7 @@ func init() {
 	setProfileCmd.Flags().StringVar(&setProfileOTLP, "otlp", "", "OTLP endpoint")
 	setProfileCmd.Flags().BoolVar(&setProfileOTLPInsec, "otlp-insecure", true, "Use insecure OTLP connection")
 	setProfileCmd.Flags().StringVar(&setProfileKibanaURL, "kibana-url", "", "Kibana URL")
+	setProfileCmd.Flags().StringVar(&setProfileKibanaSpace, "kibana-space", "", "Kibana space (e.g., 'elasticat')")
 
 	// Add subcommands
 	configCmd.AddCommand(useProfileCmd)
@@ -284,7 +289,11 @@ func formatProfileSummary(p config.Profile) string {
 		parts = append(parts, fmt.Sprintf("otlp=%s", p.OTLP.Endpoint))
 	}
 	if p.Kibana.URL != "" {
-		parts = append(parts, fmt.Sprintf("kibana=%s", p.Kibana.URL))
+		kibanaStr := p.Kibana.URL
+		if p.Kibana.Space != "" {
+			kibanaStr = fmt.Sprintf("%s (space: %s)", p.Kibana.URL, p.Kibana.Space)
+		}
+		parts = append(parts, fmt.Sprintf("kibana=%s", kibanaStr))
 	}
 	if len(parts) == 0 {
 		return "(empty)"

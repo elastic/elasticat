@@ -16,7 +16,8 @@ import (
 
 // buildKibanaDiscoverURL constructs a Kibana Discover URL with the given ES|QL query.
 // The URL format opens Kibana Discover in ES|QL mode with the query pre-populated.
-func buildKibanaDiscoverURL(kibanaBaseURL, esqlQuery string, lookback LookbackDuration) string {
+// If space is non-empty, the URL will include the space path prefix (e.g., /s/elasticat/app/discover).
+func buildKibanaDiscoverURL(kibanaBaseURL, space, esqlQuery string, lookback LookbackDuration) string {
 	if kibanaBaseURL == "" {
 		kibanaBaseURL = config.DefaultKibanaURL
 	}
@@ -28,14 +29,21 @@ func buildKibanaDiscoverURL(kibanaBaseURL, esqlQuery string, lookback LookbackDu
 	// Convert lookback to Kibana time format (e.g., "now-24h")
 	kibanaFrom := lookback.KibanaTimeFrom()
 
+	// Build the app path, including space prefix if specified
+	appPath := "/app/discover"
+	if space != "" {
+		appPath = fmt.Sprintf("/s/%s/app/discover", space)
+	}
+
 	// Build the Kibana Discover URL with ES|QL mode
-	// Format: /app/discover#/?_g=(time:(...))&_a=(dataSource:(type:esql),query:(esql:'...'))
+	// Format: /s/{space}/app/discover#/?_g=(time:(...))&_a=(dataSource:(type:esql),query:(esql:'...'))
 	//
 	// The _g parameter contains global state (time range)
 	// The _a parameter contains app state (data source type, query, columns)
 	kibanaURL := fmt.Sprintf(
-		"%s/app/discover#/?_g=(filters:!(),refreshInterval:(pause:!t,value:60000),time:(from:%s,to:now))&_a=(columns:!('@timestamp'),dataSource:(type:esql),filters:!(),interval:auto,query:(esql:'%s'),sort:!())",
+		"%s%s#/?_g=(filters:!(),refreshInterval:(pause:!t,value:60000),time:(from:%s,to:now))&_a=(columns:!('@timestamp'),dataSource:(type:esql),filters:!(),interval:auto,query:(esql:'%s'),sort:!())",
 		strings.TrimSuffix(kibanaBaseURL, "/"),
+		appPath,
 		kibanaFrom,
 		encodedQuery,
 	)
@@ -89,7 +97,7 @@ func (m *Model) openInKibana() {
 		return
 	}
 
-	kibanaURL := buildKibanaDiscoverURL(m.kibanaURL, m.lastQueryJSON, m.lookback)
+	kibanaURL := buildKibanaDiscoverURL(m.kibanaURL, m.kibanaSpace, m.lastQueryJSON, m.lookback)
 
 	if err := openURLInBrowser(kibanaURL); err != nil {
 		m.statusMessage = fmt.Sprintf("Failed to open browser: %v", err)
@@ -139,7 +147,7 @@ func (m *Model) openMetricInKibana(metricName, metricType string) {
 			index, esqlInterval, metricName, bucketInterval)
 	}
 
-	kibanaURL := buildKibanaDiscoverURL(m.kibanaURL, query, m.lookback)
+	kibanaURL := buildKibanaDiscoverURL(m.kibanaURL, m.kibanaSpace, query, m.lookback)
 
 	if err := openURLInBrowser(kibanaURL); err != nil {
 		m.statusMessage = fmt.Sprintf("Failed to open browser: %v", err)
@@ -168,7 +176,7 @@ func (m *Model) openTraceInKibana(traceID string) {
 | LIMIT 1000`,
 		index, esqlInterval, traceID, traceID)
 
-	kibanaURL := buildKibanaDiscoverURL(m.kibanaURL, query, m.lookback)
+	kibanaURL := buildKibanaDiscoverURL(m.kibanaURL, m.kibanaSpace, query, m.lookback)
 
 	if err := openURLInBrowser(kibanaURL); err != nil {
 		m.statusMessage = fmt.Sprintf("Failed to open browser: %v", err)

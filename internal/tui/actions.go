@@ -16,20 +16,21 @@ const (
 	ActionPageDown
 	ActionGoTop
 	ActionGoBottom
-	ActionPrevItem // ← or h (vim) - prev doc/metric
-	ActionNextItem // → or l (vim) - next doc/metric
+	ActionPrevItem // left arrow, prev doc/metric
+	ActionNextItem // right arrow, next doc/metric
 
 	// Common actions
 	ActionSelect        // enter - select/confirm
-	ActionBack          // esc, backspace - go back/close
-	ActionQuit          // q - quit (via confirmation modal)
+	ActionBack          // esc, backspace, q - go back/close
+	ActionQuit          // q in main views - quit app
+	ActionHelp          // ? - show help overlay
 	ActionRefresh       // r - refresh data
 	ActionSearch        // / - open search
-	ActionCycleLookback // L - cycle time range
+	ActionCycleLookback // l - cycle time range
 	ActionCycleSignal   // m - cycle signal type
 	ActionPerspective   // p - perspective view/cycle
 	ActionCopy          // y - copy to clipboard
-	ActionJSON          // J - view as JSON
+	ActionJSON          // j - view as JSON (context-dependent)
 	ActionKibana        // K - open in Kibana
 	ActionSort          // s - toggle sort
 	ActionFields        // f - field selector
@@ -39,10 +40,9 @@ const (
 	ActionDocuments     // d - switch to documents view (context)
 	ActionToggle        // space - toggle selection
 	ActionReset         // r - reset (in fields view)
-	ActionSpans         // S - view spans (in trace detail)
+	ActionSpans         // s - view spans (in trace detail)
 	ActionNextDoc       // n - next document (in metric detail)
 	ActionPrevDoc       // N - prev document (in metric detail)
-	ActionHelp          // H - help overlay
 )
 
 // DefaultKeyBindings maps keys to their primary action.
@@ -60,18 +60,17 @@ var DefaultKeyBindings = map[string]Action{
 	"end":    ActionGoBottom,
 	"G":      ActionGoBottom,
 	"left":   ActionPrevItem,
-	"h":      ActionPrevItem, // vim-style backward
 	"right":  ActionNextItem,
-	"l":      ActionNextItem, // vim-style forward
 
 	// Common actions
 	"enter":     ActionSelect,
 	"esc":       ActionBack,
 	"backspace": ActionBack,
 	"q":         ActionQuit,
+	"?":         ActionHelp,
 	"r":         ActionRefresh,
 	"/":         ActionSearch,
-	"L":         ActionCycleLookback,
+	"l":         ActionCycleLookback,
 	"m":         ActionCycleSignal,
 	"p":         ActionPerspective,
 	"y":         ActionCopy,
@@ -87,7 +86,6 @@ var DefaultKeyBindings = map[string]Action{
 	"S": ActionSpans,   // Spans view in trace detail
 	"n": ActionNextDoc, // Next document in metric detail
 	"N": ActionPrevDoc, // Prev document in metric detail
-	"H": ActionHelp,    // Help overlay
 
 	// Context-dependent keys (handled specially in some views)
 	// "d" - dashboard/documents toggle (not in default map)
@@ -131,9 +129,10 @@ var ActionDisplay = map[Action]ActionInfo{
 	ActionSelect:        {DisplayKeys: []string{"enter"}, Label: "select"},
 	ActionBack:          {DisplayKeys: []string{"esc"}, Label: "back"},
 	ActionQuit:          {DisplayKeys: []string{"q"}, Label: "quit"},
+	ActionHelp:          {DisplayKeys: []string{"?"}, Label: "help"},
 	ActionRefresh:       {DisplayKeys: []string{"r"}, Label: "refresh"},
 	ActionSearch:        {DisplayKeys: []string{"/"}, Label: "search"},
-	ActionCycleLookback: {DisplayKeys: []string{"L"}, Label: "lookback"},
+	ActionCycleLookback: {DisplayKeys: []string{"l"}, Label: "lookback"},
 	ActionCycleSignal:   {DisplayKeys: []string{"m"}, Label: "signal"},
 	ActionPerspective:   {DisplayKeys: []string{"p"}, Label: "perspective"},
 	ActionCopy:          {DisplayKeys: []string{"y"}, Label: "copy"},
@@ -148,7 +147,6 @@ var ActionDisplay = map[Action]ActionInfo{
 	ActionSpans:         {DisplayKeys: []string{"S"}, Label: "spans"},
 	ActionNextDoc:       {DisplayKeys: []string{"n"}, Label: "next doc"},
 	ActionPrevDoc:       {DisplayKeys: []string{"N"}, Label: "prev doc"},
-	ActionHelp:          {DisplayKeys: []string{"H"}, Label: "help"},
 }
 
 // ScrollDisplayKeys returns the combined display for scroll up/down

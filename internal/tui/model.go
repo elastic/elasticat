@@ -30,11 +30,12 @@ import (
 //   - Components: text inputs and viewports
 type Model struct {
 	// === Core ===
-	client    DataSource       // Data source (interface for testability)
-	ctx       context.Context  // Parent context (canceled when app exits)
-	requests  *requestManager  // In-flight request management
-	tuiConfig config.TUIConfig // TUI timing/config
-	kibanaURL string           // Kibana base URL for "Open in Kibana" feature
+	client      DataSource       // Data source (interface for testability)
+	ctx         context.Context  // Parent context (canceled when app exits)
+	requests    *requestManager  // In-flight request management
+	tuiConfig   config.TUIConfig // TUI timing/config
+	kibanaURL   string           // Kibana base URL for "Open in Kibana" feature
+	kibanaSpace string           // Kibana space (e.g., "elasticat") for URL path prefix
 
 	// === UI State ===
 	mode            viewMode
@@ -191,7 +192,7 @@ func (m *Model) setViewportContent(content string) {
 // NewModel creates a new TUI model.
 // The client parameter accepts any DataSource implementation, enabling
 // mock data sources for testing.
-func NewModel(ctx context.Context, client DataSource, signal SignalType, tuiCfg config.TUIConfig, kibanaURL string) Model {
+func NewModel(ctx context.Context, client DataSource, signal SignalType, tuiCfg config.TUIConfig, kibanaURL, kibanaSpace string) Model {
 	ti := textinput.New()
 	ti.Placeholder = "Search... (supports ES query syntax)"
 	ti.CharLimit = 256
@@ -235,6 +236,7 @@ func NewModel(ctx context.Context, client DataSource, signal SignalType, tuiCfg 
 		client:          client,
 		tuiConfig:       tuiCfg,
 		kibanaURL:       kibanaURL,
+		kibanaSpace:     kibanaSpace,
 		logs:            []es.LogEntry{},
 		mode:            initialMode,
 		autoRefresh:     true,

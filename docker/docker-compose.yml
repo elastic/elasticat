@@ -82,7 +82,6 @@ services:
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
       - xpack.security.enabled=false
-      - xpack.spaces.defaultSolution=observability
       - server.name=elasticat-kibana
     ports:
       - "5601:5601"
@@ -91,6 +90,35 @@ services:
     depends_on:
       elasticsearch:
         condition: service_healthy
+    profiles:
+      - kibana
+
+  # Creates an 'elasticat' space with Observability solution view
+  # This runs after Kibana starts and creates the space via API
+  kibana-setup:
+    image: curlimages/curl:latest
+    container_name: elasticat-kibana-setup
+    depends_on:
+      kibana:
+        condition: service_started
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo 'Waiting for Kibana to be ready...'
+        until curl -sf http://kibana:5601/api/status > /dev/null 2>&1; do
+          sleep 5
+        done
+        echo 'Kibana is up, creating elasticat space...'
+        curl -X POST 'http://kibana:5601/api/spaces/space' \
+             -H 'kbn-xsrf: true' \
+             -H 'Content-Type: application/json' \
+             -d '{"id":"elasticat","name":"ElastiCat","description":"Observability space for ElastiCat","color":"#F06292","initials":"EC","disabledFeatures":[],"solution":"oblt"}'
+        echo ''
+        echo 'ElastiCat space created with Observability solution'
+        echo 'Access it at: http://localhost:5601/s/elasticat'
+    networks:
+      - elasticat
     profiles:
       - kibana
 

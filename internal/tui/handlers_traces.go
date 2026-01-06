@@ -44,6 +44,8 @@ func (m Model) handleTraceNamesKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.pushView(viewSearch)
 		m.searchInput.Focus()
 		return m, textinput.Blink
+	case ActionQuit:
+		return m, tea.Quit
 	}
 
 	return m, nil

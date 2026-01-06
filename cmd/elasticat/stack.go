@@ -44,6 +44,15 @@ var downCmd = &cobra.Command{
 	},
 }
 
+var destroyCmd = &cobra.Command{
+	Use:   "destroy",
+	Short: "Stop the ElastiCat stack and remove all data",
+	Long:  `Stops the Docker Compose stack and removes all containers, networks, and volumes including Elasticsearch data.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runDestroy()
+	},
+}
+
 var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Check the status of the ElastiCat stack",
@@ -60,6 +69,7 @@ func init() {
 
 	rootCmd.AddCommand(upCmd)
 	rootCmd.AddCommand(downCmd)
+	rootCmd.AddCommand(destroyCmd)
 	rootCmd.AddCommand(statusCmd)
 }
 
@@ -266,6 +276,37 @@ func runDown() error {
 	}
 
 	fmt.Println("Stack stopped.")
+	return nil
+}
+
+func runDestroy() error {
+	dir := dockerDir
+	if dir == "" {
+		var err error
+		dir, err = findDockerDir()
+		if err != nil {
+			return err
+		}
+	}
+
+	runtime, err := getContainerRuntime()
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Destroying ElastiCat stack (removing containers, networks, and volumes)...")
+
+	// Include all profiles to ensure Kibana and MCP are also destroyed
+	cmd := exec.Command(runtime, "compose", "--profile", "kibana", "--profile", "mcp", "down", "-v", "--remove-orphans")
+	cmd.Dir = dir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to destroy stack: %w", err)
+	}
+
+	fmt.Println("Stack destroyed. All data has been removed.")
 	return nil
 }
 

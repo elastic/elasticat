@@ -115,9 +115,8 @@ func (m Model) keymapMetricsDashboard() []KeyBinding {
 
 func (m Model) keymapMetricDetail() []KeyBinding {
 	quick := []KeyBinding{
-		ScrollBinding(KeyKindQuick),
 		PrevNextBinding("prev/next metric", KeyKindQuick),
-		CombinedBinding([]string{"n", "N"}, "prev/next doc", KeyKindQuick, "Navigation"),
+		CombinedBinding(ScrollDisplayKeys, "prev/next doc", KeyKindQuick, "Navigation"),
 		ActionBinding(ActionCycleLookback, KeyKindQuick, "Filter"),
 		ActionBinding(ActionJSON, KeyKindQuick, "View"),
 		ActionBinding(ActionCopy, KeyKindQuick, "Clipboard"),
@@ -184,6 +183,5 @@ func (m Model) keymapErrorModal() []KeyBinding {
 		CombinedBinding([]string{"g", "G"}, "top/bottom", KeyKindQuick, "Navigation"),
 		ActionBinding(ActionCopy, KeyKindQuick, "Clipboard"),
 		ActionBindingWithLabel(ActionBack, "close", KeyKindQuick, "Navigation"),
-		ActionBinding(ActionQuit, KeyKindQuick, "System"),
 	}
 }

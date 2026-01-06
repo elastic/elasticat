@@ -44,7 +44,8 @@ type OTLPProfile struct {
 
 // KibanaProfile holds Kibana connection settings for a profile.
 type KibanaProfile struct {
-	URL string `yaml:"url,omitempty"`
+	URL   string `yaml:"url,omitempty"`
+	Space string `yaml:"space,omitempty"`
 }
 
 // Default configuration directory and file names.
