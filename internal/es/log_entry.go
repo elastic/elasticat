@@ -374,14 +374,20 @@ func (l *LogEntry) GetFieldValue(fieldPath string) string {
 			return fmt.Sprintf("%v", val)
 		}
 		// Then try traversing nested structure
-		if val := getNestedValue(l.Attributes, key); val != "" {
-			return val
+		if v, ok := GetNestedPath(l.Attributes, key); ok {
+			if v == nil {
+				return ""
+			}
+			return fmt.Sprintf("%v", v)
 		}
 	}
 
 	// Try the field path directly as a nested path in attributes
-	if val := getNestedValue(l.Attributes, fieldPath); val != "" {
-		return val
+	if v, ok := GetNestedPath(l.Attributes, fieldPath); ok {
+		if v == nil {
+			return ""
+		}
+		return fmt.Sprintf("%v", v)
 	}
 
 	// Check resource attributes
@@ -408,30 +414,4 @@ func (l *LogEntry) GetFieldValue(fieldPath string) string {
 	return ""
 }
 
-// getNestedValue traverses a nested map using a dot-separated path
-func getNestedValue(data map[string]interface{}, path string) string {
-	if data == nil || path == "" {
-		return ""
-	}
-
-	parts := strings.Split(path, ".")
-	current := interface{}(data)
-
-	for _, part := range parts {
-		switch v := current.(type) {
-		case map[string]interface{}:
-			var ok bool
-			current, ok = v[part]
-			if !ok {
-				return ""
-			}
-		default:
-			return ""
-		}
-	}
-
-	if current == nil {
-		return ""
-	}
-	return fmt.Sprintf("%v", current)
-}
+// Note: getNestedValue has been replaced by GetNestedString in json_helpers.go

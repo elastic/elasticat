@@ -15,16 +15,5 @@ type TransactionNameAgg struct {
 	ErrorRate   float64 // Percentage of errors (0-100)
 }
 
-// ESQLResult represents the response from an ES|QL query
-type ESQLResult struct {
-	Columns   []ESQLColumn    `json:"columns"`
-	Values    [][]interface{} `json:"values"`
-	Took      int             `json:"took"`
-	IsPartial bool            `json:"is_partial"`
-}
-
-// ESQLColumn describes a column in an ES|QL result
-type ESQLColumn struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
-}
+// Note: ESQLResult and ESQLColumn have been moved to es/types.go
+// as they are shared across traces, metrics, and perspectives packages.

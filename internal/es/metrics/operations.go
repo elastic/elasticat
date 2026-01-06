@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/elastic/elasticat/internal/es/errfmt"
+	"github.com/elastic/elasticat/internal/es/shared"
 	"github.com/elastic/elasticat/internal/es/traces"
 )
 
@@ -376,7 +377,7 @@ func parseAggResponse(body io.Reader, fields []MetricFieldInfo, bucketSize strin
 				if hitsList, ok := hits["hits"].([]interface{}); ok && len(hitsList) > 0 {
 					if hit, ok := hitsList[0].(map[string]interface{}); ok {
 						if source, ok := hit["_source"].(map[string]interface{}); ok {
-							am.Latest = extractNestedFloat(source, mf.Name)
+							am.Latest = shared.GetNestedFloat(source, mf.Name)
 						}
 					}
 				}
@@ -389,24 +390,7 @@ func parseAggResponse(body io.Reader, fields []MetricFieldInfo, bucketSize strin
 	return result, nil
 }
 
-// extractNestedFloat extracts a float64 from a nested map using dot notation
-func extractNestedFloat(data map[string]interface{}, path string) float64 {
-	parts := strings.Split(path, ".")
-	current := interface{}(data)
-
-	for _, part := range parts {
-		if m, ok := current.(map[string]interface{}); ok {
-			current = m[part]
-		} else {
-			return 0
-		}
-	}
-
-	if f, ok := current.(float64); ok {
-		return f
-	}
-	return 0
-}
+// Note: extractNestedFloat has been replaced by shared.GetNestedFloat
 
 // AggregateESQL retrieves aggregated statistics for metrics using ES|QL.
 // This version uses ES|QL for stats computation, making the query available for Kibana.
@@ -548,7 +532,7 @@ func buildLatestValueQuery(index string, fields []MetricFieldInfo, opts Aggregat
 }
 
 // parseESQLStatsResult parses the ES|QL stats result into MetricsAggResult
-func parseESQLStatsResult(result *traces.ESQLResult, fields []MetricFieldInfo, bucketSize string) *MetricsAggResult {
+func parseESQLStatsResult(result *shared.ESQLResult, fields []MetricFieldInfo, bucketSize string) *MetricsAggResult {
 	aggResult := &MetricsAggResult{
 		Metrics:    make([]AggregatedMetric, len(fields)),
 		BucketSize: bucketSize,
@@ -600,7 +584,7 @@ func parseESQLStatsResult(result *traces.ESQLResult, fields []MetricFieldInfo, b
 }
 
 // enrichWithLatestValues adds latest values from the latest query result
-func enrichWithLatestValues(result *MetricsAggResult, latestResult *traces.ESQLResult, fields []MetricFieldInfo) {
+func enrichWithLatestValues(result *MetricsAggResult, latestResult *shared.ESQLResult, fields []MetricFieldInfo) {
 	if len(latestResult.Values) == 0 {
 		return
 	}

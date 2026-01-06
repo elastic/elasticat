@@ -5,24 +5,15 @@ package perspectives
 
 import (
 	"context"
-	"io"
 
-	"github.com/elastic/elasticat/internal/es/traces"
+	"github.com/elastic/elasticat/internal/es/shared"
 )
-
-// SearchResponse represents a raw search response body
-type SearchResponse struct {
-	Body       io.ReadCloser
-	StatusCode int
-	Status     string
-	IsError    bool
-}
 
 // Executor defines the Elasticsearch operations needed for perspectives
 type Executor interface {
-	// SearchForPerspectives executes a search query and returns the raw response
-	SearchForPerspectives(ctx context.Context, index string, body []byte, size int) (*SearchResponse, error)
+	// Embed ESQLExecutor for common ES|QL query execution
+	shared.ESQLExecutor
 
-	// ExecuteESQLQuery executes an ES|QL query and returns the structured result
-	ExecuteESQLQuery(ctx context.Context, query string) (*traces.ESQLResult, error)
+	// SearchForPerspectives executes a search query and returns the raw response
+	SearchForPerspectives(ctx context.Context, index string, body []byte, size int) (*shared.SearchResponse, error)
 }

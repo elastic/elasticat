@@ -5,24 +5,17 @@ package traces
 
 import (
 	"context"
-	"io"
-)
 
-// SearchResponse represents a raw search response body
-type SearchResponse struct {
-	Body       io.ReadCloser
-	StatusCode int
-	Status     string
-	IsError    bool
-}
+	"github.com/elastic/elasticat/internal/es/shared"
+)
 
 // Executor defines the Elasticsearch operations needed for traces
 type Executor interface {
-	// SearchForTraces executes a search query and returns the raw response
-	SearchForTraces(ctx context.Context, index string, body []byte, size int) (*SearchResponse, error)
+	// Embed ESQLExecutor for common ES|QL query execution
+	shared.ESQLExecutor
 
-	// ExecuteESQLQuery executes an ES|QL query and returns the result
-	ExecuteESQLQuery(ctx context.Context, query string) (*ESQLResult, error)
+	// SearchForTraces executes a search query and returns the raw response
+	SearchForTraces(ctx context.Context, index string, body []byte, size int) (*shared.SearchResponse, error)
 
 	// GetIndex returns the current index pattern
 	GetIndex() string

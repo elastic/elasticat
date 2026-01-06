@@ -8,6 +8,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/elastic/elasticat/internal/es"
 	"golang.design/x/clipboard"
 )
@@ -57,6 +58,33 @@ func listNav(cursor, listLen int, key string) int {
 func isNavKey(key string) bool {
 	switch key {
 	case "up", "k", "down", "j", "home", "g", "end", "G", "pgup", "pgdown":
+		return true
+	}
+	return false
+}
+
+// viewportScroll handles standard viewport scrolling keys.
+// Returns true if the key was handled, false otherwise.
+// The viewport is modified in place.
+func viewportScroll(vp *viewport.Model, key string) bool {
+	switch key {
+	case "j", "down":
+		vp.ScrollDown(1)
+		return true
+	case "k", "up":
+		vp.ScrollUp(1)
+		return true
+	case "d", "pgdown":
+		vp.HalfPageDown()
+		return true
+	case "u", "pgup":
+		vp.HalfPageUp()
+		return true
+	case "g", "home":
+		vp.GotoTop()
+		return true
+	case "G", "end":
+		vp.GotoBottom()
 		return true
 	}
 	return false

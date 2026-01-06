@@ -19,8 +19,9 @@ import (
 )
 
 // Type definitions have been organized:
-// - Core types: types.go (Client, LogEntry, SearchResult, TailOptions, SearchOptions, FieldInfo)
-// - Trace types: traces/types.go (TransactionNameAgg, ESQLResult, ESQLColumn)
+// - Core types: types.go (Client, LogEntry, SearchResult, TailOptions, SearchOptions, FieldInfo,
+//   SearchResponse, ESQLResult, ESQLColumn)
+// - Trace types: traces/types.go (TransactionNameAgg)
 // - Metric types: metrics/types.go (MetricFieldInfo, MetricBucket, AggregatedMetric, etc.)
 // - Perspective types: perspectives/types.go (PerspectiveAgg)
 //
@@ -82,7 +83,7 @@ func (c *Client) Ping(ctx context.Context) error {
 
 // FieldCaps returns field capabilities for the given index pattern and fields filter
 // Implements metrics.Executor interface
-func (c *Client) FieldCaps(ctx context.Context, index, fields string) (*metrics.FieldCapsResponse, error) {
+func (c *Client) FieldCaps(ctx context.Context, index, fields string) (*FieldCapsResponse, error) {
 	res, err := c.es.FieldCaps(
 		c.es.FieldCaps.WithContext(ctx),
 		c.es.FieldCaps.WithIndex(index),
@@ -111,13 +112,13 @@ func (c *Client) FieldCaps(ctx context.Context, index, fields string) (*metrics.
 	}
 
 	// Convert to our response type
-	result := &metrics.FieldCapsResponse{
-		Fields: make(map[string]map[string]metrics.FieldCapsInfo),
+	result := &FieldCapsResponse{
+		Fields: make(map[string]map[string]FieldCapsInfo),
 	}
 	for name, typeMap := range response.Fields {
-		result.Fields[name] = make(map[string]metrics.FieldCapsInfo)
+		result.Fields[name] = make(map[string]FieldCapsInfo)
 		for typeName, info := range typeMap {
-			result.Fields[name][typeName] = metrics.FieldCapsInfo{
+			result.Fields[name][typeName] = FieldCapsInfo{
 				Type:             info.Type,
 				Aggregatable:     info.Aggregatable,
 				TimeSeriesMetric: info.TimeSeriesMetric,
@@ -145,12 +146,12 @@ func (c *Client) SearchRaw(ctx context.Context, index string, body []byte, size 
 }
 
 // SearchForMetrics implements metrics.Executor interface
-func (c *Client) SearchForMetrics(ctx context.Context, index string, body []byte, size int) (*metrics.SearchResponse, error) {
+func (c *Client) SearchForMetrics(ctx context.Context, index string, body []byte, size int) (*SearchResponse, error) {
 	bodyReader, statusCode, status, isError, err := c.SearchRaw(ctx, index, body, size)
 	if err != nil {
 		return nil, err
 	}
-	return &metrics.SearchResponse{
+	return &SearchResponse{
 		Body:       bodyReader,
 		StatusCode: statusCode,
 		Status:     status,
@@ -159,12 +160,12 @@ func (c *Client) SearchForMetrics(ctx context.Context, index string, body []byte
 }
 
 // SearchForTraces implements traces.Executor interface
-func (c *Client) SearchForTraces(ctx context.Context, index string, body []byte, size int) (*traces.SearchResponse, error) {
+func (c *Client) SearchForTraces(ctx context.Context, index string, body []byte, size int) (*SearchResponse, error) {
 	bodyReader, statusCode, status, isError, err := c.SearchRaw(ctx, index, body, size)
 	if err != nil {
 		return nil, err
 	}
-	return &traces.SearchResponse{
+	return &SearchResponse{
 		Body:       bodyReader,
 		StatusCode: statusCode,
 		Status:     status,
@@ -173,12 +174,12 @@ func (c *Client) SearchForTraces(ctx context.Context, index string, body []byte,
 }
 
 // SearchForPerspectives implements perspectives.Executor interface
-func (c *Client) SearchForPerspectives(ctx context.Context, index string, body []byte, size int) (*perspectives.SearchResponse, error) {
+func (c *Client) SearchForPerspectives(ctx context.Context, index string, body []byte, size int) (*SearchResponse, error) {
 	bodyReader, statusCode, status, isError, err := c.SearchRaw(ctx, index, body, size)
 	if err != nil {
 		return nil, err
 	}
-	return &perspectives.SearchResponse{
+	return &SearchResponse{
 		Body:       bodyReader,
 		StatusCode: statusCode,
 		Status:     status,
@@ -187,8 +188,8 @@ func (c *Client) SearchForPerspectives(ctx context.Context, index string, body [
 }
 
 // ExecuteESQLQuery executes an ES|QL query and returns the structured result
-// Implements traces.Executor interface
-func (c *Client) ExecuteESQLQuery(ctx context.Context, query string) (*traces.ESQLResult, error) {
+// Implements the ESQLExecutor interface used by traces, metrics, and perspectives
+func (c *Client) ExecuteESQLQuery(ctx context.Context, query string) (*ESQLResult, error) {
 	// Build request body
 	body := map[string]interface{}{
 		"query": query,
@@ -219,7 +220,7 @@ func (c *Client) ExecuteESQLQuery(ctx context.Context, query string) (*traces.ES
 	}
 
 	// Parse response
-	var result traces.ESQLResult
+	var result ESQLResult
 	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode ES|QL response: %w", err)
 	}

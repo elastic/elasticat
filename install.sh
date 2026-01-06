@@ -64,14 +64,14 @@ get_latest_version() {
     echo "$version"
 }
 
-# Build the download URL
+# Build the download URL for the archive
 build_download_url() {
     local version="$1"
     local os="$2"
     local arch="$3"
     
-    local binary_name="${BINARY_NAME}-${os}-${arch}"
-    echo "https://github.com/${REPO}/releases/download/${version}/${binary_name}"
+    local archive_name="${BINARY_NAME}-${version}-${os}-${arch}.tar.gz"
+    echo "https://github.com/${REPO}/releases/download/${version}/${archive_name}"
 }
 
 # Find a suitable install directory
@@ -98,6 +98,16 @@ check_path() {
         echo ""
         echo "  export PATH=\"$dir:\$PATH\""
         echo ""
+    fi
+}
+
+# Find the doc directory based on install location
+find_doc_dir() {
+    local install_dir="$1"
+    if [ "$install_dir" = "/usr/local/bin" ]; then
+        echo "/usr/local/share/doc/elasticat"
+    else
+        echo "$HOME/.local/share/doc/elasticat"
     fi
 }
 
@@ -128,22 +138,59 @@ main() {
     local install_path="${install_dir}/${BINARY_NAME}"
     info "Installing to: ${install_path}"
 
-    # Download binary
-    local tmp_file=$(mktemp)
-    if ! curl -fsSL "$url" -o "$tmp_file"; then
-        rm -f "$tmp_file"
-        error "Failed to download binary. Check if the release exists for ${os}/${arch}"
+    # Download archive
+    local tmp_dir=$(mktemp -d)
+    local archive_file="${tmp_dir}/elasticat.tar.gz"
+    if ! curl -fsSL "$url" -o "$archive_file"; then
+        rm -rf "$tmp_dir"
+        error "Failed to download archive. Check if the release exists for ${os}/${arch}"
+    fi
+
+    # Extract archive
+    info "Extracting archive..."
+    tar -xzf "$archive_file" -C "$tmp_dir"
+    
+    # Find the binary in the extracted directory
+    local binary_name="${BINARY_NAME}-${os}-${arch}"
+    local extracted_dir="${tmp_dir}/${binary_name}"
+    local binary_file="${extracted_dir}/${binary_name}"
+    
+    if [ ! -f "$binary_file" ]; then
+        rm -rf "$tmp_dir"
+        error "Binary not found in archive"
     fi
 
     # Make executable and move to install location
-    chmod +x "$tmp_file"
+    chmod +x "$binary_file"
     
+    # Determine if we need sudo
+    local needs_sudo=false
     if [ "$install_dir" = "/usr/local/bin" ] && [ ! -w "/usr/local/bin" ]; then
-        info "Requesting sudo access to install to /usr/local/bin..."
-        sudo mv "$tmp_file" "$install_path"
-    else
-        mv "$tmp_file" "$install_path"
+        needs_sudo=true
+        info "Requesting sudo access to install..."
     fi
+    
+    # Install binary
+    if [ "$needs_sudo" = true ]; then
+        sudo mv "$binary_file" "$install_path"
+    else
+        mv "$binary_file" "$install_path"
+    fi
+    
+    # Install license files
+    local doc_dir=$(find_doc_dir "$install_dir")
+    info "Installing license files to: ${doc_dir}"
+    
+    if [ "$needs_sudo" = true ]; then
+        sudo mkdir -p "$doc_dir"
+        sudo cp "${extracted_dir}/LICENSE.txt" "${extracted_dir}/NOTICE.txt" "${extracted_dir}/README.md" "$doc_dir/"
+    else
+        mkdir -p "$doc_dir"
+        cp "${extracted_dir}/LICENSE.txt" "${extracted_dir}/NOTICE.txt" "${extracted_dir}/README.md" "$doc_dir/"
+    fi
+    
+    # Clean up
+    rm -rf "$tmp_dir"
 
     # Verify installation
     if command -v "$BINARY_NAME" &> /dev/null; then
@@ -151,8 +198,12 @@ main() {
         echo ""
         echo "  Run 'elasticat --help' to get started"
         echo ""
+        echo "  License: Apache 2.0"
+        echo "  License files installed to: ${doc_dir}"
+        echo ""
     else
         success "Binary installed to ${install_path}"
+        success "License files installed to ${doc_dir}"
         check_path "$install_dir"
     fi
 }

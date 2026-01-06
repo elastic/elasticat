@@ -9,21 +9,21 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/elastic/elasticat/internal/es/traces"
+	"github.com/elastic/elasticat/internal/es/shared"
 )
 
 // mockExecutor implements the Executor interface for testing
 type mockExecutor struct {
-	esqlResult    *traces.ESQLResult
+	esqlResult    *shared.ESQLResult
 	esqlErr       error
 	lastESQLQuery string
 }
 
-func (m *mockExecutor) SearchForPerspectives(ctx context.Context, index string, body []byte, size int) (*SearchResponse, error) {
+func (m *mockExecutor) SearchForPerspectives(ctx context.Context, index string, body []byte, size int) (*shared.SearchResponse, error) {
 	return nil, nil // Not used in current tests
 }
 
-func (m *mockExecutor) ExecuteESQLQuery(ctx context.Context, query string) (*traces.ESQLResult, error) {
+func (m *mockExecutor) ExecuteESQLQuery(ctx context.Context, query string) (*shared.ESQLResult, error) {
 	m.lastESQLQuery = query
 	if m.esqlErr != nil {
 		return nil, m.esqlErr
@@ -33,8 +33,8 @@ func (m *mockExecutor) ExecuteESQLQuery(ctx context.Context, query string) (*tra
 
 func TestGetByField_Success(t *testing.T) {
 	mock := &mockExecutor{
-		esqlResult: &traces.ESQLResult{
-			Columns: []traces.ESQLColumn{
+		esqlResult: &shared.ESQLResult{
+			Columns: []shared.ESQLColumn{
 				{Name: "logs", Type: "long"},
 				{Name: "traces", Type: "long"},
 				{Name: "metrics", Type: "long"},
@@ -74,8 +74,8 @@ func TestGetByField_Success(t *testing.T) {
 
 func TestGetByField_QueryFormat(t *testing.T) {
 	mock := &mockExecutor{
-		esqlResult: &traces.ESQLResult{
-			Columns: []traces.ESQLColumn{},
+		esqlResult: &shared.ESQLResult{
+			Columns: []shared.ESQLColumn{},
 			Values:  [][]interface{}{},
 		},
 	}
@@ -109,8 +109,8 @@ func TestGetByField_QueryFormat(t *testing.T) {
 
 func TestGetByField_EmptyResponse(t *testing.T) {
 	mock := &mockExecutor{
-		esqlResult: &traces.ESQLResult{
-			Columns: []traces.ESQLColumn{
+		esqlResult: &shared.ESQLResult{
+			Columns: []shared.ESQLColumn{
 				{Name: "logs", Type: "long"},
 				{Name: "traces", Type: "long"},
 				{Name: "metrics", Type: "long"},
@@ -132,8 +132,8 @@ func TestGetByField_EmptyResponse(t *testing.T) {
 
 func TestGetByField_SkipsEmptyNames(t *testing.T) {
 	mock := &mockExecutor{
-		esqlResult: &traces.ESQLResult{
-			Columns: []traces.ESQLColumn{
+		esqlResult: &shared.ESQLResult{
+			Columns: []shared.ESQLColumn{
 				{Name: "logs", Type: "long"},
 				{Name: "traces", Type: "long"},
 				{Name: "metrics", Type: "long"},
@@ -178,8 +178,8 @@ func TestGetByField_Error(t *testing.T) {
 
 func TestGetServices(t *testing.T) {
 	mock := &mockExecutor{
-		esqlResult: &traces.ESQLResult{
-			Columns: []traces.ESQLColumn{
+		esqlResult: &shared.ESQLResult{
+			Columns: []shared.ESQLColumn{
 				{Name: "logs", Type: "long"},
 				{Name: "traces", Type: "long"},
 				{Name: "metrics", Type: "long"},
@@ -208,8 +208,8 @@ func TestGetServices(t *testing.T) {
 
 func TestGetResources(t *testing.T) {
 	mock := &mockExecutor{
-		esqlResult: &traces.ESQLResult{
-			Columns: []traces.ESQLColumn{
+		esqlResult: &shared.ESQLResult{
+			Columns: []shared.ESQLColumn{
 				{Name: "logs", Type: "long"},
 				{Name: "traces", Type: "long"},
 				{Name: "metrics", Type: "long"},
@@ -239,8 +239,8 @@ func TestGetResources(t *testing.T) {
 func TestGetByField_MissingColumns(t *testing.T) {
 	// Test robustness when columns are missing or in different order
 	mock := &mockExecutor{
-		esqlResult: &traces.ESQLResult{
-			Columns: []traces.ESQLColumn{
+		esqlResult: &shared.ESQLResult{
+			Columns: []shared.ESQLColumn{
 				{Name: "service.name", Type: "keyword"},
 				{Name: "logs", Type: "long"},
 				// traces and metrics columns missing

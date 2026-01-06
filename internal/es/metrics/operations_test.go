@@ -11,32 +11,32 @@ import (
 	"testing"
 	"time"
 
-	"github.com/elastic/elasticat/internal/es/traces"
+	"github.com/elastic/elasticat/internal/es/shared"
 )
 
 // mockExecutor implements the Executor interface for testing
 type mockExecutor struct {
 	index          string
-	fieldCapsResp  *FieldCapsResponse
+	fieldCapsResp  *shared.FieldCapsResponse
 	fieldCapsErr   error
-	searchResponse *SearchResponse
+	searchResponse *shared.SearchResponse
 	searchErr      error
 	lastSearchBody []byte
-	esqlResult     *traces.ESQLResult
+	esqlResult     *shared.ESQLResult
 }
 
 func (m *mockExecutor) GetIndex() string {
 	return m.index
 }
 
-func (m *mockExecutor) FieldCaps(ctx context.Context, index, fields string) (*FieldCapsResponse, error) {
+func (m *mockExecutor) FieldCaps(ctx context.Context, index, fields string) (*shared.FieldCapsResponse, error) {
 	if m.fieldCapsErr != nil {
 		return nil, m.fieldCapsErr
 	}
 	return m.fieldCapsResp, nil
 }
 
-func (m *mockExecutor) SearchForMetrics(ctx context.Context, index string, body []byte, size int) (*SearchResponse, error) {
+func (m *mockExecutor) SearchForMetrics(ctx context.Context, index string, body []byte, size int) (*shared.SearchResponse, error) {
 	m.lastSearchBody = body
 	if m.searchErr != nil {
 		return nil, m.searchErr
@@ -45,7 +45,7 @@ func (m *mockExecutor) SearchForMetrics(ctx context.Context, index string, body 
 }
 
 // ExecuteESQLQuery is unused in these tests but required by the interface.
-func (m *mockExecutor) ExecuteESQLQuery(ctx context.Context, query string) (*traces.ESQLResult, error) {
+func (m *mockExecutor) ExecuteESQLQuery(ctx context.Context, query string) (*shared.ESQLResult, error) {
 	return m.esqlResult, nil
 }
 
@@ -85,8 +85,8 @@ func TestSortFields_SingleElement(t *testing.T) {
 func TestGetFieldNames_Success(t *testing.T) {
 	mock := &mockExecutor{
 		index: "metrics-*",
-		fieldCapsResp: &FieldCapsResponse{
-			Fields: map[string]map[string]FieldCapsInfo{
+		fieldCapsResp: &shared.FieldCapsResponse{
+			Fields: map[string]map[string]shared.FieldCapsInfo{
 				"metrics.cpu.usage": {
 					"double": {Type: "double", Aggregatable: true, TimeSeriesMetric: "gauge"},
 				},
@@ -139,8 +139,8 @@ func TestGetFieldNames_Success(t *testing.T) {
 func TestGetFieldNames_FiltersByType(t *testing.T) {
 	mock := &mockExecutor{
 		index: "metrics-*",
-		fieldCapsResp: &FieldCapsResponse{
-			Fields: map[string]map[string]FieldCapsInfo{
+		fieldCapsResp: &shared.FieldCapsResponse{
+			Fields: map[string]map[string]shared.FieldCapsInfo{
 				"metrics.valid_double": {
 					"double": {Type: "double", Aggregatable: true},
 				},
@@ -200,8 +200,8 @@ func TestAggregate_Success(t *testing.T) {
 	// Create mock field caps response
 	mock := &mockExecutor{
 		index: "metrics-*",
-		fieldCapsResp: &FieldCapsResponse{
-			Fields: map[string]map[string]FieldCapsInfo{
+		fieldCapsResp: &shared.FieldCapsResponse{
+			Fields: map[string]map[string]shared.FieldCapsInfo{
 				"metrics.cpu.usage": {
 					"double": {Type: "double", Aggregatable: true, TimeSeriesMetric: "gauge"},
 				},
@@ -258,7 +258,7 @@ func TestAggregate_Success(t *testing.T) {
 	}
 	responseJSON, _ := json.Marshal(aggResponse)
 
-	mock.searchResponse = &SearchResponse{
+	mock.searchResponse = &shared.SearchResponse{
 		Body:       io.NopCloser(strings.NewReader(string(responseJSON))),
 		StatusCode: 200,
 		Status:     "200 OK",
@@ -310,14 +310,14 @@ func TestAggregate_Success(t *testing.T) {
 func TestAggregate_WithFilters(t *testing.T) {
 	mock := &mockExecutor{
 		index: "metrics-*",
-		fieldCapsResp: &FieldCapsResponse{
-			Fields: map[string]map[string]FieldCapsInfo{
+		fieldCapsResp: &shared.FieldCapsResponse{
+			Fields: map[string]map[string]shared.FieldCapsInfo{
 				"metrics.test": {
 					"double": {Type: "double", Aggregatable: true},
 				},
 			},
 		},
-		searchResponse: &SearchResponse{
+		searchResponse: &shared.SearchResponse{
 			Body:       io.NopCloser(strings.NewReader(`{"aggregations": {}}`)),
 			StatusCode: 200,
 			Status:     "200 OK",
@@ -367,14 +367,14 @@ func TestAggregate_WithFilters(t *testing.T) {
 func TestAggregate_NegatedFilters(t *testing.T) {
 	mock := &mockExecutor{
 		index: "metrics-*",
-		fieldCapsResp: &FieldCapsResponse{
-			Fields: map[string]map[string]FieldCapsInfo{
+		fieldCapsResp: &shared.FieldCapsResponse{
+			Fields: map[string]map[string]shared.FieldCapsInfo{
 				"metrics.test": {
 					"double": {Type: "double", Aggregatable: true},
 				},
 			},
 		},
-		searchResponse: &SearchResponse{
+		searchResponse: &shared.SearchResponse{
 			Body:       io.NopCloser(strings.NewReader(`{"aggregations": {}}`)),
 			StatusCode: 200,
 			Status:     "200 OK",
@@ -417,8 +417,8 @@ func TestAggregate_NegatedFilters(t *testing.T) {
 func TestAggregate_NoMetrics(t *testing.T) {
 	mock := &mockExecutor{
 		index: "metrics-*",
-		fieldCapsResp: &FieldCapsResponse{
-			Fields: map[string]map[string]FieldCapsInfo{},
+		fieldCapsResp: &shared.FieldCapsResponse{
+			Fields: map[string]map[string]shared.FieldCapsInfo{},
 		},
 	}
 
@@ -437,14 +437,14 @@ func TestAggregate_NoMetrics(t *testing.T) {
 func TestAggregate_ErrorResponse(t *testing.T) {
 	mock := &mockExecutor{
 		index: "metrics-*",
-		fieldCapsResp: &FieldCapsResponse{
-			Fields: map[string]map[string]FieldCapsInfo{
+		fieldCapsResp: &shared.FieldCapsResponse{
+			Fields: map[string]map[string]shared.FieldCapsInfo{
 				"metrics.test": {
 					"double": {Type: "double", Aggregatable: true},
 				},
 			},
 		},
-		searchResponse: &SearchResponse{
+		searchResponse: &shared.SearchResponse{
 			Body:       io.NopCloser(strings.NewReader(`{"error": "index not found"}`)),
 			StatusCode: 404,
 			Status:     "404 Not Found",
@@ -466,18 +466,18 @@ func TestAggregate_ErrorResponse(t *testing.T) {
 
 func TestAggregate_LimitsMetrics(t *testing.T) {
 	// Create more than 50 fields to test the limit
-	fields := make(map[string]map[string]FieldCapsInfo)
+	fields := make(map[string]map[string]shared.FieldCapsInfo)
 	for i := 0; i < 60; i++ {
 		name := "metrics.field" + string(rune('a'+i%26)) + string(rune('0'+i/26))
-		fields[name] = map[string]FieldCapsInfo{
+		fields[name] = map[string]shared.FieldCapsInfo{
 			"double": {Type: "double", Aggregatable: true},
 		}
 	}
 
 	mock := &mockExecutor{
 		index:         "metrics-*",
-		fieldCapsResp: &FieldCapsResponse{Fields: fields},
-		searchResponse: &SearchResponse{
+		fieldCapsResp: &shared.FieldCapsResponse{Fields: fields},
+		searchResponse: &shared.SearchResponse{
 			Body:       io.NopCloser(strings.NewReader(`{"aggregations": {}}`)),
 			StatusCode: 200,
 			Status:     "200 OK",
@@ -504,7 +504,7 @@ func TestAggregate_LimitsMetrics(t *testing.T) {
 	}
 }
 
-func TestExtractNestedFloat(t *testing.T) {
+func TestGetNestedFloat(t *testing.T) {
 	data := map[string]interface{}{
 		"metrics": map[string]interface{}{
 			"cpu": map[string]interface{}{
@@ -527,9 +527,9 @@ func TestExtractNestedFloat(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.path, func(t *testing.T) {
-			result := extractNestedFloat(data, tc.path)
+			result := shared.GetNestedFloat(data, tc.path)
 			if result != tc.expected {
-				t.Errorf("extractNestedFloat(%q) = %f, want %f", tc.path, result, tc.expected)
+				t.Errorf("GetNestedFloat(%q) = %f, want %f", tc.path, result, tc.expected)
 			}
 		})
 	}

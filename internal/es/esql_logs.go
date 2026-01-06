@@ -269,7 +269,7 @@ func (c *Client) executeESQLCount(ctx context.Context, query string) (int64, err
 	return 0, fmt.Errorf("unexpected ES|QL count result shape")
 }
 
-func esqlRowToMap(columns []traces.ESQLColumn, row []interface{}) map[string]interface{} {
+func esqlRowToMap(columns []ESQLColumn, row []interface{}) map[string]interface{} {
 	m := make(map[string]interface{}, len(columns))
 	for i, col := range columns {
 		if i >= len(row) {
@@ -284,17 +284,17 @@ func esqlRowToMap(columns []traces.ESQLColumn, row []interface{}) map[string]int
 // normalizeESQLCompatibility ensures key variants expected by extractLogEntry
 // are present (e.g., trace.id -> trace_id).
 func normalizeESQLCompatibility(m map[string]interface{}) {
-	if v, ok := getNestedMapValue(m, "trace", "id"); ok {
+	if v, ok := GetNestedParts(m, "trace", "id"); ok {
 		if _, exists := m["trace_id"]; !exists {
 			m["trace_id"] = v
 		}
 	}
-	if v, ok := getNestedMapValue(m, "span", "id"); ok {
+	if v, ok := GetNestedParts(m, "span", "id"); ok {
 		if _, exists := m["span_id"]; !exists {
 			m["span_id"] = v
 		}
 	}
-	if v, ok := getNestedMapValue(m, "transaction", "name"); ok {
+	if v, ok := GetNestedParts(m, "transaction", "name"); ok {
 		if _, exists := m["name"]; !exists {
 			m["name"] = v
 		}
@@ -318,20 +318,7 @@ func setPathValue(dst map[string]interface{}, path string, value interface{}) {
 	}
 }
 
-func getNestedMapValue(m map[string]interface{}, path ...string) (interface{}, bool) {
-	cur := interface{}(m)
-	for _, p := range path {
-		asMap, ok := cur.(map[string]interface{})
-		if !ok {
-			return nil, false
-		}
-		cur, ok = asMap[p]
-		if !ok {
-			return nil, false
-		}
-	}
-	return cur, true
-}
+// Note: getNestedMapValue has been replaced by GetNestedParts in json_helpers.go
 
 func buildSearchClause(query string, fields []string) string {
 	if query == "" {

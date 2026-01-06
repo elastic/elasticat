@@ -8,9 +8,9 @@ import (
 )
 
 func (m Model) handleErrorModalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
+	key := msg.String()
 
-	switch msg.String() {
+	switch key {
 	case "y":
 		// Copy error to clipboard (consistent with 'y' in other views)
 		if m.err != nil {
@@ -23,33 +23,15 @@ func (m Model) handleErrorModalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.popView()
 		m.err = nil
 		return m, nil
+	}
 
-	case "j", "down":
-		m.errorViewport.ScrollDown(1)
-		return m, nil
-
-	case "k", "up":
-		m.errorViewport.ScrollUp(1)
-		return m, nil
-
-	case "d", "pgdown":
-		m.errorViewport.HalfPageDown()
-		return m, nil
-
-	case "u", "pgup":
-		m.errorViewport.HalfPageUp()
-		return m, nil
-
-	case "g", "home":
-		m.errorViewport.GotoTop()
-		return m, nil
-
-	case "G", "end":
-		m.errorViewport.GotoBottom()
+	// Handle viewport scrolling
+	if viewportScroll(&m.errorViewport, key) {
 		return m, nil
 	}
 
 	// Pass other keys to viewport for mouse wheel support
+	var cmd tea.Cmd
 	m.errorViewport, cmd = m.errorViewport.Update(msg)
 	return m, cmd
 }

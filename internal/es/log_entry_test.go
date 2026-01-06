@@ -635,7 +635,7 @@ func TestLogEntry_GetFieldValue(t *testing.T) {
 	}
 }
 
-func TestGetNestedValue(t *testing.T) {
+func TestGetNestedString(t *testing.T) {
 	data := map[string]interface{}{
 		"level1": map[string]interface{}{
 			"level2": map[string]interface{}{
@@ -658,16 +658,16 @@ func TestGetNestedValue(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.path, func(t *testing.T) {
-			result := getNestedValue(data, tc.path)
+			result := GetNestedString(data, tc.path)
 			if result != tc.expected {
-				t.Errorf("getNestedValue(%q) = %q, want %q", tc.path, result, tc.expected)
+				t.Errorf("GetNestedString(%q) = %q, want %q", tc.path, result, tc.expected)
 			}
 		})
 	}
 
 	// Test nil map
-	if result := getNestedValue(nil, "any.path"); result != "" {
-		t.Errorf("getNestedValue(nil, ...) = %q, want empty string", result)
+	if result := GetNestedString(nil, "any.path"); result != "" {
+		t.Errorf("GetNestedString(nil, ...) = %q, want empty string", result)
 	}
 }
 

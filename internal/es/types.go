@@ -7,6 +7,19 @@ import (
 	"time"
 
 	"github.com/elastic/go-elasticsearch/v8"
+
+	"github.com/elastic/elasticat/internal/es/shared"
+)
+
+// Re-export shared types for backward compatibility.
+// The canonical definitions are in es/shared to break import cycles.
+type (
+	SearchResponse    = shared.SearchResponse
+	ESQLResult        = shared.ESQLResult
+	ESQLColumn        = shared.ESQLColumn
+	FieldCapsResponse = shared.FieldCapsResponse
+	FieldCapsInfo     = shared.FieldCapsInfo
+	ESQLExecutor      = shared.ESQLExecutor
 )
 
 // Client wraps the Elasticsearch client with elasticat-specific functionality
@@ -94,6 +107,10 @@ type FieldInfo struct {
 }
 
 // Domain-specific types have been moved to subdirectories:
-// - Trace types: traces/types.go (TransactionNameAgg, ESQLResult, ESQLColumn)
+// - Trace types: traces/types.go (TransactionNameAgg)
 // - Metric types: metrics/types.go (MetricFieldInfo, MetricBucket, AggregatedMetric, etc.)
 // - Perspective types: perspectives/types.go (PerspectiveAgg)
+//
+// Shared types kept here:
+// - SearchResponse: raw ES search response (used by traces, metrics, perspectives)
+// - ESQLResult, ESQLColumn: ES|QL query results (used by all packages)

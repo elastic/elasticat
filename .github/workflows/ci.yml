@@ -68,14 +68,17 @@ jobs:
             goos: linux
             goarch: amd64
             binary: elasticat-linux-amd64
+            archive_ext: tar.gz
           - os: macos-latest
             goos: darwin
             goarch: arm64
             binary: elasticat-darwin-arm64
+            archive_ext: tar.gz
           - os: windows-latest
             goos: windows
             goarch: amd64
             binary: elasticat-windows-amd64.exe
+            archive_ext: zip
 
     steps:
       - name: Checkout code
@@ -92,17 +95,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libgl1-mesa-dev libxxf86vm-dev
 
-      - name: Build binary and package
+      - name: Build binary and create archive
         run: |
           mkdir -p dist/${{ matrix.binary }}
           go build -o dist/${{ matrix.binary }}/${{ matrix.binary }} ./cmd/elasticat
           cp LICENSE.txt NOTICE.txt README.md dist/${{ matrix.binary }}/
+          cd dist
+          if [ "${{ matrix.archive_ext }}" = "zip" ]; then
+            zip -r ${{ matrix.binary }}.zip ${{ matrix.binary }}
+          else
+            tar -czvf ${{ matrix.binary }}.tar.gz ${{ matrix.binary }}
+          fi
         shell: bash
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.binary }}
-          path: dist/${{ matrix.binary }}
+          name: ${{ matrix.binary }}.${{ matrix.archive_ext }}
+          path: dist/${{ matrix.binary }}.${{ matrix.archive_ext }}
           retention-days: 7
 

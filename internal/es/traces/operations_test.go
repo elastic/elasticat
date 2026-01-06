@@ -9,26 +9,28 @@ import (
 	"io"
 	"strings"
 	"testing"
+
+	"github.com/elastic/elasticat/internal/es/shared"
 )
 
 // mockExecutor implements the Executor interface for testing
 type mockExecutor struct {
 	index          string
-	searchResponse *SearchResponse
+	searchResponse *shared.SearchResponse
 	searchErr      error
-	esqlResult     *ESQLResult
+	esqlResult     *shared.ESQLResult
 	esqlErr        error
 	lastSearchBody []byte
 	lastESQLQuery  string
 	esqlCallCount  int
-	esqlResults    []*ESQLResult // For multiple ESQL calls
+	esqlResults    []*shared.ESQLResult // For multiple ESQL calls
 }
 
 func (m *mockExecutor) GetIndex() string {
 	return m.index
 }
 
-func (m *mockExecutor) SearchForTraces(ctx context.Context, index string, body []byte, size int) (*SearchResponse, error) {
+func (m *mockExecutor) SearchForTraces(ctx context.Context, index string, body []byte, size int) (*shared.SearchResponse, error) {
 	m.lastSearchBody = body
 	if m.searchErr != nil {
 		return nil, m.searchErr
@@ -36,7 +38,7 @@ func (m *mockExecutor) SearchForTraces(ctx context.Context, index string, body [
 	return m.searchResponse, nil
 }
 
-func (m *mockExecutor) ExecuteESQLQuery(ctx context.Context, query string) (*ESQLResult, error) {
+func (m *mockExecutor) ExecuteESQLQuery(ctx context.Context, query string) (*shared.ESQLResult, error) {
 	m.lastESQLQuery = query
 	if m.esqlErr != nil {
 		return nil, m.esqlErr
@@ -142,7 +144,7 @@ func TestGetNames_Success(t *testing.T) {
 
 	mock := &mockExecutor{
 		index: "traces-*",
-		searchResponse: &SearchResponse{
+		searchResponse: &shared.SearchResponse{
 			Body:       io.NopCloser(strings.NewReader(string(responseJSON))),
 			StatusCode: 200,
 			Status:     "200 OK",
@@ -197,7 +199,7 @@ func TestGetNames_WithFilters(t *testing.T) {
 
 	mock := &mockExecutor{
 		index: "traces-*",
-		searchResponse: &SearchResponse{
+		searchResponse: &shared.SearchResponse{
 			Body:       io.NopCloser(strings.NewReader(string(responseJSON))),
 			StatusCode: 200,
 			Status:     "200 OK",
@@ -243,7 +245,7 @@ func TestGetNames_EmptyResponse(t *testing.T) {
 
 	mock := &mockExecutor{
 		index: "traces-*",
-		searchResponse: &SearchResponse{
+		searchResponse: &shared.SearchResponse{
 			Body:       io.NopCloser(strings.NewReader(string(responseJSON))),
 			StatusCode: 200,
 			Status:     "200 OK",
@@ -264,7 +266,7 @@ func TestGetNames_EmptyResponse(t *testing.T) {
 func TestGetNames_ErrorResponse(t *testing.T) {
 	mock := &mockExecutor{
 		index: "traces-*",
-		searchResponse: &SearchResponse{
+		searchResponse: &shared.SearchResponse{
 			Body:       io.NopCloser(strings.NewReader(`{"error": "index not found"}`)),
 			StatusCode: 404,
 			Status:     "404 Not Found",
@@ -285,10 +287,10 @@ func TestGetNames_ErrorResponse(t *testing.T) {
 func TestGetNamesESSQL_Success(t *testing.T) {
 	mock := &mockExecutor{
 		index: "traces-*",
-		esqlResults: []*ESQLResult{
+		esqlResults: []*shared.ESQLResult{
 			// Query 1: Transaction stats
 			{
-				Columns: []ESQLColumn{
+				Columns: []shared.ESQLColumn{
 					{Name: "tx_count", Type: "long"},
 					{Name: "unique_traces", Type: "long"},
 					{Name: "min_duration", Type: "double"},
@@ -305,7 +307,7 @@ func TestGetNamesESSQL_Success(t *testing.T) {
 			},
 			// Query 2: Trace mapping
 			{
-				Columns: []ESQLColumn{
+				Columns: []shared.ESQLColumn{
 					{Name: "transaction.name", Type: "keyword"},
 					{Name: "trace.id", Type: "keyword"},
 				},
@@ -317,7 +319,7 @@ func TestGetNamesESSQL_Success(t *testing.T) {
 			},
 			// Query 3: Span counts
 			{
-				Columns: []ESQLColumn{
+				Columns: []shared.ESQLColumn{
 					{Name: "span_count", Type: "long"},
 					{Name: "trace.id", Type: "keyword"},
 				},
@@ -364,7 +366,7 @@ func TestGetNamesESSQL_Success(t *testing.T) {
 func TestGetNamesESSQL_WithFilters(t *testing.T) {
 	mock := &mockExecutor{
 		index: "traces-*",
-		esqlResults: []*ESQLResult{
+		esqlResults: []*shared.ESQLResult{
 			{Values: [][]interface{}{}},
 			{Values: [][]interface{}{}},
 			{Values: [][]interface{}{}},
@@ -410,7 +412,7 @@ func TestGetNames_NoAggregations(t *testing.T) {
 
 	mock := &mockExecutor{
 		index: "traces-*",
-		searchResponse: &SearchResponse{
+		searchResponse: &shared.SearchResponse{
 			Body:       io.NopCloser(strings.NewReader(responseJSON)),
 			StatusCode: 200,
 			Status:     "200 OK",
