@@ -6,6 +6,7 @@ package tui
 import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/elastic/elasticat/internal/es"
 )
 
 func (m Model) handleMetricsDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -83,16 +84,34 @@ func (m Model) handleMetricDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.metricDetailDocsLoading = true
 			return m, m.fetchMetricDetailDocs()
 		}
-	case "h":
-		// Previous doc (Vim-style)
+	case "a":
+		// Previous doc
 		if m.metricDetailDocCursor > 0 {
 			m.metricDetailDocCursor--
 		}
-	case "l":
-		// Next doc (Vim-style)
+	case "d":
+		// Next doc
 		if m.metricDetailDocCursor < len(m.metricDetailDocs)-1 {
 			m.metricDetailDocCursor++
 		}
+	case "j":
+		// View current doc as JSON (switch to detail JSON view)
+		if len(m.metricDetailDocs) > 0 && m.metricDetailDocCursor < len(m.metricDetailDocs) {
+			// Temporarily put the doc in logs so detail view can render it
+			m.logs = m.metricDetailDocs
+			m.selectedIndex = m.metricDetailDocCursor
+			m.previousMode = viewMetricDetail
+			m.mode = viewDetailJSON
+			m.setViewportContent(es.PrettyJSON(m.metricDetailDocs[m.metricDetailDocCursor].RawJSON))
+			m.viewport.GotoTop()
+		}
+		return m, nil
+	case "y":
+		// Copy current doc JSON to clipboard
+		if len(m.metricDetailDocs) > 0 && m.metricDetailDocCursor < len(m.metricDetailDocs) {
+			m.copyToClipboard(es.PrettyJSON(m.metricDetailDocs[m.metricDetailDocCursor].RawJSON), "Copied JSON to clipboard!")
+		}
+		return m, nil
 	case "r":
 		// Refresh
 		m.metricsLoading = true

@@ -111,12 +111,17 @@ func (m Model) keymapMetricsDashboard() []KeyBinding {
 
 func (m Model) keymapMetricDetail() []KeyBinding {
 	quick := []KeyBinding{
-		{Keys: []string{"←", "→"}, Label: "prev/next", Kind: KeyKindQuick, Group: "Navigation"},
-		{Keys: []string{"r"}, Label: "refresh", Kind: KeyKindQuick, Group: "View"},
-		{Keys: []string{"K"}, Label: "kibana", Kind: KeyKindQuick, Group: "View"},
+		{Keys: []string{"←", "→"}, Label: "prev/next metric", Kind: KeyKindQuick, Group: "Navigation"},
+		{Keys: []string{"a", "d"}, Label: "prev/next doc", Kind: KeyKindQuick, Group: "Navigation"},
+		{Keys: []string{"j"}, Label: "JSON", Kind: KeyKindQuick, Group: "View"},
+		{Keys: []string{"y"}, Label: "copy", Kind: KeyKindQuick, Group: "Clipboard"},
 		{Keys: []string{"esc"}, Label: "back", Kind: KeyKindQuick, Group: "Navigation"},
 	}
-	return quick
+	full := []KeyBinding{
+		{Keys: []string{"r"}, Label: "refresh", Kind: KeyKindFull, Group: "View"},
+		{Keys: []string{"K"}, Label: "kibana", Kind: KeyKindFull, Group: "View"},
+	}
+	return append(quick, full...)
 }
 
 func (m Model) keymapTraceNames() []KeyBinding {

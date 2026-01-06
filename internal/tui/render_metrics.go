@@ -228,7 +228,7 @@ func (m Model) renderMetricDetailDocs(height int) string {
 	b.WriteString(DetailKeyStyle.Render("Documents: "))
 	b.WriteString(DetailValueStyle.Render(fmt.Sprintf("%d/%d", m.metricDetailDocCursor+1, docCount)))
 	b.WriteString("  ")
-	b.WriteString(DetailMutedStyle.Render("(h/l: prev/next)"))
+	b.WriteString(DetailMutedStyle.Render("(a/d: prev/next)"))
 	b.WriteString("\n")
 
 	// Show current document

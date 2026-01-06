@@ -12,7 +12,12 @@ import (
 func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "q":
-		m.mode = viewLogs
+		// Return to previous mode (could be viewLogs or viewMetricDetail)
+		if m.previousMode == viewMetricDetail {
+			m.mode = viewMetricDetail
+		} else {
+			m.mode = viewLogs
+		}
 		m.statusMessage = ""
 		return m, nil
 	case "left", "h":
@@ -48,10 +53,15 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "j":
 		// Toggle JSON view on/off
 		if m.mode == viewDetailJSON {
-			m.mode = viewDetail
-			if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
-				m.setViewportContent(m.renderLogDetail(m.logs[m.selectedIndex]))
-				m.viewport.GotoTop()
+			// Return to previous mode (metric detail or regular detail)
+			if m.previousMode == viewMetricDetail {
+				m.mode = viewMetricDetail
+			} else {
+				m.mode = viewDetail
+				if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
+					m.setViewportContent(m.renderLogDetail(m.logs[m.selectedIndex]))
+					m.viewport.GotoTop()
+				}
 			}
 		} else {
 			m.mode = viewDetailJSON
