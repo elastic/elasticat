@@ -12,9 +12,10 @@
 
 ## Features
 
-- **Log File Watcher** - Tail files like `tail -F` and auto-ingest to Elasticsearch via OTLP
-- **Interactive TUI** - Browse logs, metrics, and traces with vim-style navigation
-- **CLI Commands** - Query and filter telemetry data in ES from scripts or pipelines with `elasticat {logs|metrics|traces}`
+- **Log File Watcher** - Tail files with `elasticat watch my-app*.log` and auto-ingest to Elasticsearch via OTLP
+- **Instantly OpenTelemetry Stack - Powered by Elastic** - With `elasticat up`
+- **Interactive TUI** - Browse logs, metrics, and traces with vim-style navigation with `elasticat ui`
+- **CLI Commands** - Query and filter telemetry data in ES as JSON from scripts or pipelines with `elasticat {logs|metrics|traces}`
 - **One-Command Stack** - Spin up Elasticsearch + OTel Collector with `elasticat up`
 - **Multi-Signal Support** - Unified interface for logs, metrics, and traces
 - **Perspectives** - Filter by service, host, or any dimension with a single keystroke
