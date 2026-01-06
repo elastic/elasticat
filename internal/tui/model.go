@@ -37,7 +37,7 @@ type Model struct {
 
 	// === UI State ===
 	mode            viewMode
-	previousMode    viewMode        // For modal returns
+	viewStack       []ViewContext   // Navigation history for back navigation
 	err             error           // Current error
 	loading         bool            // General loading indicator
 	width           int             // Terminal width

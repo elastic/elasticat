@@ -107,8 +107,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // showErrorModal configures the error viewport and switches to error modal view
 func (m *Model) showErrorModal() {
-	m.previousMode = m.mode
-	m.mode = viewErrorModal
+	m.pushView(viewErrorModal)
 	// Set up error viewport dimensions
 	modalWidth := min(m.width-8, 80)
 	m.errorViewport.Width = modalWidth - 8        // Account for border + padding + margin

@@ -62,6 +62,37 @@ func isNavKey(key string) bool {
 	return false
 }
 
+// pushView saves current mode to the view stack and transitions to a new view
+func (m *Model) pushView(newMode viewMode) {
+	m.viewStack = append(m.viewStack, ViewContext{Mode: m.mode})
+	m.mode = newMode
+}
+
+// popView returns to the previous view from the stack, returns false if stack is empty
+func (m *Model) popView() bool {
+	if len(m.viewStack) == 0 {
+		return false
+	}
+	n := len(m.viewStack) - 1
+	m.mode = m.viewStack[n].Mode
+	m.viewStack = m.viewStack[:n]
+	return true
+}
+
+// peekViewStack returns the mode at the top of the stack without removing it
+// Returns the current mode if stack is empty (for rendering background)
+func (m *Model) peekViewStack() viewMode {
+	if len(m.viewStack) == 0 {
+		return m.mode
+	}
+	return m.viewStack[len(m.viewStack)-1].Mode
+}
+
+// clearViewStack resets navigation history (e.g., on signal change)
+func (m *Model) clearViewStack() {
+	m.viewStack = m.viewStack[:0]
+}
+
 // cycleSignalType switches to the next signal type and returns the appropriate command
 func (m *Model) cycleSignalType() tea.Cmd {
 	// Cycle: logs -> traces -> metrics -> logs
@@ -73,6 +104,9 @@ func (m *Model) cycleSignalType() tea.Cmd {
 	case signalMetrics:
 		m.signalType = signalLogs
 	}
+
+	// Clear navigation history when switching signals
+	m.clearViewStack()
 
 	m.client.SetIndex(m.signalType.IndexPattern())
 	m.displayFields = DefaultFields(m.signalType)
@@ -122,7 +156,7 @@ func (m *Model) cyclePerspective() tea.Cmd {
 
 // enterPerspectiveView sets up the perspective list view
 func (m *Model) enterPerspectiveView() tea.Cmd {
-	m.mode = viewPerspectiveList
+	m.pushView(viewPerspectiveList)
 	m.perspectiveCursor = 0
 	m.perspectiveItems = []PerspectiveItem{}
 	m.perspectiveLoading = true

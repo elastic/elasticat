@@ -120,7 +120,7 @@ func (m Model) View() string {
 		return overlay
 	case viewHelp:
 		// Render previous mode as background, then overlay help content
-		base := m.renderBase(m.previousMode)
+		base := m.renderBase(m.peekViewStack())
 		modal := lipgloss.Place(
 			m.width, m.height,
 			lipgloss.Center, lipgloss.Center,

@@ -12,12 +12,8 @@ import (
 func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "q":
-		// Return to previous mode (could be viewLogs or viewMetricDetail)
-		if m.previousMode == viewMetricDetail {
-			m.mode = viewMetricDetail
-		} else {
-			m.mode = viewLogs
-		}
+		// Return to previous view via stack
+		m.popView()
 		m.statusMessage = ""
 		return m, nil
 	case "left", "h":
@@ -35,7 +31,7 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case "enter":
-		// Toggle between detail and JSON view
+		// Toggle between detail and JSON view (same stack level)
 		if m.mode == viewDetail {
 			m.mode = viewDetailJSON
 			if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
@@ -53,10 +49,11 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "j":
 		// Toggle JSON view on/off
 		if m.mode == viewDetailJSON {
-			// Return to previous mode (metric detail or regular detail)
-			if m.previousMode == viewMetricDetail {
-				m.mode = viewMetricDetail
+			// If we came from metric detail (via j key), pop back to it
+			if m.peekViewStack() == viewMetricDetail {
+				m.popView()
 			} else {
+				// Otherwise toggle to formatted detail view
 				m.mode = viewDetail
 				if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
 					m.setViewportContent(m.renderLogDetail(m.logs[m.selectedIndex]))

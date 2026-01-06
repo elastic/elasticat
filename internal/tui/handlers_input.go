@@ -14,7 +14,7 @@ import (
 func (m Model) handleQueryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "q", "Q":
-		m.mode = viewLogs
+		m.popView()
 		m.statusMessage = ""
 		return m, nil
 	case "c":
@@ -51,12 +51,12 @@ func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		m.searchQuery = m.searchInput.Value()
 		m.userHasScrolled = false // Reset for tail -f behavior
-		m.mode = viewLogs
+		m.popView()
 		m.searchInput.Blur()
 		m.loading = true
 		return m, m.fetchLogs()
 	case "esc":
-		m.mode = viewLogs
+		m.popView()
 		m.searchInput.Blur()
 		return m, nil
 	}
@@ -73,12 +73,12 @@ func (m Model) handleIndexKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if newIndex != "" {
 			m.client.SetIndex(newIndex)
 		}
-		m.mode = viewLogs
+		m.popView()
 		m.indexInput.Blur()
 		m.loading = true
 		return m, m.fetchLogs()
 	case "esc":
-		m.mode = viewLogs
+		m.popView()
 		m.indexInput.Blur()
 		return m, nil
 	}

@@ -40,7 +40,7 @@ func (m Model) handleFieldsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch msg.String() {
 	case "esc", "q":
-		m.mode = viewLogs
+		m.popView()
 		return m, nil
 	case "up", "k":
 		if m.fieldsCursor > 0 {

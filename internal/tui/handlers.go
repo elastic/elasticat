@@ -25,7 +25,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		// Close error modal and return to previous view
 		if m.mode == viewErrorModal {
-			m.mode = m.previousMode
+			m.popView()
 			m.err = nil // Clear error
 			return m, nil
 		}
@@ -41,8 +41,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "h":
 		// Global help only when enabled and not in text-input modes
 		if m.HelpEnabled() && !m.isTextInputActive() {
-			m.previousMode = m.mode
-			m.mode = viewHelp
+			m.pushView(viewHelp)
 			m.renderHelpOverlay()
 			return m, nil
 		}

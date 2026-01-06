@@ -38,7 +38,7 @@ func (m Model) handleTraceNamesKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "m":
 		return m, m.cycleSignalType()
 	case "/":
-		m.mode = viewSearch
+		m.pushView(viewSearch)
 		m.searchInput.Focus()
 		return m, textinput.Blink
 	case "q":

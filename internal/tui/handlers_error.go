@@ -20,7 +20,7 @@ func (m Model) handleErrorModalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "q", "esc":
 		// Close modal and return to previous view
-		m.mode = m.previousMode
+		m.popView()
 		m.err = nil
 		return m, nil
 

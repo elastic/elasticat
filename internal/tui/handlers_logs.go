@@ -55,12 +55,12 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, m.maybeFetchSpansForSelection()
 		}
 	case "/":
-		m.mode = viewSearch
+		m.pushView(viewSearch)
 		m.searchInput.Focus()
 		return m, textinput.Blink
 	case "enter":
 		if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
-			m.mode = viewDetail
+			m.pushView(viewDetail)
 			m.setViewportContent(m.renderLogDetail(m.logs[m.selectedIndex]))
 			m.viewport.GotoTop()
 		}
@@ -95,7 +95,7 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.loading = true
 		return m, m.fetchLogs()
 	case "i":
-		m.mode = viewIndex
+		m.pushView(viewIndex)
 		m.indexInput.SetValue(m.client.GetIndex())
 		m.indexInput.Focus()
 		return m, textinput.Blink
@@ -109,10 +109,10 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.timeDisplayMode = timeDisplayClock
 		}
 	case "Q":
-		m.mode = viewQuery
+		m.pushView(viewQuery)
 		m.queryFormat = formatKibana
 	case "f":
-		m.mode = viewFields
+		m.pushView(viewFields)
 		m.fieldsCursor = 0
 		m.fieldsSearch = ""
 		m.fieldsSearchMode = false

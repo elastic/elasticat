@@ -77,27 +77,12 @@ func (m Model) handlePerspectiveListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.fetchPerspectiveData()
 	case "/":
 		// Enter search mode (consistent with other list views)
-		m.mode = viewSearch
+		m.pushView(viewSearch)
 		m.searchInput.Focus()
 		return m, textinput.Blink
 	case "esc":
-		// Return to appropriate view based on signal type and drill-down level
-		switch m.signalType {
-		case signalMetrics:
-			m.mode = viewMetricsDashboard
-		case signalTraces:
-			// Check trace view level to return to correct view
-			switch m.traceViewLevel {
-			case traceViewTransactions, traceViewSpans:
-				// User was viewing transactions or spans (which use viewLogs)
-				m.mode = viewLogs
-			default:
-				// User was at the top-level transaction names list
-				m.mode = viewTraceNames
-			}
-		default:
-			m.mode = viewLogs
-		}
+		// Return to previous view via stack
+		m.popView()
 		return m, nil
 	case "q":
 		return m, tea.Quit

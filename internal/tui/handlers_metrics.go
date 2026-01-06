@@ -26,7 +26,7 @@ func (m Model) handleMetricsDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		// Enter detail view for the selected metric
 		if m.aggregatedMetrics != nil && m.metricsCursor < len(m.aggregatedMetrics.Metrics) {
-			m.mode = viewMetricDetail
+			m.pushView(viewMetricDetail)
 			m.metricDetailDocCursor = 0
 			m.metricDetailDocsLoading = true
 			return m, m.fetchMetricDetailDocs()
@@ -49,7 +49,7 @@ func (m Model) handleMetricsDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "m":
 		return m, m.cycleSignalType()
 	case "/":
-		m.mode = viewSearch
+		m.pushView(viewSearch)
 		m.searchInput.Focus()
 		return m, textinput.Blink
 	case "K":
@@ -67,7 +67,7 @@ func (m Model) handleMetricDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "backspace", "q":
 		// Return to metrics dashboard
-		m.mode = viewMetricsDashboard
+		m.popView()
 	case "left":
 		// Previous metric (and re-fetch docs)
 		if m.metricsCursor > 0 {
@@ -100,8 +100,7 @@ func (m Model) handleMetricDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// Temporarily put the doc in logs so detail view can render it
 			m.logs = m.metricDetailDocs
 			m.selectedIndex = m.metricDetailDocCursor
-			m.previousMode = viewMetricDetail
-			m.mode = viewDetailJSON
+			m.pushView(viewDetailJSON)
 			m.setViewportContent(es.PrettyJSON(m.metricDetailDocs[m.metricDetailDocCursor].RawJSON))
 			m.viewport.GotoTop()
 		}

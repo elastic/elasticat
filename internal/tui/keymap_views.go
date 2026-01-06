@@ -7,7 +7,7 @@ package tui
 func (m Model) ViewKeymap() []KeyBinding {
 	mode := m.mode
 	if mode == viewHelp {
-		mode = m.previousMode
+		mode = m.peekViewStack()
 	}
 	switch mode {
 	case viewLogs:

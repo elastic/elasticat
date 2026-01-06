@@ -8,7 +8,7 @@ import tea "github.com/charmbracelet/bubbletea"
 func (m Model) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "q":
-		m.mode = m.previousMode
+		m.popView()
 		return m, nil
 	case "j", "down":
 		m.helpViewport.ScrollDown(1)

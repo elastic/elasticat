@@ -17,6 +17,11 @@ import (
 // viewMode represents different UI views in the TUI
 type viewMode int
 
+// ViewContext captures state needed to restore a view when navigating back
+type ViewContext struct {
+	Mode viewMode
+}
+
 const (
 	viewLogs viewMode = iota
 	viewSearch
