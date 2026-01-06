@@ -105,6 +105,30 @@ cd ../../
 - [COMPETITIVE_ANALYSIS.md](COMPETITIVE_ANALYSIS.md) - How ElastiCat compares to other tools
 - [examples/stock-tracker/](examples/stock-tracker/) - Demo microservices app
 
+## Releasing
+
+To create a new release:
+
+```bash
+# Run validation and create a release tag
+make release VERSION=v1.0.0
+```
+
+This will:
+1. Run all tests
+2. Check code formatting
+3. Verify license headers
+4. Create an annotated git tag
+5. Push the tag to GitHub
+
+GitHub Actions will then automatically:
+- Validate all checks pass
+- Build binaries for Linux, macOS, and Windows
+- Create distribution archives containing the binary, LICENSE.txt, NOTICE.txt, and README.md
+- Publish a GitHub Release with auto-generated release notes
+
+**Versioning**: We use [Semantic Versioning](https://semver.org/) (e.g., `v1.0.0`, `v1.0.1`, `v2.0.0`).
+
 ## License
 
 Apache 2.0 - See [LICENSE.txt](LICENSE.txt) and [NOTICE.txt](NOTICE.txt)

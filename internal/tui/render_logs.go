@@ -232,6 +232,141 @@ func (m Model) renderLogEntry(log es.LogEntry, selected bool) string {
 	return LogEntryStyle.Render(line)
 }
 
+// renderSpanWaterfall renders spans as a timeline waterfall visualization.
+// Each span is shown with its name and a proportional bar showing its timing
+// relative to the earliest span in the trace.
+func renderSpanWaterfall(spans []es.LogEntry, availableWidth int) string {
+	if len(spans) == 0 {
+		return ""
+	}
+
+	// Unicode box-drawing characters for the waterfall bars
+	const (
+		barLeft  = "├"
+		barLine  = "─"
+		barRight = "┤"
+	)
+
+	// Column widths
+	// Output format: "  %-20s: [bar]" = 2 (indent) + 20 (name) + 2 (": ") = 24 fixed chars
+	nameWidth := 20
+	fixedChars := 2 + nameWidth + 2                 // "  " + name + ": "
+	barAreaWidth := availableWidth - fixedChars - 2 // -2 extra margin for safety
+	if barAreaWidth < 20 {
+		barAreaWidth = 20
+	}
+
+	// Find timeline bounds: earliest start and latest end
+	var minStart, maxEnd time.Time
+	for i, span := range spans {
+		spanStart := span.Timestamp
+		spanEnd := spanStart.Add(time.Duration(span.Duration))
+
+		if i == 0 || spanStart.Before(minStart) {
+			minStart = spanStart
+		}
+		if i == 0 || spanEnd.After(maxEnd) {
+			maxEnd = spanStart.Add(time.Duration(span.Duration))
+		}
+	}
+
+	// Total timeline duration in nanoseconds
+	totalDuration := maxEnd.Sub(minStart).Nanoseconds()
+	if totalDuration <= 0 {
+		totalDuration = 1 // Avoid division by zero
+	}
+
+	var b strings.Builder
+
+	for _, span := range spans {
+		// Get span name
+		name := span.Name
+		if name == "" {
+			name = span.GetMessage()
+		}
+		if name == "" {
+			name = "unnamed"
+		}
+
+		// Truncate name if needed
+		if len(name) > nameWidth {
+			name = name[:nameWidth-3] + "..."
+		}
+
+		// Calculate bar position and width
+		spanStart := span.Timestamp
+		offsetNs := spanStart.Sub(minStart).Nanoseconds()
+		durationNs := span.Duration
+		if durationNs <= 0 {
+			durationNs = 1 // Minimum duration for display
+		}
+
+		// Scale to available width
+		startPos := int(float64(offsetNs) / float64(totalDuration) * float64(barAreaWidth))
+		barWidth := int(float64(durationNs) / float64(totalDuration) * float64(barAreaWidth))
+
+		// Format duration string
+		ms := float64(durationNs) / 1_000_000.0
+		var durationStr string
+		if ms < 1 {
+			durationStr = fmt.Sprintf("%.2fms", ms)
+		} else if ms < 100 {
+			durationStr = fmt.Sprintf("%.1fms", ms)
+		} else {
+			durationStr = fmt.Sprintf("%.0fms", ms)
+		}
+
+		// Minimum bar width to fit: ├(duration)┤
+		minBarWidth := len(durationStr) + 2 // +2 for ├ and ┤
+		if barWidth < minBarWidth {
+			barWidth = minBarWidth
+		}
+
+		// Calculate max allowed bar width at this position
+		maxBarWidth := barAreaWidth - startPos
+		if maxBarWidth < minBarWidth {
+			// Shift start position left to fit minimum bar
+			startPos = barAreaWidth - minBarWidth
+			if startPos < 0 {
+				startPos = 0
+			}
+			maxBarWidth = barAreaWidth - startPos
+		}
+
+		// Clamp bar width to max allowed
+		if barWidth > maxBarWidth {
+			barWidth = maxBarWidth
+		}
+
+		// Build the bar: ├───(duration)───┤
+		// Inner width is what's between ├ and ┤
+		innerWidth := barWidth - 2
+		if innerWidth < 0 {
+			innerWidth = 0
+		}
+
+		// Center the duration string within the bar (or truncate if needed)
+		var bar string
+		if innerWidth >= len(durationStr) {
+			totalPadding := innerWidth - len(durationStr)
+			leftPad := totalPadding / 2
+			rightPad := totalPadding - leftPad
+			bar = barLeft + strings.Repeat(barLine, leftPad) + durationStr + strings.Repeat(barLine, rightPad) + barRight
+		} else {
+			// Bar too small for full duration, just show minimal bar
+			bar = barLeft + durationStr[:innerWidth] + barRight
+		}
+
+		// Build the full line with leading spaces for offset
+		leadingSpaces := strings.Repeat(" ", startPos)
+
+		// Write the line
+		b.WriteString(fmt.Sprintf("  %-*s: %s%s\n", nameWidth, name, leadingSpaces, bar))
+	}
+
+	return b.String()
+}
+
 func (m Model) renderLogDetail(log es.LogEntry) string {
 	hl := m.Highlighter()
 	var b strings.Builder
@@ -314,7 +449,7 @@ func (m Model) renderLogDetail(log es.LogEntry) string {
 			b.WriteString("\n\n")
 		}
 
-		// Child spans
+		// Child spans - render as waterfall timeline
 		if m.spansLoading {
 			b.WriteString(DetailKeyStyle.Render("Child Spans: "))
 			b.WriteString(LoadingStyle.Render("Loading..."))
@@ -322,35 +457,12 @@ func (m Model) renderLogDetail(log es.LogEntry) string {
 		} else if len(m.spans) > 0 {
 			b.WriteString(DetailKeyStyle.Render(fmt.Sprintf("Child Spans (%d):", len(m.spans))))
 			b.WriteString("\n")
-			// Show all spans in a simple waterfall-like view
-			for i, span := range m.spans {
-				name := span.Name
-				if name == "" {
-					name = span.GetMessage()
-				}
-				if name == "" {
-					name = "unnamed"
-				}
-
-				// Add indentation to show hierarchy (basic waterfall approximation)
-				indent := "  "
-				if i > 0 {
-					indent = "    "
-				}
-
-				// Duration
-				durationStr := ""
-				if span.Duration > 0 {
-					ms := float64(span.Duration) / 1_000_000.0
-					if ms < 1 {
-						durationStr = fmt.Sprintf(" (%.3fms)", ms)
-					} else {
-						durationStr = fmt.Sprintf(" (%.2fms)", ms)
-					}
-				}
-
-				b.WriteString(fmt.Sprintf("%s%d. %s%s\n", indent, i+1, name, durationStr))
+			// Render waterfall visualization - use viewport width or default
+			waterfallWidth := m.viewport.Width
+			if waterfallWidth < 60 {
+				waterfallWidth = 80
 			}
+			b.WriteString(renderSpanWaterfall(m.spans, waterfallWidth))
 			b.WriteString("\n")
 		}
 

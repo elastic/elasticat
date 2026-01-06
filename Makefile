@@ -1,4 +1,4 @@
-.PHONY: build install clean up down logs test fmt fmt-check license-check license-add notice dist dist-platform dist-clean prep
+.PHONY: build install clean up down logs test fmt fmt-check license-check license-add notice dist dist-platform dist-clean prep sloc release
 
 # Build the elasticat binary
 build:
@@ -127,3 +127,29 @@ dist-clean:
 # Prepare code for PR (format, add license headers, update NOTICE)
 prep: fmt license-add notice
 	@echo "Code is ready for PR!"
+
+# Create and push a release tag (runs validation first)
+# Usage: make release VERSION=v1.0.0
+release:
+	@if [ -z "$(VERSION)" ]; then echo "Usage: make release VERSION=v1.0.0"; exit 1; fi
+	@echo "Preparing release $(VERSION)..."
+	@$(MAKE) test
+	@$(MAKE) fmt-check
+	@$(MAKE) license-check
+	@echo "All checks passed. Creating tag $(VERSION)..."
+	git tag -a $(VERSION) -m "Release $(VERSION)"
+	git push origin $(VERSION)
+	@echo "Release $(VERSION) pushed! GitHub Actions will create the release."
+
+# Count source lines of code (excluding examples/stock-tracker)
+sloc:
+	@echo "=== Source Lines of Code ==="
+	@echo ""
+	@echo "Production code:"
+	@find . -name '*.go' -not -name '*_test.go' -not -path './examples/stock-tracker/*' | xargs wc -l | tail -1 | awk '{print "  " $$1 " lines"}'
+	@echo ""
+	@echo "Test code:"
+	@find . -name '*_test.go' -not -path './examples/stock-tracker/*' | xargs wc -l | tail -1 | awk '{print "  " $$1 " lines"}'
+	@echo ""
+	@echo "Total:"
+	@find . -name '*.go' -not -path './examples/stock-tracker/*' | xargs wc -l | tail -1 | awk '{print "  " $$1 " lines"}'

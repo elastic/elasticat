@@ -21,6 +21,10 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.selectedIndex > 0 {
 			m.selectedIndex--
 			m.updateDetailContent()
+			// Fetch spans for traces signal type
+			if m.signalType == signalTraces {
+				return m, m.maybeFetchSpansForSelection()
+			}
 		}
 		return m, nil
 	case "right", "l":
@@ -28,6 +32,10 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.selectedIndex < len(m.logs)-1 {
 			m.selectedIndex++
 			m.updateDetailContent()
+			// Fetch spans for traces signal type
+			if m.signalType == signalTraces {
+				return m, m.maybeFetchSpansForSelection()
+			}
 		}
 		return m, nil
 	case "enter":
