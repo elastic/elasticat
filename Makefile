@@ -156,10 +156,10 @@ sloc:
 	@echo "Total:"
 	@find . -name '*.go' -not -path './examples/stock-tracker/*' | xargs wc -l | tail -1 | awk '{print "  " $$1 " lines"}'
 
-# Generate demo video using VHS (requires: brew install vhs ttyd ffmpeg)
+# Generate demo GIF using VHS (requires: brew install vhs ttyd ffmpeg)
 # Make sure elasticat is built and the stack is running with data first
 demo: build
-	@echo "Generating demo video..."
+	@echo "Generating demo GIF..."
 	@echo "Note: Stack must be running with data (elasticat up + some telemetry)"
 	vhs demo.tape
-	@echo "Demo video saved to docs/demo.mp4"
+	@echo "Demo GIF saved to docs/demo.gif"

@@ -8,9 +8,7 @@
 [![Releases](https://img.shields.io/github/v/release/elastic/elasticat?label=Latest)](https://github.com/elastic/elasticat/releases)
 
 <p align="center">
-  <video src="docs/demo.mp4" width="800" autoplay loop muted playsinline>
-    <img src="docs/images/logs-list.png" alt="ElastiCat TUI Demo" width="800">
-  </video>
+  <img src="docs/demo.gif" alt="ElastiCat TUI Demo" width="800">
 </p>
 
 ## Features
