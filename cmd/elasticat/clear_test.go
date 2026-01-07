@@ -80,5 +80,3 @@ func TestIsLocalESURL(t *testing.T) {
 		})
 	}
 }
-
-

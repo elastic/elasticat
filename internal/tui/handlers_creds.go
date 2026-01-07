@@ -66,4 +66,3 @@ func (m *Model) showCredsModal() {
 	}
 	m.pushView(viewCredsModal)
 }
-

@@ -61,10 +61,10 @@ type KibanaProfile struct {
 
 // Default configuration directory and file names.
 const (
-	ConfigDirName       = "elasticat"
-	ConfigFileName      = "config.yaml"
-	StartLocalDirName   = "elastic-start-local"
-	StartLocalEnvFile   = ".env"
+	ConfigDirName         = "elasticat"
+	ConfigFileName        = "config.yaml"
+	StartLocalDirName     = "elastic-start-local"
+	StartLocalEnvFile     = ".env"
 	StartLocalProfileName = "elastic-start-local"
 )
 
@@ -125,11 +125,11 @@ func IsStartLocalInstalled() bool {
 
 // StartLocalEnv holds the parsed values from the start-local .env file.
 type StartLocalEnv struct {
-	ESURL       string
-	ESPort      string
-	ESPassword  string
-	ESAPIKey    string
-	KibanaPort  string
+	ESURL      string
+	ESPort     string
+	ESPassword string
+	ESAPIKey   string
+	KibanaPort string
 }
 
 // LoadStartLocalEnv loads and parses the start-local .env file.
@@ -157,24 +157,24 @@ func LoadStartLocalEnv() (*StartLocalEnv, error) {
 // It handles variable expansion within the file (e.g., ${ES_LOCAL_PORT}).
 func parseEnvFile(content string) (*StartLocalEnv, error) {
 	vars := make(map[string]string)
-	
+
 	// First pass: collect all raw values
 	for _, line := range strings.Split(content, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		
+
 		idx := strings.Index(line, "=")
 		if idx == -1 {
 			continue
 		}
-		
+
 		key := strings.TrimSpace(line[:idx])
 		value := strings.TrimSpace(line[idx+1:])
 		vars[key] = value
 	}
-	
+
 	// Second pass: expand variable references
 	expandVar := func(s string) string {
 		// Match ${VAR_NAME} pattern and replace with value from vars map
@@ -187,17 +187,17 @@ func parseEnvFile(content string) (*StartLocalEnv, error) {
 			return match // Keep original if not found
 		})
 	}
-	
+
 	env := &StartLocalEnv{
 		ESPort:     vars["ES_LOCAL_PORT"],
 		ESPassword: vars["ES_LOCAL_PASSWORD"],
 		ESAPIKey:   vars["ES_LOCAL_API_KEY"],
 		KibanaPort: vars["KIBANA_LOCAL_PORT"],
 	}
-	
+
 	// Expand ES_LOCAL_URL which may contain ${ES_LOCAL_PORT}
 	env.ESURL = expandVar(vars["ES_LOCAL_URL"])
-	
+
 	return env, nil
 }
 
@@ -207,7 +207,7 @@ func (e *StartLocalEnv) ToProfile() Profile {
 	if e.KibanaPort != "" && e.KibanaPort != "5601" {
 		kibanaURL = fmt.Sprintf("http://localhost:%s", e.KibanaPort)
 	}
-	
+
 	insecure := true
 	return Profile{
 		Source: ProfileSourceStartLocal,

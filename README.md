@@ -60,7 +60,7 @@ If you prefer building locally, see [Building from Source](#building-from-source
 elasticat up
 ```
 
-This starts Elasticsearch, Kibana, and the EDOT (Elastic Distribution of OpenTelemetry) collector. Uses Docker if available, otherwise Podman. Credentials are automatically saved.
+This starts Elasticsearch, Kibana, and the EDOT (Elastic Distribution of OpenTelemetry) collector using [Elastic start-local](https://github.com/elastic/start-local). Uses Docker if available, otherwise Podman. Credentials are automatically saved.
 
 ### 3. Watch your logs
 
