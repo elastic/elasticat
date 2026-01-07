@@ -25,6 +25,7 @@ const (
 	requestPerspective
 	requestFieldCaps
 	requestAutoDetect
+	requestChat
 )
 
 type requestState struct {

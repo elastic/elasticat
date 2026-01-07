@@ -20,9 +20,10 @@ import (
 var uiCmd = &cobra.Command{
 	Use:   "ui [signal]",
 	Short: "Open the interactive TUI viewer",
-	Long: `Opens the interactive terminal UI for viewing logs, metrics, or traces.
+	Long: `Opens the interactive terminal UI for viewing logs, metrics, traces, or chat.
 
-Signal can be: logs (default), metrics, or traces.`,
+Signal can be: logs (default), metrics, traces, or chat.
+Use 'chat' to start directly in AI chat mode powered by Elastic Agent Builder.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		sig := tui.SignalLogs
@@ -34,8 +35,10 @@ Signal can be: logs (default), metrics, or traces.`,
 				sig = tui.SignalMetrics
 			case "traces":
 				sig = tui.SignalTraces
+			case "chat":
+				sig = tui.SignalChat
 			default:
-				return fmt.Errorf("unknown signal %q (expected logs, metrics, traces)", args[0])
+				return fmt.Errorf("unknown signal %q (expected logs, metrics, traces, chat)", args[0])
 			}
 		}
 		return runTUI(cmd.Context(), sig)
@@ -70,7 +73,11 @@ func runTUI(parentCtx context.Context, sig tui.SignalType) error {
 		fmt.Println()
 	}
 
-	model := tui.NewModel(notifyCtx, client, sig, cfg.TUI, cfg.Kibana.URL, cfg.Kibana.Space)
+	model := tui.NewModelWithOpts(notifyCtx, client, sig, cfg.TUI, cfg.Kibana.URL, cfg.Kibana.Space, tui.NewModelOpts{
+		ESAPIKey:   cfg.ES.APIKey,
+		ESUsername: cfg.ES.Username,
+		ESPassword: cfg.ES.Password,
+	})
 	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithContext(notifyCtx))
 
 	if _, err := p.Run(); err != nil {

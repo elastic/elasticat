@@ -96,11 +96,22 @@ type PerspectiveState struct {
 	Loading bool              // Loading perspective data
 }
 
+// ChatState holds AI chat state.
+type ChatState struct {
+	Messages       []ChatMessage   // Conversation history
+	Loading        bool            // Waiting for AI response
+	ConversationID string          // Agent Builder conversation ID
+	Input          textinput.Model // Chat message input
+	Viewport       viewport.Model  // Chat message history viewport
+}
+
 // UIComponents holds UI component instances.
 type UIComponents struct {
 	SearchInput   textinput.Model // Search text input
 	IndexInput    textinput.Model // Index pattern input
+	ChatInput     textinput.Model // Chat message input
 	Viewport      viewport.Model  // Main content viewport
 	ErrorViewport viewport.Model  // Error modal viewport
 	HelpViewport  viewport.Model  // Help overlay viewport
+	ChatViewport  viewport.Model  // Chat message history viewport
 }

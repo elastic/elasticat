@@ -121,25 +121,30 @@ func (m *Model) clearViewStack() {
 
 // cycleSignalType switches to the next signal type and returns the appropriate command
 func (m *Model) cycleSignalType() tea.Cmd {
-	// Cycle: logs -> traces -> metrics -> logs
+	// Cycle: logs -> traces -> metrics -> chat -> logs
 	switch m.signalType {
 	case signalLogs:
 		m.signalType = signalTraces
 	case signalTraces:
 		m.signalType = signalMetrics
 	case signalMetrics:
+		m.signalType = signalChat
+	case signalChat:
 		m.signalType = signalLogs
 	}
 
 	// Clear navigation history when switching signals
 	m.clearViewStack()
 
-	m.client.SetIndex(m.signalType.IndexPattern())
-	m.displayFields = DefaultFields(m.signalType)
-	m.logs = []es.LogEntry{}
-	m.selectedIndex = 0
-	m.statusMessage = "Auto-detecting time range..."
-	m.statusTime = time.Now()
+	// Chat doesn't use an index pattern
+	if m.signalType != signalChat {
+		m.client.SetIndex(m.signalType.IndexPattern())
+		m.displayFields = DefaultFields(m.signalType)
+		m.logs = []es.LogEntry{}
+		m.selectedIndex = 0
+		m.statusMessage = "Auto-detecting time range..."
+		m.statusTime = time.Now()
+	}
 
 	return m.enterSignalView()
 }
@@ -162,6 +167,10 @@ func (m *Model) enterSignalView() tea.Cmd {
 		m.selectedTraceID = ""
 		m.loading = false
 		return tea.Batch(m.autoDetectLookback(), m.fetchTransactionNames())
+	case signalChat:
+		m.mode = viewChat
+		m.loading = false
+		return m.enterChatView()
 	default:
 		m.mode = viewLogs
 		m.loading = true

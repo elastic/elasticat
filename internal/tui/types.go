@@ -37,6 +37,7 @@ const (
 	viewErrorModal       // Error dialog with copy/close options
 	viewQuitConfirm      // Quit confirmation modal
 	viewHelp             // Hotkeys overlay
+	viewChat             // AI chat with Agent Builder
 )
 
 // MetricsViewMode toggles between aggregated and document views for metrics
@@ -83,6 +84,7 @@ const (
 	SignalLogs SignalType = iota
 	SignalTraces
 	SignalMetrics
+	SignalChat // AI Chat with Agent Builder
 )
 
 // Unexported aliases for backward compatibility within this package
@@ -90,6 +92,7 @@ const (
 	signalLogs    = SignalLogs
 	signalTraces  = SignalTraces
 	signalMetrics = SignalMetrics
+	signalChat    = SignalChat
 )
 
 // PerspectiveType represents the type of perspective filter
@@ -177,6 +180,8 @@ func (s SignalType) String() string {
 		return "Traces"
 	case signalMetrics:
 		return "Metrics"
+	case signalChat:
+		return "Chat"
 	default:
 		return "Unknown"
 	}
@@ -190,6 +195,8 @@ func (s SignalType) IndexPattern() string {
 		return index.Traces
 	case signalMetrics:
 		return index.Metrics
+	case signalChat:
+		return "" // Chat doesn't use a specific index
 	default:
 		return index.Logs
 	}
@@ -357,6 +364,14 @@ type PerspectiveItem struct {
 	MetricCount int64
 }
 
+// ChatMessage represents a message in the chat conversation
+type ChatMessage struct {
+	Role      string    // "user" or "assistant"
+	Content   string    // Message content
+	Timestamp time.Time // When the message was sent/received
+	Error     bool      // Whether this message represents an error
+}
+
 // Message types for Bubble Tea
 type (
 	logsMsg struct {
@@ -394,6 +409,11 @@ type (
 	perspectiveDataMsg struct {
 		items []PerspectiveItem
 		err   error
+	}
+	chatResponseMsg struct {
+		conversationID string
+		message        ChatMessage
+		err            error
 	}
 	tickMsg time.Time
 	errMsg  error

@@ -68,6 +68,7 @@ type TUIConfig struct {
 	TracesTimeout     time.Duration `mapstructure:"traces_timeout"`
 	FieldCapsTimeout  time.Duration `mapstructure:"field_caps_timeout"`
 	AutoDetectTimeout time.Duration `mapstructure:"auto_detect_timeout"`
+	ChatTimeout       time.Duration `mapstructure:"chat_timeout"`
 }
 
 // Default configuration values.
@@ -84,7 +85,8 @@ const (
 	DefaultTracesTimeout     = 30 * time.Second
 	DefaultFieldCapsTimeout  = 10 * time.Second
 	DefaultAutoDetectTimeout = 30 * time.Second
-	DefaultKibanaSpace       = "elasticat" // Default space for local stack
+	DefaultChatTimeout       = 60 * time.Second // Longer timeout for AI chat responses
+	DefaultKibanaSpace       = "elasticat"      // Default space for local stack
 )
 
 // profileFlag holds the --profile flag value, set by root command.
@@ -232,6 +234,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("tui.traces_timeout", DefaultTracesTimeout)
 	v.SetDefault("tui.field_caps_timeout", DefaultFieldCapsTimeout)
 	v.SetDefault("tui.auto_detect_timeout", DefaultAutoDetectTimeout)
+	v.SetDefault("tui.chat_timeout", DefaultChatTimeout)
 }
 
 // bindFlagsRecursive binds flags from cmd and all parents so Viper sees them.
@@ -324,6 +327,9 @@ func (c Config) Validate() error {
 	}
 	if c.TUI.AutoDetectTimeout <= 0 {
 		return fmt.Errorf("tui.auto_detect_timeout must be > 0")
+	}
+	if c.TUI.ChatTimeout <= 0 {
+		return fmt.Errorf("tui.chat_timeout must be > 0")
 	}
 	return nil
 }

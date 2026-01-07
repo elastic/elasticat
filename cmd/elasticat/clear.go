@@ -4,8 +4,14 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"io"
+	"net"
+	"net/url"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/elastic/elasticat/internal/config"
@@ -42,6 +48,10 @@ func runClear(parentCtx context.Context) error {
 		return fmt.Errorf("configuration not loaded")
 	}
 
+	if !isLocalESURL(cfg.ES.URL) {
+		return fmt.Errorf("refusing to run `elasticat clear` against non-local Elasticsearch (%q); `clear` is only allowed when --es-url points to localhost", cfg.ES.URL)
+	}
+
 	ctx, cancel := context.WithTimeout(parentCtx, 60*time.Second)
 	defer cancel()
 
@@ -58,10 +68,11 @@ func runClear(parentCtx context.Context) error {
 
 	// Prompt for confirmation unless --force
 	if !clearForce {
-		fmt.Print("This will delete ALL collected telemetry (logs, metrics, traces). Are you sure? [y/N] ")
-		var response string
-		_, _ = fmt.Scanln(&response)
-		if response != "y" && response != "Y" {
+		ok, err := confirmY(os.Stdin, os.Stdout, "This will delete ALL collected telemetry (logs, metrics, traces).\nType 'y' to continue: ")
+		if err != nil {
+			return err
+		}
+		if !ok {
 			fmt.Println("Aborted.")
 			return nil
 		}
@@ -100,4 +111,66 @@ func runClear(parentCtx context.Context) error {
 
 	fmt.Printf("\nTotal: %d documents deleted.\n", totalDeleted)
 	return nil
+}
+
+func confirmY(in io.Reader, out io.Writer, prompt string) (bool, error) {
+	// Intentionally strict: only a single 'y'/'Y' confirms.
+	// Anything else (including empty input, EOF, or "yes") aborts.
+	if _, err := fmt.Fprint(out, prompt); err != nil {
+		return false, err
+	}
+
+	r := bufio.NewReader(in)
+	line, err := r.ReadString('\n')
+	if err != nil && err != io.EOF {
+		return false, err
+	}
+	line = strings.TrimSpace(line)
+	return line == "y" || line == "Y", nil
+}
+
+func isLocalESURL(raw string) bool {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return false
+	}
+
+	// Common flag/env form: "localhost:9200" or "127.0.0.1:9200" (no scheme).
+	// Avoid url.Parse quirks where "host:port" is treated as "scheme:opaque".
+	if !strings.Contains(raw, "://") {
+		hostport := strings.SplitN(raw, "/", 2)[0]
+		// Drop userinfo if present.
+		if _, after, ok := strings.Cut(hostport, "@"); ok {
+			hostport = after
+		}
+		host := hostport
+		if h, _, err := net.SplitHostPort(hostport); err == nil {
+			host = h
+		}
+		host = strings.Trim(host, "[]")
+		if host == "localhost" {
+			return true
+		}
+		ip := net.ParseIP(host)
+		return ip != nil && ip.IsLoopback()
+	}
+
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+
+	host := u.Hostname()
+	if host == "" {
+		return false
+	}
+	if host == "localhost" {
+		return true
+	}
+
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	return ip.IsLoopback()
 }

@@ -30,11 +30,19 @@ func (m *Model) handleAsyncError(err error) (done bool) {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(
-		m.autoDetectLookback(),
+	cmds := []tea.Cmd{
 		m.tickCmd(),
 		func() tea.Msg { return tea.EnableMouseCellMotion() },
-	)
+	}
+
+	// Chat mode doesn't need auto-detect or data fetching
+	if m.signalType == signalChat {
+		cmds = append(cmds, m.enterChatView())
+	} else {
+		cmds = append(cmds, m.autoDetectLookback())
+	}
+
+	return tea.Batch(cmds...)
 }
 
 // Update handles messages
@@ -76,6 +84,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case perspectiveDataMsg:
 		return m.handlePerspectiveDataMsg(msg)
 
+	case chatResponseMsg:
+		return m.handleChatResponseMsg(msg)
+
 	case errMsg:
 		return m.handleErrMsg(msg)
 	}
@@ -100,6 +111,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.errorViewport, cmd = m.errorViewport.Update(msg)
 		cmds = append(cmds, cmd)
+	case viewChat:
+		var cmd tea.Cmd
+		m.chatInput, cmd = m.chatInput.Update(msg)
+		cmds = append(cmds, cmd)
+		var vpCmd tea.Cmd
+		m.chatViewport, vpCmd = m.chatViewport.Update(msg)
+		cmds = append(cmds, vpCmd)
 	}
 
 	return m, tea.Batch(cmds...)
@@ -123,10 +141,17 @@ func (m Model) handleWindowSize(msg tea.WindowSizeMsg) (Model, tea.Cmd) {
 	m.height = msg.Height
 	m.viewport.Width = msg.Width - 4
 	m.viewport.Height = msg.Height - 10
+	m.chatViewport.Width = msg.Width - 4
+	m.chatViewport.Height = msg.Height - 12 // Leave room for input and header
 
 	// Re-wrap detail content after resize so long fields wrap correctly.
 	if m.mode == viewDetail || m.mode == viewDetailJSON {
 		(&m).updateDetailContent()
+	}
+
+	// Re-wrap chat content after resize
+	if m.mode == viewChat {
+		(&m).updateChatViewport()
 	}
 
 	return m, nil

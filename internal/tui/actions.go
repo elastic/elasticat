@@ -43,6 +43,7 @@ const (
 	ActionSpans         // s - view spans (in trace detail)
 	ActionNextDoc       // n - next document (in metric detail)
 	ActionPrevDoc       // N - prev document (in metric detail)
+	ActionChat          // c - open AI chat
 )
 
 // DefaultKeyBindings maps keys to their primary action.
@@ -86,6 +87,7 @@ var DefaultKeyBindings = map[string]Action{
 	"S": ActionSpans,   // Spans view in trace detail
 	"n": ActionNextDoc, // Next document in metric detail
 	"N": ActionPrevDoc, // Prev document in metric detail
+	"c": ActionChat,    // Open AI chat
 
 	// Context-dependent keys (handled specially in some views)
 	// "d" - dashboard/documents toggle (not in default map)
@@ -147,6 +149,7 @@ var ActionDisplay = map[Action]ActionInfo{
 	ActionSpans:         {DisplayKeys: []string{"S"}, Label: "spans"},
 	ActionNextDoc:       {DisplayKeys: []string{"n"}, Label: "next doc"},
 	ActionPrevDoc:       {DisplayKeys: []string{"N"}, Label: "prev doc"},
+	ActionChat:          {DisplayKeys: []string{"c"}, Label: "chat"},
 }
 
 // ScrollDisplayKeys returns the combined display for scroll up/down

@@ -54,6 +54,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.renderHelpOverlay()
 			return m, nil
 		}
+	case ActionChat:
+		// Open chat from any view (except during text input or chat itself)
+		if !m.isTextInputActive() && m.mode != viewChat {
+			return m, m.enterChatView()
+		}
 	}
 
 	// Mode-specific keys
@@ -84,6 +89,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleQuitConfirmKey(msg)
 	case viewHelp:
 		return m.handleHelpKey(msg)
+	case viewChat:
+		return m.handleChatKey(msg)
 	}
 
 	return m, nil
@@ -96,6 +103,10 @@ func (m Model) isTextInputActive() bool {
 	}
 	// Fields search submode
 	if m.mode == viewFields && m.fieldsSearchMode {
+		return true
+	}
+	// Chat input mode
+	if m.mode == viewChat && m.chatInput.Focused() {
 		return true
 	}
 	return false
@@ -150,6 +161,9 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 					m.perspectiveCursor = 0
 				}
 			}
+		case viewChat:
+			// Scroll up in chat viewport
+			m.chatViewport.ScrollUp(3)
 		}
 		return m, nil
 	case tea.MouseButtonWheelDown:
@@ -198,6 +212,9 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 					m.perspectiveCursor = len(m.perspectiveItems) - 1
 				}
 			}
+		case viewChat:
+			// Scroll down in chat viewport
+			m.chatViewport.ScrollDown(3)
 		}
 		return m, nil
 	}

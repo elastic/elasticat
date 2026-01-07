@@ -57,6 +57,8 @@ func (m Model) renderBase(mode viewMode) string {
 		b.WriteString(m.renderPerspectiveList(logListHeight))
 		b.WriteString("\n")
 		b.WriteString(m.renderCompactDetail())
+	case viewChat:
+		b.WriteString(m.renderChatView(logListHeight))
 	}
 
 	// Help bar (bottom)
@@ -108,6 +110,8 @@ func (m Model) View() string {
 	case viewTraceNames:
 		return m.renderBase(m.mode)
 	case viewPerspectiveList:
+		return m.renderBase(m.mode)
+	case viewChat:
 		return m.renderBase(m.mode)
 	case viewErrorModal:
 		// Use lipgloss.Place to properly overlay the modal in the center of the screen

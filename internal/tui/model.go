@@ -36,6 +36,9 @@ type Model struct {
 	tuiConfig   config.TUIConfig // TUI timing/config
 	kibanaURL   string           // Kibana base URL for "Open in Kibana" feature
 	kibanaSpace string           // Kibana space (e.g., "elasticat") for URL path prefix
+	esAPIKey    string           // ES/Kibana API key for Agent Builder auth
+	esUsername  string           // ES/Kibana username for Agent Builder auth
+	esPassword  string           // ES/Kibana password for Agent Builder auth
 
 	// === UI State ===
 	mode            viewMode
@@ -105,6 +108,13 @@ type Model struct {
 	perspectiveItems   []PerspectiveItem
 	perspectiveCursor  int
 	perspectiveLoading bool
+
+	// === Chat State ===
+	chatMessages       []ChatMessage   // Conversation history
+	chatLoading        bool            // Waiting for AI response
+	chatConversationID string          // Agent Builder conversation ID
+	chatInput          textinput.Model // Chat message input
+	chatViewport       viewport.Model  // Chat message history viewport
 
 	// === UI Components ===
 	searchInput   textinput.Model
@@ -183,6 +193,17 @@ func (m Model) Perspective() PerspectiveState {
 	}
 }
 
+// Chat returns the current chat state as a struct.
+func (m Model) Chat() ChatState {
+	return ChatState{
+		Messages:       m.chatMessages,
+		Loading:        m.chatLoading,
+		ConversationID: m.chatConversationID,
+		Input:          m.chatInput,
+		Viewport:       m.chatViewport,
+	}
+}
+
 // setViewportContent wraps content to the viewport width before rendering.
 func (m *Model) setViewportContent(content string) {
 	wrapped := WrapText(content, m.viewport.Width)
@@ -192,7 +213,18 @@ func (m *Model) setViewportContent(content string) {
 // NewModel creates a new TUI model.
 // The client parameter accepts any DataSource implementation, enabling
 // mock data sources for testing.
+// NewModelOpts holds optional configuration for NewModel.
+type NewModelOpts struct {
+	ESAPIKey   string
+	ESUsername string
+	ESPassword string
+}
+
 func NewModel(ctx context.Context, client DataSource, signal SignalType, tuiCfg config.TUIConfig, kibanaURL, kibanaSpace string) Model {
+	return NewModelWithOpts(ctx, client, signal, tuiCfg, kibanaURL, kibanaSpace, NewModelOpts{})
+}
+
+func NewModelWithOpts(ctx context.Context, client DataSource, signal SignalType, tuiCfg config.TUIConfig, kibanaURL, kibanaSpace string, opts NewModelOpts) Model {
 	ti := textinput.New()
 	ti.Placeholder = "Search... (supports ES query syntax)"
 	ti.CharLimit = 256
@@ -203,13 +235,21 @@ func NewModel(ctx context.Context, client DataSource, signal SignalType, tuiCfg 
 	ii.CharLimit = 128
 	ii.Width = 50
 
+	ci := textinput.New()
+	ci.Placeholder = "Ask a question about your o11y data..."
+	ci.CharLimit = 1024
+	ci.Width = 70
+
 	// Set the client's index pattern based on the signal type
-	client.SetIndex(signal.IndexPattern())
+	if signal != SignalChat {
+		client.SetIndex(signal.IndexPattern())
+	}
 	ii.SetValue(client.GetIndex())
 
 	vp := viewport.New(80, 20)
 	errorVp := viewport.New(70, 15) // Viewport for error modal
 	helpVp := viewport.New(70, 15)  // Viewport for help overlay
+	chatVp := viewport.New(80, 15)  // Viewport for chat history
 
 	// Determine initial view mode based on signal type
 	var initialMode viewMode
@@ -218,6 +258,8 @@ func NewModel(ctx context.Context, client DataSource, signal SignalType, tuiCfg 
 		initialMode = viewTraceNames
 	case SignalMetrics:
 		initialMode = viewMetricsDashboard
+	case SignalChat:
+		initialMode = viewChat
 	default:
 		initialMode = viewLogs
 	}
@@ -237,6 +279,9 @@ func NewModel(ctx context.Context, client DataSource, signal SignalType, tuiCfg 
 		tuiConfig:       tuiCfg,
 		kibanaURL:       kibanaURL,
 		kibanaSpace:     kibanaSpace,
+		esAPIKey:        opts.ESAPIKey,
+		esUsername:      opts.ESUsername,
+		esPassword:      opts.ESPassword,
 		logs:            []es.LogEntry{},
 		mode:            initialMode,
 		autoRefresh:     true,
@@ -246,9 +291,12 @@ func NewModel(ctx context.Context, client DataSource, signal SignalType, tuiCfg 
 		displayFields:   DefaultFields(signal),
 		searchInput:     ti,
 		indexInput:      ii,
+		chatInput:       ci,
 		viewport:        vp,
 		errorViewport:   errorVp,
 		helpViewport:    helpVp,
+		chatViewport:    chatVp,
+		chatMessages:    []ChatMessage{},
 		width:           80,
 		height:          24,
 		traceViewLevel:  traceViewNames,        // Start at transaction names for traces
