@@ -158,6 +158,7 @@ func Load(cmd *cobra.Command) (Config, error) {
 
 // applyProfile loads the profile configuration and applies the active profile
 // values to Viper. Returns the name of the active profile (empty if none).
+// Profile values are applied with lower priority than environment variables.
 func applyProfile(v *viper.Viper) (string, error) {
 	profileCfg, err := LoadProfiles()
 	if err != nil {
@@ -177,31 +178,27 @@ func applyProfile(v *viper.Viper) (string, error) {
 		return "", fmt.Errorf("profile %q: %w", name, err)
 	}
 
-	// Apply profile values to Viper (these become defaults that env/flags can override)
-	if resolved.Elasticsearch.URL != "" {
-		v.Set("es.url", resolved.Elasticsearch.URL)
+	// Apply profile values to Viper only if not already set by environment.
+	// We use setIfNotEnv to respect precedence: env > profile > defaults.
+	setIfNotEnv := func(key, envName, value string) {
+		if value != "" && os.Getenv(envName) == "" {
+			v.Set(key, value)
+		}
 	}
-	if resolved.Elasticsearch.APIKey != "" {
-		v.Set("es.api_key", resolved.Elasticsearch.APIKey)
+	setIfNotEnvBool := func(key, envName string, value *bool) {
+		if value != nil && os.Getenv(envName) == "" {
+			v.Set(key, *value)
+		}
 	}
-	if resolved.Elasticsearch.Username != "" {
-		v.Set("es.username", resolved.Elasticsearch.Username)
-	}
-	if resolved.Elasticsearch.Password != "" {
-		v.Set("es.password", resolved.Elasticsearch.Password)
-	}
-	if resolved.OTLP.Endpoint != "" {
-		v.Set("otlp.endpoint", resolved.OTLP.Endpoint)
-	}
-	if resolved.OTLP.Insecure != nil {
-		v.Set("otlp.insecure", *resolved.OTLP.Insecure)
-	}
-	if resolved.Kibana.URL != "" {
-		v.Set("kibana.url", resolved.Kibana.URL)
-	}
-	if resolved.Kibana.Space != "" {
-		v.Set("kibana.space", resolved.Kibana.Space)
-	}
+
+	setIfNotEnv("es.url", "ELASTICAT_ES_URL", resolved.Elasticsearch.URL)
+	setIfNotEnv("es.api_key", "ELASTICAT_ES_API_KEY", resolved.Elasticsearch.APIKey)
+	setIfNotEnv("es.username", "ELASTICAT_ES_USERNAME", resolved.Elasticsearch.Username)
+	setIfNotEnv("es.password", "ELASTICAT_ES_PASSWORD", resolved.Elasticsearch.Password)
+	setIfNotEnv("otlp.endpoint", "ELASTICAT_OTLP_ENDPOINT", resolved.OTLP.Endpoint)
+	setIfNotEnvBool("otlp.insecure", "ELASTICAT_OTLP_INSECURE", resolved.OTLP.Insecure)
+	setIfNotEnv("kibana.url", "ELASTICAT_KIBANA_URL", resolved.Kibana.URL)
+	setIfNotEnv("kibana.space", "ELASTICAT_KIBANA_SPACE", resolved.Kibana.Space)
 
 	return name, nil
 }
