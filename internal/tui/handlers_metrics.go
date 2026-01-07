@@ -51,8 +51,10 @@ func (m Model) handleMetricsDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.searchInput.Focus()
 		return m, textinput.Blink
 	case ActionKibana:
-		// Open Kibana with a basic metrics query
-		m.openInKibana()
+		// Prepare Kibana URL and show creds modal (user presses enter to open browser)
+		if m.prepareKibanaURL() {
+			m.showCredsModal()
+		}
 		return m, nil
 	case ActionQuit:
 		return m, tea.Quit
@@ -130,11 +132,12 @@ func (m Model) handleMetricDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.metricDetailDocsLoading = true
 		return m, tea.Batch(m.fetchAggregatedMetrics(), m.fetchMetricDetailDocs())
 	case ActionKibana:
-		// Open Kibana with this specific metric
+		// Prepare Kibana URL for this specific metric and show creds modal
 		if m.aggregatedMetrics != nil && m.metricsCursor < len(m.aggregatedMetrics.Metrics) {
 			metric := m.aggregatedMetrics.Metrics[m.metricsCursor]
 			// metric.Type contains the time series type: "gauge", "counter", or "histogram"
-			m.openMetricInKibana(metric.Name, metric.Type)
+			m.prepareMetricKibanaURL(metric.Name, metric.Type)
+			m.showCredsModal()
 		}
 		return m, nil
 	case ActionJSON:

@@ -1,6 +1,6 @@
 # ElastiCat
 
-**An Instant Open Telemetry TUI, powered by Elasticsearch**
+**A TUI for OpenTelemetry powered by Elasticsearch**
 
 [![CI (main)](https://github.com/elastic/elasticat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/elastic/elasticat/actions/workflows/ci.yml?query=branch%3Amain)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
@@ -13,13 +13,12 @@
 ## Features
 
 - **Log File Watcher** - Tail files with `elasticat watch my-app*.log` and auto-ingest to Elasticsearch via OTLP
-- **Instantly OpenTelemetry Stack - Powered by Elastic** - With `elasticat up`
+- **Instantly OpenTelemetry Stack - Powered by Elastic** - Just run `elasticat up`, runs [Elastic start-local](https://github.com/elastic/start-local)
 - **Interactive TUI** - Browse logs, metrics, and traces with vim-style navigation with `elasticat ui`
 - **CLI Commands** - Query and filter telemetry data in ES as JSON from scripts or pipelines with `elasticat {logs|metrics|traces}`
-- **One-Command Stack** - Spin up Elasticsearch + OTel Collector with `elasticat up`
 - **Multi-Signal Support** - Unified interface for logs, metrics, and traces
 - **Perspectives** - Filter by service, host, or any dimension with a single keystroke
-- **Kibana Integration** - Open current view in Kibana with `K`
+- **Kibana Integration** - Open your browser with the current view in Kibana with `K`
 
 ## Table of Contents
 
@@ -61,7 +60,7 @@ If you prefer building locally, see [Building from Source](#building-from-source
 elasticat up
 ```
 
-This starts Elasticsearch + OTel Collector (and Kibana by default). Uses Docker if available, otherwise Podman.
+This starts Elasticsearch, Kibana, and the EDOT (Elastic Distribution of OpenTelemetry) collector. Uses Docker if available, otherwise Podman. Credentials are automatically saved.
 
 ### 3. Watch your logs
 
@@ -144,7 +143,8 @@ Press `p` to filter by service, host, or any dimension - works across all signal
 | `f` | Configure visible fields | Logs |
 | `s` | Toggle sort order | Logs |
 | `0-4` | Filter by log level | Logs |
-| `K` | Open in Kibana | All views |
+| `K` | Open in Kibana (shows credentials, then press enter) | All views |
+| `C` | Show stack credentials | All views |
 | `h` | Show full help | All views |
 | `q` | Quit | All views |
 
@@ -224,22 +224,13 @@ These flags work on all commands:
 
 | Command | Description |
 |---------|-------------|
-| `elasticat up` | Start Elasticsearch + OTel Collector |
+| `elasticat up` | Start Elasticsearch + Kibana + EDOT Collector via [start-local](https://github.com/elastic/start-local) |
 | `elasticat down` | Stop the stack |
+| `elasticat destroy` | Stop the stack and remove all data |
 | `elasticat status` | Check Elasticsearch connectivity and container status |
+| `elasticat creds` | Display Kibana/Elasticsearch credentials |
 
-**`elasticat up` flags:**
-- `--dir`: Compose directory (auto-detected if unset)
-- `--kibana` / `--no-kibana`: Enable/disable Kibana (default: enabled)
-- `--mcp`: Enable MCP server
-
-**Compose directory auto-detection:**
-1. `./docker/docker-compose.yml` (repo checkout)
-2. `./docker-compose.yml` (current directory)
-3. User data dir (installed binary):
-   - macOS: `~/Library/Application Support/elasticat/docker/`
-   - Linux: `${XDG_DATA_HOME:-~/.local/share}/elasticat/docker/`
-4. Next to executable: `./docker/docker-compose.yml`
+The `up` command uses [Elastic start-local](https://github.com/elastic/start-local) which installs Elasticsearch, Kibana, and the EDOT (Elastic Distribution of OpenTelemetry) collector. Credentials are automatically saved to the `elastic-start-local` profile.
 
 ### Log Watching
 
@@ -572,7 +563,9 @@ elasticat --profile staging ui logs
 
 ### Kibana Integration
 
-When you press `K` in the TUI to open a query in Kibana, ElastiCat uses the `--kibana-url` from your profile. Make sure to set it when creating profiles for external clusters:
+When you press `K` in the TUI, ElastiCat shows a credentials modal with the Kibana URL and login credentials. Press `enter` to open Kibana in your browser, `y` to copy the URL, or `p` to copy the password.
+
+ElastiCat uses the `--kibana-url` from your profile. Make sure to set it when creating profiles for external clusters:
 
 ```bash
 elasticat config set-profile myprofile \
@@ -581,6 +574,8 @@ elasticat config set-profile myprofile \
   --kibana-url https://...   # Don't forget this!
 ```
 
+**Tip:** Press `C` anytime in the TUI to view credentials, or use `elasticat creds` from the command line.
+
 ## Building from Source
 
 ```bash
@@ -588,16 +583,17 @@ make build
 ./bin/elasticat --help
 ```
 
-**Development stack commands:**
+**Development commands:**
 
 | Command | Description |
 |---------|-------------|
-| `make up` / `make down` | Docker Compose wrappers (Docker only) |
-| `./bin/elasticat up` | Auto-detects Docker vs Podman |
+| `./bin/elasticat up` | Start local stack (uses start-local, auto-detects Docker vs Podman) |
+| `./bin/elasticat down` | Stop local stack |
+| `make test` | Run tests |
+| `make lint` | Run linter |
 
 ## Documentation
 
-- [PRFAQ.md](PRFAQ.md) - Project vision and capabilities
 - [docs/esql-parity.md](docs/esql-parity.md) - ES|QL parity notes
 - [examples/stock-tracker/](examples/stock-tracker/) - Demo microservices app
 

@@ -44,6 +44,7 @@ const (
 	ActionNextDoc       // n - next document (in metric detail)
 	ActionPrevDoc       // N - prev document (in metric detail)
 	ActionChat          // c - open AI chat
+	ActionCreds         // C - show credentials modal
 )
 
 // DefaultKeyBindings maps keys to their primary action.
@@ -88,6 +89,7 @@ var DefaultKeyBindings = map[string]Action{
 	"n": ActionNextDoc, // Next document in metric detail
 	"N": ActionPrevDoc, // Prev document in metric detail
 	"c": ActionChat,    // Open AI chat
+	"C": ActionCreds,   // Show credentials modal
 
 	// Context-dependent keys (handled specially in some views)
 	// "d" - dashboard/documents toggle (not in default map)
@@ -150,6 +152,7 @@ var ActionDisplay = map[Action]ActionInfo{
 	ActionNextDoc:       {DisplayKeys: []string{"n"}, Label: "next doc"},
 	ActionPrevDoc:       {DisplayKeys: []string{"N"}, Label: "prev doc"},
 	ActionChat:          {DisplayKeys: []string{"c"}, Label: "chat"},
+	ActionCreds:         {DisplayKeys: []string{"C"}, Label: "creds"},
 }
 
 // ScrollDisplayKeys returns the combined display for scroll up/down

@@ -17,6 +17,7 @@ import (
 // buildKibanaDiscoverURL constructs a Kibana Discover URL with the given ES|QL query.
 // The URL format opens Kibana Discover in ES|QL mode with the query pre-populated.
 // If space is non-empty, the URL will include the space path prefix (e.g., /s/elasticat/app/discover).
+// Note: HTTP basic auth in URLs doesn't work with Kibana's session-based login.
 func buildKibanaDiscoverURL(kibanaBaseURL, space, esqlQuery string, lookback LookbackDuration) string {
 	if kibanaBaseURL == "" {
 		kibanaBaseURL = config.DefaultKibanaURL
@@ -49,6 +50,20 @@ func buildKibanaDiscoverURL(kibanaBaseURL, space, esqlQuery string, lookback Loo
 	)
 
 	return kibanaURL
+}
+
+// buildSimpleKibanaURL builds a basic Kibana URL (for the elasticat space).
+// Used when opening Kibana without a specific query.
+func buildSimpleKibanaURL(kibanaBaseURL, space string) string {
+	if kibanaBaseURL == "" {
+		kibanaBaseURL = config.DefaultKibanaURL
+	}
+
+	// Build the app path, including space prefix if specified
+	if space != "" {
+		return fmt.Sprintf("%s/s/%s", strings.TrimSuffix(kibanaBaseURL, "/"), space)
+	}
+	return kibanaBaseURL
 }
 
 // openURLInBrowser opens the given URL in the system's default browser.
@@ -89,17 +104,28 @@ func (l LookbackDuration) KibanaTimeFrom() string {
 	}
 }
 
-// openInKibana opens the current ES|QL query in Kibana Discover
-func (m *Model) openInKibana() {
+// prepareKibanaURL builds the Kibana Discover URL for the current query and stores it.
+// Does not open the browser - call openLastKibanaURL() for that.
+func (m *Model) prepareKibanaURL() bool {
 	if m.lastQueryJSON == "" {
 		m.statusMessage = "No query to open in Kibana"
+		m.statusTime = time.Now()
+		return false
+	}
+
+	m.lastKibanaURL = buildKibanaDiscoverURL(m.kibanaURL, m.kibanaSpace, m.lastQueryJSON, m.lookback)
+	return true
+}
+
+// openLastKibanaURL opens the lastKibanaURL in the system browser.
+func (m *Model) openLastKibanaURL() {
+	if m.lastKibanaURL == "" {
+		m.statusMessage = "No Kibana URL to open"
 		m.statusTime = time.Now()
 		return
 	}
 
-	kibanaURL := buildKibanaDiscoverURL(m.kibanaURL, m.kibanaSpace, m.lastQueryJSON, m.lookback)
-
-	if err := openURLInBrowser(kibanaURL); err != nil {
+	if err := openURLInBrowser(m.lastKibanaURL); err != nil {
 		m.statusMessage = fmt.Sprintf("Failed to open browser: %v", err)
 	} else {
 		m.statusMessage = "Opened in Kibana"
@@ -107,12 +133,13 @@ func (m *Model) openInKibana() {
 	m.statusTime = time.Now()
 }
 
-// openMetricInKibana opens Kibana with an ES|QL query for a specific metric field.
+// prepareMetricKibanaURL builds a Kibana URL for a specific metric and stores it.
 // For ES|QL-compatible types, it generates a time-series STATS query using DATE_TRUNC
 // that Kibana can render as a chart. For counter/histogram types, it falls back to
 // a simple document query.
 // metricType is the time series type: "gauge", "counter", or "histogram"
-func (m *Model) openMetricInKibana(metricName, metricType string) {
+// Does not open the browser - call openLastKibanaURL() for that.
+func (m *Model) prepareMetricKibanaURL(metricName, metricType string) {
 	index := m.client.GetIndex()
 	esqlInterval := m.lookback.ToESQLInterval()
 	bucketInterval := m.lookback.ToESQLBucketInterval()
@@ -147,23 +174,17 @@ func (m *Model) openMetricInKibana(metricName, metricType string) {
 			index, esqlInterval, metricName, bucketInterval)
 	}
 
-	kibanaURL := buildKibanaDiscoverURL(m.kibanaURL, m.kibanaSpace, query, m.lookback)
-
-	if err := openURLInBrowser(kibanaURL); err != nil {
-		m.statusMessage = fmt.Sprintf("Failed to open browser: %v", err)
-	} else {
-		m.statusMessage = "Opened metric in Kibana"
-	}
-	m.statusTime = time.Now()
+	m.lastKibanaURL = buildKibanaDiscoverURL(m.kibanaURL, m.kibanaSpace, query, m.lookback)
 }
 
-// openTraceInKibana opens Kibana with an ES|QL query for a specific trace ID.
+// prepareTraceKibanaURL builds a Kibana URL for a specific trace ID and stores it.
 // Shows all spans/events for the trace within the current lookback period.
-func (m *Model) openTraceInKibana(traceID string) {
+// Does not open the browser - call openLastKibanaURL() for that.
+func (m *Model) prepareTraceKibanaURL(traceID string) bool {
 	if traceID == "" {
 		m.statusMessage = "No trace ID to open in Kibana"
 		m.statusTime = time.Now()
-		return
+		return false
 	}
 
 	index := m.client.GetIndex()
@@ -176,14 +197,8 @@ func (m *Model) openTraceInKibana(traceID string) {
 | LIMIT 1000`,
 		index, esqlInterval, traceID, traceID)
 
-	kibanaURL := buildKibanaDiscoverURL(m.kibanaURL, m.kibanaSpace, query, m.lookback)
-
-	if err := openURLInBrowser(kibanaURL); err != nil {
-		m.statusMessage = fmt.Sprintf("Failed to open browser: %v", err)
-	} else {
-		m.statusMessage = "Opened trace in Kibana"
-	}
-	m.statusTime = time.Now()
+	m.lastKibanaURL = buildKibanaDiscoverURL(m.kibanaURL, m.kibanaSpace, query, m.lookback)
+	return true
 }
 
 // ToESQLInterval returns the ES|QL time interval string for the lookback duration.

@@ -38,6 +38,7 @@ const (
 	viewQuitConfirm      // Quit confirmation modal
 	viewHelp             // Hotkeys overlay
 	viewChat             // AI chat with Agent Builder
+	viewCredsModal       // Stack credentials modal
 )
 
 // MetricsViewMode toggles between aggregated and document views for metrics

@@ -140,6 +140,15 @@ func (m Model) View() string {
 			m.renderHelpOverlay(),
 		)
 		return overlayCenter(base, modal, m.width, m.height)
+	case viewCredsModal:
+		// Render previous mode as background, then overlay credentials modal
+		base := m.renderBase(m.peekViewStack())
+		modal := lipgloss.Place(
+			m.width, m.height,
+			lipgloss.Center, lipgloss.Center,
+			m.renderCredsModal(),
+		)
+		return overlayCenter(base, modal, m.width, m.height)
 	}
 	return m.renderBase(m.mode)
 }

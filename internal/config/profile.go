@@ -20,9 +20,20 @@ type ProfileConfig struct {
 	Profiles       map[string]Profile `yaml:"profiles,omitempty"`
 }
 
+// ProfileSource indicates where profile credentials come from.
+type ProfileSource string
+
+const (
+	// ProfileSourceNone means credentials are stored inline in the profile.
+	ProfileSourceNone ProfileSource = ""
+	// ProfileSourceStartLocal means credentials are loaded from the start-local .env file.
+	ProfileSourceStartLocal ProfileSource = "start-local"
+)
+
 // Profile represents a named configuration profile containing
 // connection settings for Elasticsearch, OTLP, and Kibana.
 type Profile struct {
+	Source        ProfileSource `yaml:"source,omitempty"` // Credential source (e.g., "start-local")
 	Elasticsearch ESProfile     `yaml:"elasticsearch,omitempty"`
 	OTLP          OTLPProfile   `yaml:"otlp,omitempty"`
 	Kibana        KibanaProfile `yaml:"kibana,omitempty"`
@@ -50,8 +61,11 @@ type KibanaProfile struct {
 
 // Default configuration directory and file names.
 const (
-	ConfigDirName  = "elasticat"
-	ConfigFileName = "config.yaml"
+	ConfigDirName       = "elasticat"
+	ConfigFileName      = "config.yaml"
+	StartLocalDirName   = "elastic-start-local"
+	StartLocalEnvFile   = ".env"
+	StartLocalProfileName = "elastic-start-local"
 )
 
 // DefaultKibanaURL is the default Kibana URL when not configured.
@@ -78,6 +92,139 @@ func GetConfigPath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(dir, ConfigFileName), nil
+}
+
+// GetStartLocalDir returns the path to the start-local installation directory.
+// Returns ~/.elasticat/elastic-start-local/
+func GetStartLocalDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("get home directory: %w", err)
+	}
+	return filepath.Join(home, ".elasticat", StartLocalDirName), nil
+}
+
+// GetStartLocalEnvPath returns the path to the start-local .env file.
+func GetStartLocalEnvPath() (string, error) {
+	dir, err := GetStartLocalDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, StartLocalEnvFile), nil
+}
+
+// IsStartLocalInstalled returns true if the start-local stack has been installed.
+func IsStartLocalInstalled() bool {
+	path, err := GetStartLocalEnvPath()
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(path)
+	return err == nil
+}
+
+// StartLocalEnv holds the parsed values from the start-local .env file.
+type StartLocalEnv struct {
+	ESURL       string
+	ESPort      string
+	ESPassword  string
+	ESAPIKey    string
+	KibanaPort  string
+}
+
+// LoadStartLocalEnv loads and parses the start-local .env file.
+// Returns an error if the file doesn't exist or can't be parsed.
+func LoadStartLocalEnv() (*StartLocalEnv, error) {
+	path, err := GetStartLocalEnvPath()
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read start-local .env file: %w", err)
+	}
+
+	env, err := parseEnvFile(string(data))
+	if err != nil {
+		return nil, fmt.Errorf("parse start-local .env file: %w", err)
+	}
+
+	return env, nil
+}
+
+// parseEnvFile parses a .env file content into a StartLocalEnv struct.
+// It handles variable expansion within the file (e.g., ${ES_LOCAL_PORT}).
+func parseEnvFile(content string) (*StartLocalEnv, error) {
+	vars := make(map[string]string)
+	
+	// First pass: collect all raw values
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		
+		idx := strings.Index(line, "=")
+		if idx == -1 {
+			continue
+		}
+		
+		key := strings.TrimSpace(line[:idx])
+		value := strings.TrimSpace(line[idx+1:])
+		vars[key] = value
+	}
+	
+	// Second pass: expand variable references
+	expandVar := func(s string) string {
+		// Match ${VAR_NAME} pattern and replace with value from vars map
+		re := regexp.MustCompile(`\$\{([^}]+)\}`)
+		return re.ReplaceAllStringFunc(s, func(match string) string {
+			varName := match[2 : len(match)-1] // Strip ${ and }
+			if val, ok := vars[varName]; ok {
+				return val
+			}
+			return match // Keep original if not found
+		})
+	}
+	
+	env := &StartLocalEnv{
+		ESPort:     vars["ES_LOCAL_PORT"],
+		ESPassword: vars["ES_LOCAL_PASSWORD"],
+		ESAPIKey:   vars["ES_LOCAL_API_KEY"],
+		KibanaPort: vars["KIBANA_LOCAL_PORT"],
+	}
+	
+	// Expand ES_LOCAL_URL which may contain ${ES_LOCAL_PORT}
+	env.ESURL = expandVar(vars["ES_LOCAL_URL"])
+	
+	return env, nil
+}
+
+// ToProfile converts StartLocalEnv to a resolved Profile.
+func (e *StartLocalEnv) ToProfile() Profile {
+	kibanaURL := DefaultKibanaURL
+	if e.KibanaPort != "" && e.KibanaPort != "5601" {
+		kibanaURL = fmt.Sprintf("http://localhost:%s", e.KibanaPort)
+	}
+	
+	insecure := true
+	return Profile{
+		Source: ProfileSourceStartLocal,
+		Elasticsearch: ESProfile{
+			URL:      e.ESURL,
+			APIKey:   e.ESAPIKey,
+			Username: "elastic",
+			Password: e.ESPassword,
+		},
+		OTLP: OTLPProfile{
+			Endpoint: "localhost:4318",
+			Insecure: &insecure,
+		},
+		Kibana: KibanaProfile{
+			URL: kibanaURL,
+		},
+	}
 }
 
 // LoadProfiles loads the profile configuration from disk.
@@ -227,8 +374,18 @@ func expandEnvVar(s string) (string, bool) {
 }
 
 // Resolve returns a copy of the profile with all ${ENV_VAR} references expanded.
+// For profiles with source: start-local, credentials are loaded from the .env file.
 // Returns an error if any referenced environment variable is undefined.
 func (p Profile) Resolve() (Profile, error) {
+	// Handle start-local source: load credentials from .env file
+	if p.Source == ProfileSourceStartLocal {
+		env, err := LoadStartLocalEnv()
+		if err != nil {
+			return Profile{}, fmt.Errorf("load start-local credentials: %w", err)
+		}
+		return env.ToProfile(), nil
+	}
+
 	resolved := p
 
 	// Resolve ES credentials
@@ -259,6 +416,10 @@ func (p Profile) Resolve() (Profile, error) {
 
 // HasCredentials returns true if the profile contains any authentication credentials.
 func (p Profile) HasCredentials() bool {
+	// start-local profiles always have credentials (loaded from .env)
+	if p.Source == ProfileSourceStartLocal {
+		return true
+	}
 	return p.Elasticsearch.APIKey != "" ||
 		p.Elasticsearch.Username != "" ||
 		p.Elasticsearch.Password != ""
@@ -267,6 +428,10 @@ func (p Profile) HasCredentials() bool {
 // HasPlainTextCredentials returns true if the profile contains credentials
 // that are not environment variable references.
 func (p Profile) HasPlainTextCredentials() bool {
+	// start-local profiles don't store credentials inline
+	if p.Source == ProfileSourceStartLocal {
+		return false
+	}
 	if p.Elasticsearch.APIKey != "" && !IsEnvRef(p.Elasticsearch.APIKey) {
 		return true
 	}

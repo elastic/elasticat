@@ -55,6 +55,7 @@ func (m Model) keymapLogs() []KeyBinding {
 		ActionBinding(ActionQuery, KeyKindFull, "View"),
 		ActionBinding(ActionRefresh, KeyKindFull, "View"),
 		ActionBinding(ActionAutoRefresh, KeyKindFull, "View"),
+		ActionBinding(ActionCreds, KeyKindFull, "View"),
 		CombinedBinding([]string{"0-4"}, "level filters", KeyKindFull, "Filter"),
 		ActionBinding(ActionQuit, KeyKindFull, "System"),
 	}
@@ -110,6 +111,7 @@ func (m Model) keymapMetricsDashboard() []KeyBinding {
 	full := []KeyBinding{
 		ActionBinding(ActionCycleSignal, KeyKindFull, "View"),
 		ActionBinding(ActionRefresh, KeyKindFull, "View"),
+		ActionBinding(ActionCreds, KeyKindFull, "View"),
 		CombinedBinding([]string{"d"}, "documents", KeyKindFull, "View"),
 		ActionBinding(ActionSearch, KeyKindFull, "Filter"),
 		ActionBinding(ActionQuit, KeyKindFull, "System"),
@@ -146,6 +148,7 @@ func (m Model) keymapTraceNames() []KeyBinding {
 		ActionBinding(ActionCycleSignal, KeyKindFull, "View"),
 		ActionBinding(ActionSearch, KeyKindFull, "Filter"),
 		ActionBinding(ActionRefresh, KeyKindFull, "View"),
+		ActionBinding(ActionCreds, KeyKindFull, "View"),
 		ActionBinding(ActionQuit, KeyKindFull, "System"),
 	}
 	return append(quick, full...)

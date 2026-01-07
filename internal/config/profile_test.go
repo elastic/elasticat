@@ -469,3 +469,213 @@ func containsHelper(s, substr string) bool {
 	}
 	return false
 }
+
+func TestParseEnvFile(t *testing.T) {
+	content := `START_LOCAL_VERSION=0.12.0
+ES_LOCAL_VERSION=9.2.3-arm64
+ES_LOCAL_CONTAINER_NAME=es-local-dev
+ES_LOCAL_PASSWORD=testpass123
+ES_LOCAL_PORT=9200
+ES_LOCAL_URL=http://localhost:${ES_LOCAL_PORT}
+KIBANA_LOCAL_PORT=5601
+ES_LOCAL_API_KEY=dGVzdGtleTEyMw==
+`
+
+	env, err := parseEnvFile(content)
+	if err != nil {
+		t.Fatalf("parseEnvFile error: %v", err)
+	}
+
+	if env.ESPort != "9200" {
+		t.Errorf("ESPort = %q, want %q", env.ESPort, "9200")
+	}
+	if env.ESPassword != "testpass123" {
+		t.Errorf("ESPassword = %q, want %q", env.ESPassword, "testpass123")
+	}
+	if env.ESAPIKey != "dGVzdGtleTEyMw==" {
+		t.Errorf("ESAPIKey = %q, want %q", env.ESAPIKey, "dGVzdGtleTEyMw==")
+	}
+	if env.KibanaPort != "5601" {
+		t.Errorf("KibanaPort = %q, want %q", env.KibanaPort, "5601")
+	}
+	// ES_LOCAL_URL should have ${ES_LOCAL_PORT} expanded
+	if env.ESURL != "http://localhost:9200" {
+		t.Errorf("ESURL = %q, want %q", env.ESURL, "http://localhost:9200")
+	}
+}
+
+func TestParseEnvFile_WithComments(t *testing.T) {
+	content := `# This is a comment
+ES_LOCAL_PORT=9200
+# Another comment
+ES_LOCAL_URL=http://localhost:${ES_LOCAL_PORT}
+`
+
+	env, err := parseEnvFile(content)
+	if err != nil {
+		t.Fatalf("parseEnvFile error: %v", err)
+	}
+
+	if env.ESPort != "9200" {
+		t.Errorf("ESPort = %q, want %q", env.ESPort, "9200")
+	}
+	if env.ESURL != "http://localhost:9200" {
+		t.Errorf("ESURL = %q, want %q", env.ESURL, "http://localhost:9200")
+	}
+}
+
+func TestStartLocalEnv_ToProfile(t *testing.T) {
+	env := &StartLocalEnv{
+		ESURL:      "http://localhost:9200",
+		ESPort:     "9200",
+		ESPassword: "secret",
+		ESAPIKey:   "apikey123",
+		KibanaPort: "5601",
+	}
+
+	profile := env.ToProfile()
+
+	if profile.Source != ProfileSourceStartLocal {
+		t.Errorf("Source = %q, want %q", profile.Source, ProfileSourceStartLocal)
+	}
+	if profile.Elasticsearch.URL != "http://localhost:9200" {
+		t.Errorf("ES URL = %q, want %q", profile.Elasticsearch.URL, "http://localhost:9200")
+	}
+	if profile.Elasticsearch.APIKey != "apikey123" {
+		t.Errorf("ES APIKey = %q, want %q", profile.Elasticsearch.APIKey, "apikey123")
+	}
+	if profile.Elasticsearch.Username != "elastic" {
+		t.Errorf("ES Username = %q, want %q", profile.Elasticsearch.Username, "elastic")
+	}
+	if profile.Elasticsearch.Password != "secret" {
+		t.Errorf("ES Password = %q, want %q", profile.Elasticsearch.Password, "secret")
+	}
+	if profile.OTLP.Endpoint != "localhost:4318" {
+		t.Errorf("OTLP Endpoint = %q, want %q", profile.OTLP.Endpoint, "localhost:4318")
+	}
+	if profile.Kibana.URL != DefaultKibanaURL {
+		t.Errorf("Kibana URL = %q, want %q", profile.Kibana.URL, DefaultKibanaURL)
+	}
+}
+
+func TestStartLocalEnv_ToProfile_CustomKibanaPort(t *testing.T) {
+	env := &StartLocalEnv{
+		ESURL:      "http://localhost:9200",
+		KibanaPort: "5602", // Non-default port
+	}
+
+	profile := env.ToProfile()
+
+	if profile.Kibana.URL != "http://localhost:5602" {
+		t.Errorf("Kibana URL = %q, want %q", profile.Kibana.URL, "http://localhost:5602")
+	}
+}
+
+func TestProfile_Resolve_StartLocalSource(t *testing.T) {
+	// Create a temp home directory with a .env file
+	tempDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	t.Setenv("HOME", tempDir)
+	defer func() { os.Setenv("HOME", origHome) }()
+
+	// Create the start-local .env file
+	startLocalDir := filepath.Join(tempDir, ".elasticat", "elastic-start-local")
+	if err := os.MkdirAll(startLocalDir, 0755); err != nil {
+		t.Fatalf("MkdirAll error: %v", err)
+	}
+	envContent := `ES_LOCAL_PORT=9200
+ES_LOCAL_URL=http://localhost:${ES_LOCAL_PORT}
+ES_LOCAL_PASSWORD=resolved-pass
+ES_LOCAL_API_KEY=resolved-key
+KIBANA_LOCAL_PORT=5601
+`
+	if err := os.WriteFile(filepath.Join(startLocalDir, ".env"), []byte(envContent), 0644); err != nil {
+		t.Fatalf("WriteFile error: %v", err)
+	}
+
+	// Create a profile with start-local source
+	profile := Profile{
+		Source: ProfileSourceStartLocal,
+	}
+
+	resolved, err := profile.Resolve()
+	if err != nil {
+		t.Fatalf("Resolve error: %v", err)
+	}
+
+	if resolved.Elasticsearch.URL != "http://localhost:9200" {
+		t.Errorf("ES URL = %q, want %q", resolved.Elasticsearch.URL, "http://localhost:9200")
+	}
+	if resolved.Elasticsearch.Password != "resolved-pass" {
+		t.Errorf("ES Password = %q, want %q", resolved.Elasticsearch.Password, "resolved-pass")
+	}
+	if resolved.Elasticsearch.APIKey != "resolved-key" {
+		t.Errorf("ES APIKey = %q, want %q", resolved.Elasticsearch.APIKey, "resolved-key")
+	}
+}
+
+func TestProfile_HasCredentials_StartLocal(t *testing.T) {
+	profile := Profile{
+		Source: ProfileSourceStartLocal,
+		// No inline credentials
+	}
+
+	// start-local profiles always have credentials
+	if !profile.HasCredentials() {
+		t.Error("HasCredentials() = false, want true for start-local source")
+	}
+}
+
+func TestProfile_HasPlainTextCredentials_StartLocal(t *testing.T) {
+	profile := Profile{
+		Source: ProfileSourceStartLocal,
+	}
+
+	// start-local profiles don't store credentials inline
+	if profile.HasPlainTextCredentials() {
+		t.Error("HasPlainTextCredentials() = true, want false for start-local source")
+	}
+}
+
+func TestGetStartLocalDir(t *testing.T) {
+	tempDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	t.Setenv("HOME", tempDir)
+	defer func() { os.Setenv("HOME", origHome) }()
+
+	dir, err := GetStartLocalDir()
+	if err != nil {
+		t.Fatalf("GetStartLocalDir error: %v", err)
+	}
+
+	expected := filepath.Join(tempDir, ".elasticat", "elastic-start-local")
+	if dir != expected {
+		t.Errorf("dir = %q, want %q", dir, expected)
+	}
+}
+
+func TestIsStartLocalInstalled(t *testing.T) {
+	tempDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	t.Setenv("HOME", tempDir)
+	defer func() { os.Setenv("HOME", origHome) }()
+
+	// Initially not installed
+	if IsStartLocalInstalled() {
+		t.Error("IsStartLocalInstalled() = true before installation")
+	}
+
+	// Create the .env file
+	startLocalDir := filepath.Join(tempDir, ".elasticat", "elastic-start-local")
+	if err := os.MkdirAll(startLocalDir, 0755); err != nil {
+		t.Fatalf("MkdirAll error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(startLocalDir, ".env"), []byte("test"), 0644); err != nil {
+		t.Fatalf("WriteFile error: %v", err)
+	}
+
+	// Now installed
+	if !IsStartLocalInstalled() {
+		t.Error("IsStartLocalInstalled() = false after installation")
+	}
+}

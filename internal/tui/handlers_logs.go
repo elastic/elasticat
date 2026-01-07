@@ -103,8 +103,10 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case ActionPerspective:
 		return m, m.cyclePerspective()
 	case ActionKibana:
-		// Open current query in Kibana Discover
-		m.openInKibana()
+		// Prepare Kibana URL and show creds modal (user presses enter to open browser)
+		if m.prepareKibanaURL() {
+			m.showCredsModal()
+		}
 		return m, nil
 	}
 

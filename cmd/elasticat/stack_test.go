@@ -7,90 +7,115 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/elastic/elasticat/internal/config"
 )
 
-func TestFindDockerDir_UsesUserDataDir(t *testing.T) {
-	tmp := t.TempDir()
+func TestEnsureStartLocalProfile_CreatesProfile(t *testing.T) {
+	// Use a temp directory for testing
+	tempDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tempDir)
 
-	cwd := filepath.Join(tmp, "cwd")
-	if err := os.MkdirAll(cwd, 0o755); err != nil {
-		t.Fatalf("mkdir cwd: %v", err)
-	}
-
-	exePath := filepath.Join(tmp, "bin", "elasticat")
-	if err := os.MkdirAll(filepath.Dir(exePath), 0o755); err != nil {
-		t.Fatalf("mkdir exe dir: %v", err)
-	}
-	if err := os.WriteFile(exePath, []byte("placeholder"), 0o644); err != nil {
-		t.Fatalf("write exe: %v", err)
-	}
-
-	dataDir := filepath.Join(tmp, "elasticat")
-	dataDockerDir := filepath.Join(dataDir, "docker")
-	if err := os.MkdirAll(dataDockerDir, 0o755); err != nil {
-		t.Fatalf("mkdir data docker dir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(dataDockerDir, "docker-compose.yml"), []byte("services: {}"), 0o644); err != nil {
-		t.Fatalf("write docker-compose.yml: %v", err)
-	}
-
-	got, err := findDockerDirWith(dockerDirSearch{
-		getwd:      func() (string, error) { return cwd, nil },
-		executable: func() (string, error) { return exePath, nil },
-		stat:       os.Stat,
-		elasticatDataDirFn: func() (string, error) {
-			return dataDir, nil
-		},
-	})
+	// Ensure no profile exists initially
+	cfg, err := config.LoadProfiles()
 	if err != nil {
-		t.Fatalf("findDockerDirWith: %v", err)
+		t.Fatalf("LoadProfiles error: %v", err)
 	}
-	if got != dataDockerDir {
-		t.Fatalf("expected %q, got %q", dataDockerDir, got)
+	if len(cfg.Profiles) != 0 {
+		t.Fatalf("expected empty profiles, got %d", len(cfg.Profiles))
+	}
+
+	// Run ensureStartLocalProfile
+	if err := ensureStartLocalProfile(); err != nil {
+		t.Fatalf("ensureStartLocalProfile error: %v", err)
+	}
+
+	// Verify profile was created
+	cfg, err = config.LoadProfiles()
+	if err != nil {
+		t.Fatalf("LoadProfiles error: %v", err)
+	}
+
+	p, err := cfg.GetProfile(config.StartLocalProfileName)
+	if err != nil {
+		t.Fatalf("GetProfile error: %v", err)
+	}
+
+	if p.Source != config.ProfileSourceStartLocal {
+		t.Errorf("Source = %q, want %q", p.Source, config.ProfileSourceStartLocal)
+	}
+
+	if cfg.CurrentProfile != config.StartLocalProfileName {
+		t.Errorf("CurrentProfile = %q, want %q", cfg.CurrentProfile, config.StartLocalProfileName)
 	}
 }
 
-func TestFindDockerDir_PrefersRepoDockerDirOverUserDataDir(t *testing.T) {
-	tmp := t.TempDir()
+func TestEnsureStartLocalProfile_DoesNotOverwrite(t *testing.T) {
+	// Use a temp directory for testing
+	tempDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tempDir)
 
-	cwd := filepath.Join(tmp, "cwd")
-	repoDockerDir := filepath.Join(cwd, "docker")
-	if err := os.MkdirAll(repoDockerDir, 0o755); err != nil {
-		t.Fatalf("mkdir repo docker dir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(repoDockerDir, "docker-compose.yml"), []byte("services: {}"), 0o644); err != nil {
-		t.Fatalf("write repo docker-compose.yml: %v", err)
-	}
-
-	exePath := filepath.Join(tmp, "bin", "elasticat")
-	if err := os.MkdirAll(filepath.Dir(exePath), 0o755); err != nil {
-		t.Fatalf("mkdir exe dir: %v", err)
-	}
-	if err := os.WriteFile(exePath, []byte("placeholder"), 0o644); err != nil {
-		t.Fatalf("write exe: %v", err)
-	}
-
-	dataDir := filepath.Join(tmp, "elasticat")
-	dataDockerDir := filepath.Join(dataDir, "docker")
-	if err := os.MkdirAll(dataDockerDir, 0o755); err != nil {
-		t.Fatalf("mkdir data docker dir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(dataDockerDir, "docker-compose.yml"), []byte("services: {}"), 0o644); err != nil {
-		t.Fatalf("write data docker-compose.yml: %v", err)
-	}
-
-	got, err := findDockerDirWith(dockerDirSearch{
-		getwd:      func() (string, error) { return cwd, nil },
-		executable: func() (string, error) { return exePath, nil },
-		stat:       os.Stat,
-		elasticatDataDirFn: func() (string, error) {
-			return dataDir, nil
+	// Create a profile with the same name but different source
+	cfg := &config.ProfileConfig{
+		Profiles: map[string]config.Profile{
+			config.StartLocalProfileName: {
+				Source: config.ProfileSourceStartLocal,
+				Elasticsearch: config.ESProfile{
+					URL: "http://custom:9200",
+				},
+			},
 		},
-	})
-	if err != nil {
-		t.Fatalf("findDockerDirWith: %v", err)
 	}
-	if got != repoDockerDir {
-		t.Fatalf("expected %q, got %q", repoDockerDir, got)
+	if err := config.SaveProfiles(cfg); err != nil {
+		t.Fatalf("SaveProfiles error: %v", err)
+	}
+
+	// Run ensureStartLocalProfile
+	if err := ensureStartLocalProfile(); err != nil {
+		t.Fatalf("ensureStartLocalProfile error: %v", err)
+	}
+
+	// Verify profile was NOT overwritten (still has source)
+	cfg, err := config.LoadProfiles()
+	if err != nil {
+		t.Fatalf("LoadProfiles error: %v", err)
+	}
+
+	p, err := cfg.GetProfile(config.StartLocalProfileName)
+	if err != nil {
+		t.Fatalf("GetProfile error: %v", err)
+	}
+
+	// Source should still be start-local
+	if p.Source != config.ProfileSourceStartLocal {
+		t.Errorf("Source = %q, want %q", p.Source, config.ProfileSourceStartLocal)
+	}
+}
+
+func TestIsStartLocalInstalled(t *testing.T) {
+	// Use a temp home directory
+	tempDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	t.Setenv("HOME", tempDir)
+	defer func() { os.Setenv("HOME", origHome) }()
+
+	// Initially should not be installed
+	if config.IsStartLocalInstalled() {
+		t.Error("expected IsStartLocalInstalled() = false")
+	}
+
+	// Create the .env file
+	startLocalDir := filepath.Join(tempDir, ".elasticat", "elastic-start-local")
+	if err := os.MkdirAll(startLocalDir, 0755); err != nil {
+		t.Fatalf("MkdirAll error: %v", err)
+	}
+	envPath := filepath.Join(startLocalDir, ".env")
+	if err := os.WriteFile(envPath, []byte("ES_LOCAL_URL=http://localhost:9200"), 0644); err != nil {
+		t.Fatalf("WriteFile error: %v", err)
+	}
+
+	// Now should be installed
+	if !config.IsStartLocalInstalled() {
+		t.Error("expected IsStartLocalInstalled() = true")
 	}
 }

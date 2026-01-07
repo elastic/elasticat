@@ -116,6 +116,10 @@ type Model struct {
 	chatInput          textinput.Model // Chat message input
 	chatViewport       viewport.Model  // Chat message history viewport
 
+	// === Credentials Modal State ===
+	hideCredsModal bool   // Don't show creds modal after Kibana open (session preference)
+	lastKibanaURL  string // The Kibana URL that was just opened (for display in modal)
+
 	// === UI Components ===
 	searchInput   textinput.Model
 	indexInput    textinput.Model

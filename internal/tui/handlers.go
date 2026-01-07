@@ -59,6 +59,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if !m.isTextInputActive() && m.mode != viewChat {
 			return m, m.enterChatView()
 		}
+	case ActionCreds:
+		// Show credentials modal from any view (except during text input or already in creds modal)
+		if !m.isTextInputActive() && m.mode != viewCredsModal {
+			m.lastKibanaURL = "" // Clear any previous URL since this is direct access
+			m.pushView(viewCredsModal)
+			return m, nil
+		}
 	}
 
 	// Mode-specific keys
@@ -91,6 +98,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleHelpKey(msg)
 	case viewChat:
 		return m.handleChatKey(msg)
+	case viewCredsModal:
+		return m.handleCredsModalKey(msg)
 	}
 
 	return m, nil

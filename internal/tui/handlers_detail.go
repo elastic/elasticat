@@ -64,11 +64,11 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case ActionKibana:
-		// Open trace in Kibana (only for traces)
+		// Prepare Kibana URL for trace and show creds modal (only for traces)
 		if m.signalType == signalTraces && len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
 			log := m.logs[m.selectedIndex]
-			if log.TraceID != "" {
-				m.openTraceInKibana(log.TraceID)
+			if log.TraceID != "" && m.prepareTraceKibanaURL(log.TraceID) {
+				m.showCredsModal()
 			}
 		}
 		return m, nil
