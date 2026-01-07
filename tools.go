@@ -1,4 +1,4 @@
-// Copyright 2024-2025 Elasticsearch B.V.
+// Copyright 2024-2025 Elasticsearch B.V. and contributors
 // SPDX-License-Identifier: Apache-2.0
 
 //go:build tools

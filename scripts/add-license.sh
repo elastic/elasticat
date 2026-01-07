@@ -7,7 +7,7 @@ set -e
 LICENSE_PATTERN="SPDX-License-Identifier: Apache-2.0"
 
 # License header to add
-LICENSE_HEADER="// Copyright $(date +%Y) Elasticsearch B.V.
+LICENSE_HEADER="// Copyright 2026 Elasticsearch B.V. and contributors
 // SPDX-License-Identifier: Apache-2.0
 
 "

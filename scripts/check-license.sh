@@ -27,7 +27,7 @@ if [ ${#MISSING_HEADER[@]} -gt 0 ]; then
     echo ""
     echo "Please add the following header to the top of each file:"
     echo ""
-    echo "  // Copyright $(date +%Y) Elasticsearch B.V."
+    echo "  // Copyright 2026 Elasticsearch B.V. and contributors"
     echo "  // SPDX-License-Identifier: Apache-2.0"
     echo ""
     exit 1

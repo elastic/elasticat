@@ -1,4 +1,4 @@
-// Copyright 2026 Elasticsearch B.V.
+// Copyright 2026 Elasticsearch B.V. and contributors
 // SPDX-License-Identifier: Apache-2.0
 
 package middleware
