@@ -4,6 +4,7 @@
 package tui
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -338,9 +339,194 @@ func (m Model) getSelectedItemContext() (description string, content string) {
 	return
 }
 
+// getSelectedItemQuery returns an ES Query DSL JSON string that retrieves the selected item.
+// Returns empty string if no meaningful query can be built.
+func (m Model) getSelectedItemQuery() string {
+	var query map[string]interface{}
+
+	switch m.mode {
+	case viewLogs, viewDetail, viewDetailJSON:
+		// Logs list or detail view - query by trace_id + span_id if available
+		if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
+			log := m.logs[m.selectedIndex]
+
+			// Best case: use trace_id + span_id for exact match
+			if log.TraceID != "" && log.SpanID != "" {
+				query = map[string]interface{}{
+					"query": map[string]interface{}{
+						"bool": map[string]interface{}{
+							"filter": []map[string]interface{}{
+								{"term": map[string]interface{}{"trace_id": log.TraceID}},
+								{"term": map[string]interface{}{"span_id": log.SpanID}},
+							},
+						},
+					},
+					"size": 1,
+				}
+			} else if log.TraceID != "" {
+				// Fallback: just trace_id with timestamp
+				query = map[string]interface{}{
+					"query": map[string]interface{}{
+						"bool": map[string]interface{}{
+							"filter": []map[string]interface{}{
+								{"term": map[string]interface{}{"trace_id": log.TraceID}},
+								{"range": map[string]interface{}{
+									"@timestamp": map[string]interface{}{
+										"gte": log.Timestamp.Add(-time.Second).Format(time.RFC3339),
+										"lte": log.Timestamp.Add(time.Second).Format(time.RFC3339),
+									},
+								}},
+							},
+						},
+					},
+					"size": 1,
+				}
+			} else {
+				// Last resort: timestamp + service name
+				filters := []map[string]interface{}{
+					{"range": map[string]interface{}{
+						"@timestamp": map[string]interface{}{
+							"gte": log.Timestamp.Add(-time.Second).Format(time.RFC3339),
+							"lte": log.Timestamp.Add(time.Second).Format(time.RFC3339),
+						},
+					}},
+				}
+				if log.ServiceName != "" {
+					filters = append(filters, map[string]interface{}{
+						"term": map[string]interface{}{"resource.attributes.service.name": log.ServiceName},
+					})
+				}
+				query = map[string]interface{}{
+					"query": map[string]interface{}{
+						"bool": map[string]interface{}{
+							"filter": filters,
+						},
+					},
+					"size": 1,
+				}
+			}
+		}
+
+	case viewMetricsDashboard:
+		// Metrics dashboard - aggregation query for this specific metric
+		if m.aggregatedMetrics != nil && m.metricsCursor < len(m.aggregatedMetrics.Metrics) {
+			metric := m.aggregatedMetrics.Metrics[m.metricsCursor]
+			query = map[string]interface{}{
+				"query": map[string]interface{}{
+					"bool": map[string]interface{}{
+						"filter": []map[string]interface{}{
+							{"exists": map[string]interface{}{"field": metric.Name}},
+							{"range": map[string]interface{}{
+								"@timestamp": map[string]interface{}{"gte": m.lookback.ESRange()},
+							}},
+						},
+					},
+				},
+				"size": 10,
+				"sort": []map[string]interface{}{
+					{"@timestamp": map[string]interface{}{"order": "desc"}},
+				},
+			}
+		}
+
+	case viewMetricDetail:
+		// Metric detail view - query for specific metric document
+		if len(m.metricDetailDocs) > 0 && m.metricDetailDocCursor < len(m.metricDetailDocs) {
+			doc := m.metricDetailDocs[m.metricDetailDocCursor]
+			metricName := ""
+			if m.aggregatedMetrics != nil && m.metricsCursor < len(m.aggregatedMetrics.Metrics) {
+				metricName = m.aggregatedMetrics.Metrics[m.metricsCursor].Name
+			}
+
+			filters := []map[string]interface{}{
+				{"range": map[string]interface{}{
+					"@timestamp": map[string]interface{}{
+						"gte": doc.Timestamp.Add(-time.Second).Format(time.RFC3339),
+						"lte": doc.Timestamp.Add(time.Second).Format(time.RFC3339),
+					},
+				}},
+			}
+			if metricName != "" {
+				filters = append(filters, map[string]interface{}{
+					"exists": map[string]interface{}{"field": metricName},
+				})
+			}
+			query = map[string]interface{}{
+				"query": map[string]interface{}{
+					"bool": map[string]interface{}{
+						"filter": filters,
+					},
+				},
+				"size": 1,
+			}
+		}
+
+	case viewTraceNames:
+		// Trace names view - query for transactions with this name
+		if len(m.transactionNames) > 0 && m.traceNamesCursor < len(m.transactionNames) {
+			tx := m.transactionNames[m.traceNamesCursor]
+			query = map[string]interface{}{
+				"query": map[string]interface{}{
+					"bool": map[string]interface{}{
+						"filter": []map[string]interface{}{
+							{"term": map[string]interface{}{"name": tx.Name}},
+							{"term": map[string]interface{}{"attributes.processor.event": "transaction"}},
+							{"range": map[string]interface{}{
+								"@timestamp": map[string]interface{}{"gte": m.lookback.ESRange()},
+							}},
+						},
+					},
+				},
+				"size": 10,
+				"sort": []map[string]interface{}{
+					{"@timestamp": map[string]interface{}{"order": "desc"}},
+				},
+			}
+		}
+
+	default:
+		// For trace transactions/spans - query by trace_id
+		if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
+			log := m.logs[m.selectedIndex]
+			if log.TraceID != "" {
+				filters := []map[string]interface{}{
+					{"term": map[string]interface{}{"trace_id": log.TraceID}},
+				}
+				if log.SpanID != "" {
+					filters = append(filters, map[string]interface{}{
+						"term": map[string]interface{}{"span_id": log.SpanID},
+					})
+				}
+				query = map[string]interface{}{
+					"query": map[string]interface{}{
+						"bool": map[string]interface{}{
+							"filter": filters,
+						},
+					},
+					"size": 1,
+				}
+			}
+		}
+	}
+
+	if query == nil {
+		return ""
+	}
+
+	// Format as indented JSON for readability
+	jsonBytes, err := json.MarshalIndent(query, "", "  ")
+	if err != nil {
+		return ""
+	}
+	return string(jsonBytes)
+}
+
 // enterChatWithSelectedItem opens chat and adds the selected item as context.
 func (m Model) enterChatWithSelectedItem() (Model, tea.Cmd) {
+	// Get context and query BEFORE pushing view (which changes m.mode)
 	description, content := m.getSelectedItemContext()
+	itemQuery := m.getSelectedItemQuery()
+	index := m.client.GetIndex()
 
 	m.pushView(viewChat)
 	// Start in insert mode so user can see/edit the prefilled message.
@@ -356,13 +542,10 @@ func (m Model) enterChatWithSelectedItem() (Model, tea.Cmd) {
 		})
 	}
 
-	// Add the selected item as a system context message
-	index := m.client.GetIndex()
-
-	// Build query context if available
+	// Build query context for the specific selected item
 	queryContext := ""
-	if m.lastQueryJSON != "" {
-		queryContext = fmt.Sprintf("\n\nThe view was generated by this query:\n\n```json\n%s\n```", m.lastQueryJSON)
+	if itemQuery != "" {
+		queryContext = fmt.Sprintf("\n\nThis item can be retrieved with this query:\n\n```json\n%s\n```", itemQuery)
 	}
 
 	if content != "" {

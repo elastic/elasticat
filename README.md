@@ -15,6 +15,8 @@
 - **Log File Watcher** - Tail files with `elasticat watch my-app*.log` and auto-ingest to Elasticsearch via OTLP
 - **Instantly OpenTelemetry Stack - Powered by Elastic** - Just run `elasticat up`, runs [Elastic start-local](https://github.com/elastic/start-local)
 - **Interactive TUI** - Browse logs, metrics, and traces with vim-style navigation with `elasticat ui`
+- **AI Chat Assistant** - Press `c` to chat with an AI about your observability data, powered by Elastic Agent Builder
+- **OTel Collector Config Editing** - Press `O` to edit the collector config in your editor with live reload
 - **CLI Commands** - Query and filter telemetry data in ES as JSON from scripts or pipelines with `elasticat {logs|metrics|traces}`
 - **Multi-Signal Support** - Unified interface for logs, metrics, and traces
 - **Perspectives** - Filter by service, host, or any dimension with a single keystroke
@@ -25,6 +27,8 @@
 - [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
 - [The TUI](#the-tui)
+  - [AI Chat Assistant](#ai-chat-assistant)
+  - [OTel Collector Config Editing](#otel-collector-config-editing)
 - [Demo App](#demo-app)
 - [Commands Reference](#commands-reference)
 - [Configuration](#configuration)
@@ -130,6 +134,27 @@ Explore distributed traces, view spans, and navigate between transactions.
 
 Press `p` to filter by service, host, or any dimension - works across all signal types.
 
+### AI Chat Assistant
+
+Press `c` to open an AI-powered chat assistant. Ask questions about your observability data in natural language:
+
+- "Why are there so many errors from the gateway service?"
+- "What's causing the latency spike in the last hour?"
+- "Summarize the trace I'm looking at"
+
+The AI has context about your current view, filters, and selected items, powered by [Elastic Agent Builder](https://www.elastic.co/guide/en/security/current/security-assistant.html).
+
+### OTel Collector Config Editing
+
+Press `O` (capital O) to edit the OpenTelemetry collector configuration for local development:
+
+- Opens `~/.elastic-start-local/config/otel-config.yaml` in your default editor
+- Automatically extracts the inline config from docker-compose on first use
+- Watches for changes and validates the config when saved
+- Sends SIGHUP to reload the collector without restarting
+
+This makes it easy to experiment with processors, exporters, and pipelines during development.
+
 ### Quick Keybindings
 
 | Key | Action | Context |
@@ -140,11 +165,14 @@ Press `p` to filter by service, host, or any dimension - works across all signal
 | `l` | Change lookback period | All views |
 | `p` | Open perspectives (filter by service, host, etc.) | All views |
 | `m` | Switch signal (logs/metrics/traces) | All views |
+| `c` | Open AI chat assistant | All views |
+| `C` | Send selected item to AI chat | Detail views |
+| `O` | Edit OTel collector config | All views |
 | `f` | Configure visible fields | Logs |
 | `s` | Toggle sort order | Logs |
 | `0-4` | Filter by log level | Logs |
 | `K` | Open in Kibana (shows credentials, then press enter) | All views |
-| `C` | Show stack credentials | All views |
+| `X` | Show stack credentials | All views |
 | `h` | Show full help | All views |
 | `q` | Quit | All views |
 
@@ -574,7 +602,7 @@ elasticat config set-profile myprofile \
   --kibana-url https://...   # Don't forget this!
 ```
 
-**Tip:** Press `C` anytime in the TUI to view credentials, or use `elasticat creds` from the command line.
+**Tip:** Press `X` anytime in the TUI to view credentials, or use `elasticat creds` from the command line.
 
 ## Building from Source
 

@@ -60,7 +60,7 @@ func (m Model) renderChatView(height int) string {
 	// Calculate available heights
 	inputHeight := 3 // Border + input + padding
 	titleHeight := 1
-	availableHeight := height - inputHeight - titleHeight - 2
+	availableHeight := height - inputHeight - titleHeight
 	if availableHeight < 1 {
 		availableHeight = 1
 	}
