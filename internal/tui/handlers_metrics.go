@@ -13,6 +13,11 @@ func (m Model) handleMetricsDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
 	action := GetAction(key)
 
+	// Handle common actions first (signal cycle, lookback, perspective, kibana)
+	if newM, cmd, handled := m.handleCommonAction(action); handled {
+		return newM, cmd
+	}
+
 	// Calculate list length for navigation
 	listLen := 0
 	if m.aggregatedMetrics != nil {
@@ -26,6 +31,9 @@ func (m Model) handleMetricsDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch action {
+	case ActionBack:
+		// Metrics dashboard is a base view - esc does nothing (user can press 'q' to quit)
+		return m, nil
 	case ActionSelect:
 		// Enter detail view for the selected metric
 		if m.aggregatedMetrics != nil && m.metricsCursor < len(m.aggregatedMetrics.Metrics) {
@@ -38,26 +46,14 @@ func (m Model) handleMetricsDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case ActionRefresh:
 		m.metricsLoading = true
 		return m, m.fetchAggregatedMetrics()
-	case ActionPerspective:
-		return m, m.cyclePerspective()
-	case ActionCycleLookback:
-		m.cycleLookback()
-		m.metricsLoading = true
-		return m, m.fetchAggregatedMetrics()
-	case ActionCycleSignal:
-		return m, m.cycleSignalType()
 	case ActionSearch:
 		m.pushView(viewSearch)
 		m.searchInput.Focus()
 		return m, textinput.Blink
-	case ActionKibana:
-		// Prepare Kibana URL and show creds modal (user presses enter to open browser)
-		if m.prepareKibanaURL() {
-			m.showCredsModal()
-		}
-		return m, nil
 	case ActionQuit:
 		return m, tea.Quit
+		// NOTE: ActionCycleLookback, ActionCycleSignal, ActionPerspective, ActionKibana
+		// are now handled by handleCommonAction() above
 	}
 
 	// View-specific keys

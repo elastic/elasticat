@@ -54,12 +54,6 @@ func NewClient(opts ClientOptions) *Client {
 	}
 }
 
-// Message represents a chat message in the conversation.
-type Message struct {
-	Role    string `json:"role"`    // "user" or "assistant"
-	Content string `json:"content"` // Message content
-}
-
 // ConversationContext provides context for the chat request.
 type ConversationContext struct {
 	SignalType     string            `json:"signal_type,omitempty"`     // logs, traces, metrics
@@ -71,27 +65,25 @@ type ConversationContext struct {
 }
 
 // ConverseRequest represents a request to the converse API.
+// See: https://www.elastic.co/docs/explore-analyze/ai-features/agent-builder/kibana-api
 type ConverseRequest struct {
-	AgentID        string               `json:"agentId,omitempty"`        // Agent ID (optional, uses default if not set)
-	ConversationID string               `json:"conversationId,omitempty"` // Conversation ID for continuity
-	Messages       []Message            `json:"messages"`                 // Conversation history
-	Context        *ConversationContext `json:"context,omitempty"`        // TUI context
+	Input          string `json:"input"`                     // User message input
+	AgentID        string `json:"agent_id,omitempty"`        // Agent ID (uses default "elastic-ai-agent" if not set)
+	ConversationID string `json:"conversation_id,omitempty"` // Conversation ID for continuity
 }
 
-// ToolCall represents a tool call made by the agent.
-type ToolCall struct {
-	Name   string                 `json:"name"`
-	Args   map[string]interface{} `json:"args,omitempty"`
-	Result string                 `json:"result,omitempty"`
+// ResponseMessage represents the message in a converse response.
+type ResponseMessage struct {
+	Message string `json:"message"`
 }
 
 // ConverseResponse represents the response from the converse API.
+// See: https://www.elastic.co/docs/explore-analyze/ai-features/agent-builder/kibana-api
 type ConverseResponse struct {
-	ConversationID string     `json:"conversationId"`
-	Message        Message    `json:"message"`
-	ToolCalls      []ToolCall `json:"toolCalls,omitempty"`
-	ThinkingSteps  []string   `json:"thinkingSteps,omitempty"`
-	Error          string     `json:"error,omitempty"`
+	ConversationID string          `json:"conversation_id"`
+	Steps          []interface{}   `json:"steps,omitempty"`
+	Response       ResponseMessage `json:"response"`
+	Error          string          `json:"error,omitempty"`
 }
 
 // Converse sends a message to the Agent Builder and returns the response.

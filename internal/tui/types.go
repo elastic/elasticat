@@ -403,6 +403,7 @@ type (
 	}
 	transactionNamesMsg struct {
 		names []traces.TransactionNameAgg
+		query string
 		err   error
 	}
 	spansMsg struct {

@@ -170,7 +170,8 @@ func (m *Model) enterSignalView() tea.Cmd {
 	case signalChat:
 		m.mode = viewChat
 		m.loading = false
-		return m.enterChatView()
+		_, cmd := m.enterChatView()
+		return cmd
 	default:
 		m.mode = viewLogs
 		m.loading = true
@@ -219,4 +220,64 @@ func (m *Model) copyToClipboard(text, successMsg string) {
 		m.statusMessage = successMsg
 	}
 	m.statusTime = time.Now()
+}
+
+// === View Category Helpers ===
+
+// isBaseView returns true for signal root views that don't pop anywhere.
+func (m Model) isBaseView() bool {
+	switch m.mode {
+	case viewLogs, viewMetricsDashboard, viewTraceNames, viewChat:
+		return true
+	}
+	return false
+}
+
+// isModalView returns true for overlay views (error, help, quit, etc).
+func (m Model) isModalView() bool {
+	switch m.mode {
+	case viewErrorModal, viewQuitConfirm, viewHelp, viewCredsModal,
+		viewOtelConfigExplain, viewOtelConfigModal:
+		return true
+	}
+	return false
+}
+
+// === Common Action Handling ===
+
+// handleCommonAction handles actions shared across data views (logs, metrics, traces).
+// Does NOT handle chat-specific behavior. Returns (model, cmd, handled).
+// Callers should return immediately if handled is true.
+func (m Model) handleCommonAction(action Action) (Model, tea.Cmd, bool) {
+	switch action {
+	case ActionCycleSignal:
+		return m, m.cycleSignalType(), true
+	case ActionCycleLookback:
+		m.cycleLookback()
+		return m, m.fetchCurrentViewData(), true
+	case ActionPerspective:
+		return m, m.cyclePerspective(), true
+	case ActionKibana:
+		if m.prepareKibanaURL() {
+			m.showCredsModal()
+		}
+		return m, nil, true
+	}
+	return m, nil, false
+}
+
+// fetchCurrentViewData returns the appropriate fetch command for the current signal.
+func (m *Model) fetchCurrentViewData() tea.Cmd {
+	switch m.signalType {
+	case signalLogs:
+		m.loading = true
+		return m.fetchLogs()
+	case signalMetrics:
+		m.metricsLoading = true
+		return m.fetchAggregatedMetrics()
+	case signalTraces:
+		m.tracesLoading = true
+		return m.fetchTransactionNames()
+	}
+	return nil
 }

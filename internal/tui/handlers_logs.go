@@ -12,6 +12,11 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
 	action := GetAction(key)
 
+	// Handle common actions first (signal cycle, lookback, perspective, kibana)
+	if newM, cmd, handled := m.handleCommonAction(action); handled {
+		return newM, cmd
+	}
+
 	// Handle navigation actions
 	switch action {
 	case ActionBack:
@@ -41,6 +46,8 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.metricsLoading = true
 			return m, m.fetchAggregatedMetrics()
 		}
+		// Logs is a base view - esc does nothing (user can press 'q' to quit)
+		return m, nil
 	case ActionScrollUp:
 		if m.moveSelection(-1) {
 			return m, m.maybeFetchSpansForSelection()
@@ -94,20 +101,8 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.sortAscending = !m.sortAscending
 		m.loading = true
 		return m, m.fetchLogs()
-	case ActionCycleLookback:
-		m.cycleLookback()
-		m.loading = true
-		return m, m.fetchLogs()
-	case ActionCycleSignal:
-		return m, m.cycleSignalType()
-	case ActionPerspective:
-		return m, m.cyclePerspective()
-	case ActionKibana:
-		// Prepare Kibana URL and show creds modal (user presses enter to open browser)
-		if m.prepareKibanaURL() {
-			m.showCredsModal()
-		}
-		return m, nil
+		// NOTE: ActionCycleLookback, ActionCycleSignal, ActionPerspective, ActionKibana
+		// are now handled by handleCommonAction() above
 	}
 
 	// Handle view-specific keys that aren't common actions

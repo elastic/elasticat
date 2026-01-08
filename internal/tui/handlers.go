@@ -15,46 +15,19 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
 	action := GetAction(key)
 
-	switch key {
-	case "ctrl+c":
+	// System keys
+	if key == "ctrl+c" {
 		return m, tea.Quit
-
-	case "q":
-		// Open quit confirmation anywhere (except during text entry).
-		// If we're already showing the quit modal, let it handle keys.
-		if m.mode != viewQuitConfirm && !m.isTextInputActive() {
-			m.pushView(viewQuitConfirm)
-			return m, nil
-		}
-
-	case "esc":
-		// Close error modal and return to previous view
-		if m.mode == viewErrorModal {
-			m.popView()
-			m.err = nil // Clear error
-			return m, nil
-		}
-		// Close OTel config explain modal
-		if m.mode == viewOtelConfigExplain {
-			m.popView()
-			return m, nil
-		}
-		// Close OTel config modal and stop watching
-		if m.mode == viewOtelConfigModal {
-			m.popView()
-			m.otelWatchingConfig = false
-			return m, nil
-		}
-		// Let metric and trace views handle their own escape
-		if m.mode == viewMetricDetail || m.mode == viewMetricsDashboard || m.mode == viewTraceNames || m.mode == viewQuitConfirm {
-			break // Fall through to mode-specific handler
-		}
-		if m.mode != viewLogs {
-			m.mode = viewLogs
-			m.searchInput.Blur()
-			return m, nil
-		}
 	}
+
+	// Quit confirmation (unless in text input or already showing quit modal)
+	if key == "q" && m.mode != viewQuitConfirm && !m.isTextInputActive() {
+		m.pushView(viewQuitConfirm)
+		return m, nil
+	}
+
+	// NOTE: esc is now handled by each view's handler directly.
+	// All views must explicitly handle ActionBack for proper navigation.
 
 	// Action-based global keys
 	switch action {
@@ -68,7 +41,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case ActionChat:
 		// Open chat from any view (except during text input or chat itself)
 		if !m.isTextInputActive() && m.mode != viewChat {
-			return m, m.enterChatView()
+			return m.enterChatView()
 		}
 	case ActionCreds:
 		// Show credentials modal from any view (except during text input or already in creds modal)
@@ -82,6 +55,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if !m.isTextInputActive() && m.mode != viewOtelConfigExplain && m.mode != viewOtelConfigModal {
 			m.pushView(viewOtelConfigExplain)
 			return m, nil
+		}
+	case ActionSendToChat:
+		// Send selected item to chat from any view (except during text input or chat itself)
+		if !m.isTextInputActive() && m.mode != viewChat {
+			return m.enterChatWithSelectedItem()
 		}
 	}
 
@@ -128,18 +106,16 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // isTextInputActive returns true when a text input is active, disabling global hotkeys like h.
 func (m Model) isTextInputActive() bool {
-	if m.mode == viewSearch || m.mode == viewIndex || m.mode == viewQuery {
+	switch m.mode {
+	case viewSearch, viewIndex, viewQuery:
 		return true
+	case viewFields:
+		return m.fieldsSearchMode
+	case viewChat:
+		return m.chatInsertMode // Fixed: was m.chatInput.Focused()
+	default:
+		return false
 	}
-	// Fields search submode
-	if m.mode == viewFields && m.fieldsSearchMode {
-		return true
-	}
-	// Chat input mode
-	if m.mode == viewChat && m.chatInput.Focused() {
-		return true
-	}
-	return false
 }
 
 // handleMouse handles mouse events across all views

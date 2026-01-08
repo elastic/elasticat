@@ -48,6 +48,13 @@ func newRequestManager() *requestManager {
 	}
 }
 
+func (rm *requestManager) inFlight(kind requestKind) bool {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+	_, ok := rm.cancels[kind]
+	return ok
+}
+
 func (m *Model) fetchLogs() tea.Cmd {
 	return func() tea.Msg {
 		ctx, done := m.startRequest(requestLogs, m.tuiConfig.LogsTimeout)
@@ -196,12 +203,12 @@ func (m *Model) fetchTransactionNames() tea.Cmd {
 
 		lookbackRange := m.lookback.ESRange()
 
-		names, err := m.client.GetTransactionNamesESQL(ctx, lookbackRange, m.filterService, m.filterResource, m.negateService, m.negateResource)
+		result, err := m.client.GetTransactionNamesESQL(ctx, lookbackRange, m.filterService, m.filterResource, m.negateService, m.negateResource)
 		if err != nil {
 			return transactionNamesMsg{err: err}
 		}
 
-		return transactionNamesMsg{names: names}
+		return transactionNamesMsg{names: result.Names, query: result.Query}
 	}
 }
 

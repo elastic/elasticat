@@ -17,8 +17,12 @@ func (m Model) handleChatKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
 	action := GetAction(key)
 
-	// Handle navigation in chat viewport (when not focused on input)
-	if !m.chatInput.Focused() {
+	// Vim-style behavior:
+	// - Normal mode (chatInsertMode=false): j/k/arrows scroll, enter/i enters insert, esc exits chat
+	// - Insert mode (chatInsertMode=true): type/edit input, enter sends, esc exits insert
+
+	// Normal mode actions
+	if !m.chatInsertMode {
 		switch action {
 		case ActionScrollUp:
 			m.chatViewport.ScrollUp(1)
@@ -38,37 +42,41 @@ func (m Model) handleChatKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case ActionGoBottom:
 			m.chatViewport.GotoBottom()
 			return m, nil
+		case ActionCycleSignal:
+			// Allow switching signals (m key) from chat view
+			return m, m.cycleSignalType()
 		}
 
-		// Focus input on any typing character or enter
 		switch key {
-		case "i", "enter", "/":
+		case "i", "enter":
+			m.chatInsertMode = true
 			m.chatInput.Focus()
 			return m, textinput.Blink
 		case "esc":
+			// Try to pop view - if stack is empty (chat is root), do nothing
+			// User can press 'q' to quit or 'm' to switch signals
 			m.popView()
 			return m, nil
 		}
-	}
 
-	// Handle input mode
-	switch key {
-	case "enter":
-		// Submit message
-		if m.chatInput.Value() != "" && !m.chatLoading {
-			return m.submitChatMessage()
-		}
-	case "esc":
-		// Unfocus input or exit chat
-		if m.chatInput.Focused() {
-			m.chatInput.Blur()
-		} else {
-			m.popView()
-		}
+		// Ignore all other keys in normal mode.
 		return m, nil
 	}
 
-	// Update text input
+	// Insert mode
+	switch key {
+	case "enter":
+		if m.chatInput.Value() != "" && !m.chatLoading {
+			return m.submitChatMessage()
+		}
+		return m, nil
+	case "esc":
+		m.chatInsertMode = false
+		m.chatInput.Blur()
+		return m, nil
+	}
+
+	// Update text input in insert mode
 	var cmd tea.Cmd
 	m.chatInput, cmd = m.chatInput.Update(msg)
 	return m, cmd
@@ -91,6 +99,8 @@ func (m Model) submitChatMessage() (tea.Model, tea.Cmd) {
 	// Clear input and set loading state
 	m.chatInput.SetValue("")
 	m.chatLoading = true
+	m.chatAnalysisContext = "" // Regular message, not item analysis
+	m.chatRequestStart = time.Now()
 
 	// Update viewport to show new message
 	m.updateChatViewport()
@@ -115,29 +125,22 @@ func (m *Model) fetchChatResponse(userMessage string) tea.Cmd {
 			Timeout:   m.tuiConfig.ChatTimeout,
 		})
 
-		// Build context from current TUI state
-		tuiContext := m.buildChatContext()
-
-		// Build messages for the API (include context in first message)
-		var messages []agentbuilder.Message
-		contextPrefix := agentbuilder.FormatContextAsSystemMessage(tuiContext)
-
-		for i, msg := range m.chatMessages {
-			content := msg.Content
-			// Prepend context to first user message
-			if i == 0 && msg.Role == "user" && contextPrefix != "" {
-				content = contextPrefix + "\n\n" + content
+		// Build context from current TUI state and prepend to first message
+		input := userMessage
+		if m.chatConversationID == "" {
+			// First message - include TUI context
+			tuiContext := m.buildChatContext()
+			contextPrefix := agentbuilder.FormatContextAsSystemMessage(tuiContext)
+			if contextPrefix != "" {
+				input = contextPrefix + "\n\n" + userMessage
 			}
-			messages = append(messages, agentbuilder.Message{
-				Role:    msg.Role,
-				Content: content,
-			})
 		}
 
-		// Call the API
+		// Call the API with the input string format
 		req := agentbuilder.ConverseRequest{
+			Input:          input,
+			AgentID:        "elastic-ai-agent",
 			ConversationID: m.chatConversationID,
-			Messages:       messages,
 		}
 
 		resp, err := client.Converse(ctx, req)
@@ -150,8 +153,8 @@ func (m *Model) fetchChatResponse(userMessage string) tea.Cmd {
 		return chatResponseMsg{
 			conversationID: resp.ConversationID,
 			message: ChatMessage{
-				Role:      resp.Message.Role,
-				Content:   resp.Message.Content,
+				Role:      "assistant",
+				Content:   resp.Response.Message,
 				Timestamp: time.Now(),
 			},
 		}
@@ -232,6 +235,10 @@ func (m Model) handleChatResponseMsg(msg chatResponseMsg) (Model, tea.Cmd) {
 		m.chatConversationID = msg.conversationID
 	}
 
+	// Clear analysis state
+	m.chatAnalysisContext = ""
+	m.chatRequestStart = time.Time{}
+
 	// Add assistant message to history
 	m.chatMessages = append(m.chatMessages, msg.message)
 	m.updateChatViewport()
@@ -240,9 +247,12 @@ func (m Model) handleChatResponseMsg(msg chatResponseMsg) (Model, tea.Cmd) {
 }
 
 // enterChatView switches to chat view.
-func (m *Model) enterChatView() tea.Cmd {
+func (m Model) enterChatView() (Model, tea.Cmd) {
 	m.pushView(viewChat)
-	m.chatInput.Focus()
+	// Start in normal mode; require `i`/Enter to type.
+	m.chatInsertMode = false
+	m.chatInput.Blur()
+	m.chatLoading = false
 
 	// Add welcome message if this is a new conversation
 	if len(m.chatMessages) == 0 {
@@ -254,7 +264,7 @@ func (m *Model) enterChatView() tea.Cmd {
 		m.updateChatViewport()
 	}
 
-	return textinput.Blink
+	return m, textinput.Blink
 }
 
 // clearChatHistory resets the chat conversation.
@@ -262,4 +272,135 @@ func (m *Model) clearChatHistory() {
 	m.chatMessages = []ChatMessage{}
 	m.chatConversationID = ""
 	m.updateChatViewport()
+}
+
+// getSelectedItemContext returns a description and JSON/summary of the currently selected item.
+// Returns empty strings if no item is selected.
+func (m Model) getSelectedItemContext() (description string, content string) {
+	switch m.mode {
+	case viewLogs, viewDetail, viewDetailJSON:
+		// Logs list or detail view - use selected log entry
+		if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
+			log := m.logs[m.selectedIndex]
+			description = fmt.Sprintf("%s log from %s", log.GetLevel(), log.ServiceName)
+			if log.ServiceName == "" {
+				description = fmt.Sprintf("%s log", log.GetLevel())
+			}
+			content = log.RawJSON
+		}
+
+	case viewMetricsDashboard:
+		// Metrics dashboard - use selected aggregated metric summary
+		if m.aggregatedMetrics != nil && m.metricsCursor < len(m.aggregatedMetrics.Metrics) {
+			metric := m.aggregatedMetrics.Metrics[m.metricsCursor]
+			description = fmt.Sprintf("metric %s", metric.Name)
+			content = fmt.Sprintf(`{"name": %q, "type": %q, "min": %v, "max": %v, "avg": %v, "latest": %v}`,
+				metric.Name, metric.Type, metric.Min, metric.Max, metric.Avg, metric.Latest)
+		}
+
+	case viewMetricDetail:
+		// Metric detail view - use current metric document
+		if len(m.metricDetailDocs) > 0 && m.metricDetailDocCursor < len(m.metricDetailDocs) {
+			doc := m.metricDetailDocs[m.metricDetailDocCursor]
+			metricName := ""
+			if m.aggregatedMetrics != nil && m.metricsCursor < len(m.aggregatedMetrics.Metrics) {
+				metricName = m.aggregatedMetrics.Metrics[m.metricsCursor].Name
+			}
+			description = fmt.Sprintf("metric document for %s", metricName)
+			content = doc.RawJSON
+		}
+
+	case viewTraceNames:
+		// Trace names view - ask a question about the transaction name (not JSON analysis)
+		if len(m.transactionNames) > 0 && m.traceNamesCursor < len(m.transactionNames) {
+			tx := m.transactionNames[m.traceNamesCursor]
+			// Return the question as description, empty content signals question-only mode
+			description = fmt.Sprintf("What do you know about transactions with transaction.name '%s' in the index '%s'?", tx.Name, m.client.GetIndex())
+			content = "" // Empty content = question mode
+		}
+
+	default:
+		// For other views where logs contain data (e.g., trace transactions/spans)
+		if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
+			log := m.logs[m.selectedIndex]
+			if m.signalType == signalTraces {
+				if log.Name != "" {
+					description = fmt.Sprintf("span %s", log.Name)
+				} else {
+					description = "trace span"
+				}
+			} else {
+				description = "selected item"
+			}
+			content = log.RawJSON
+		}
+	}
+	return
+}
+
+// enterChatWithSelectedItem opens chat and adds the selected item as context.
+func (m Model) enterChatWithSelectedItem() (Model, tea.Cmd) {
+	description, content := m.getSelectedItemContext()
+
+	m.pushView(viewChat)
+	// Start in insert mode so user can see/edit the prefilled message.
+	m.chatInsertMode = true
+	m.chatInput.Focus()
+
+	// Add or update the welcome message
+	if len(m.chatMessages) == 0 {
+		m.chatMessages = append(m.chatMessages, ChatMessage{
+			Role:      "assistant",
+			Content:   "Hello! I'm your AI assistant powered by Elastic Agent Builder. Ask me anything about your observability data - logs, traces, or metrics. I have context about your current filters and selections.",
+			Timestamp: time.Now(),
+		})
+	}
+
+	// Add the selected item as a system context message
+	index := m.client.GetIndex()
+
+	// Build query context if available
+	queryContext := ""
+	if m.lastQueryJSON != "" {
+		queryContext = fmt.Sprintf("\n\nThe view was generated by this query:\n\n```json\n%s\n```", m.lastQueryJSON)
+	}
+
+	if content != "" {
+		// Analysis mode: send JSON data with context
+		contextMsg := fmt.Sprintf("I'm looking at this %s from the index '%s'. Here's the data:\n\n```json\n%s\n```%s\n\nPlease provide a brief analysis. What are the key insights?",
+			description, index, content, queryContext)
+		m.chatMessages = append(m.chatMessages, ChatMessage{
+			Role:      "user",
+			Content:   contextMsg,
+			Timestamp: time.Now(),
+		})
+		m.updateChatViewport()
+
+		// Auto-submit to get AI analysis
+		m.chatLoading = true
+		m.chatAnalysisContext = description // e.g., "INFO log from demo", "metric cpu.usage"
+		m.chatRequestStart = time.Now()
+		return m, m.fetchChatResponse(contextMsg)
+	} else if description != "" {
+		// Question mode: description IS the question (e.g., for trace names)
+		questionWithContext := description + " Please be brief."
+		if queryContext != "" {
+			questionWithContext = description + queryContext + "\n\nPlease be brief."
+		}
+		m.chatMessages = append(m.chatMessages, ChatMessage{
+			Role:      "user",
+			Content:   questionWithContext,
+			Timestamp: time.Now(),
+		})
+		m.updateChatViewport()
+
+		// Auto-submit the question
+		m.chatLoading = true
+		m.chatAnalysisContext = "transaction name"
+		m.chatRequestStart = time.Now()
+		return m, m.fetchChatResponse(questionWithContext)
+	}
+
+	m.updateChatViewport()
+	return m, textinput.Blink
 }

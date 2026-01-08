@@ -18,5 +18,11 @@ type TransactionNameAgg struct {
 	LastSeen    time.Time // Timestamp of the most recent transaction
 }
 
+// TransactionNamesResult contains the result of a transaction names aggregation
+type TransactionNamesResult struct {
+	Names []TransactionNameAgg
+	Query string // ES|QL query used (for display/Kibana integration)
+}
+
 // Note: ESQLResult and ESQLColumn have been moved to es/types.go
 // as they are shared across traces, metrics, and perspectives packages.

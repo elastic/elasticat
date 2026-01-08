@@ -333,34 +333,34 @@ func TestGetNamesESSQL_Success(t *testing.T) {
 		},
 	}
 
-	results, err := GetNamesESSQL(context.Background(), mock, "now-1h", "", "", false, false)
+	result, err := GetNamesESSQL(context.Background(), mock, "now-1h", "", "", false, false)
 	if err != nil {
 		t.Fatalf("GetNamesESSQL failed: %v", err)
 	}
 
-	if len(results) != 2 {
-		t.Fatalf("Expected 2 results, got %d", len(results))
+	if len(result.Names) != 2 {
+		t.Fatalf("Expected 2 results, got %d", len(result.Names))
 	}
 
 	// Check first result
-	if results[0].Name != "GET /api/users" {
-		t.Errorf("Name = %q, want %q", results[0].Name, "GET /api/users")
+	if result.Names[0].Name != "GET /api/users" {
+		t.Errorf("Name = %q, want %q", result.Names[0].Name, "GET /api/users")
 	}
-	if results[0].Count != 100 {
-		t.Errorf("Count = %d, want %d", results[0].Count, 100)
+	if result.Names[0].Count != 100 {
+		t.Errorf("Count = %d, want %d", result.Names[0].Count, 100)
 	}
-	if results[0].TraceCount != 50 {
-		t.Errorf("TraceCount = %d, want %d", results[0].TraceCount, 50)
+	if result.Names[0].TraceCount != 50 {
+		t.Errorf("TraceCount = %d, want %d", result.Names[0].TraceCount, 50)
 	}
-	if results[0].ErrorRate != 10 {
-		t.Errorf("ErrorRate = %f, want %f", results[0].ErrorRate, 10.0)
+	if result.Names[0].ErrorRate != 10 {
+		t.Errorf("ErrorRate = %f, want %f", result.Names[0].ErrorRate, 10.0)
 	}
 
 	// Check average spans calculation
 	// trace-1 has 5 spans, trace-2 has 3 spans -> (5+3)/50 unique traces
 	expectedAvgSpans := float64(5+3) / float64(50)
-	if results[0].AvgSpans != expectedAvgSpans {
-		t.Errorf("AvgSpans = %f, want %f", results[0].AvgSpans, expectedAvgSpans)
+	if result.Names[0].AvgSpans != expectedAvgSpans {
+		t.Errorf("AvgSpans = %f, want %f", result.Names[0].AvgSpans, expectedAvgSpans)
 	}
 }
 
@@ -413,12 +413,12 @@ func TestGetNamesESSQL_UnknownIndex_EmptyState(t *testing.T) {
 		esqlErr: &shared.ESQLUnknownIndexError{Index: "traces-*", Status: "400 Bad Request"},
 	}
 
-	results, err := GetNamesESSQL(context.Background(), mock, "now-1h", "", "", false, false)
+	result, err := GetNamesESSQL(context.Background(), mock, "now-1h", "", "", false, false)
 	if err != nil {
 		t.Fatalf("Expected nil error, got %v", err)
 	}
-	if len(results) != 0 {
-		t.Fatalf("Expected 0 results, got %d", len(results))
+	if len(result.Names) != 0 {
+		t.Fatalf("Expected 0 results, got %d", len(result.Names))
 	}
 }
 

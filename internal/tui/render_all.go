@@ -9,63 +9,125 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// renderBase renders the main view for a given mode (excluding modal overlays) and appends the help bar.
+// renderBase renders the main view for a given mode (excluding modal overlays) and pins the help bar to the bottom.
 func (m Model) renderBase(mode viewMode) string {
-	var b strings.Builder
+	var body strings.Builder
 
-	// Calculate heights using helper method
-	logListHeight := m.getContentHeight(true)
+	help := m.renderHelpBar()
+	helpHeight := lipgloss.Height(help)
+	if helpHeight < 1 {
+		helpHeight = 1
+	}
+
+	bodyHeight := m.height - helpHeight
+	if bodyHeight < 0 {
+		bodyHeight = 0
+	}
+
+	title := m.renderTitleHeader()
+	status := m.renderStatusBar()
 
 	// Title header (top)
-	b.WriteString(m.renderTitleHeader())
-	b.WriteString("\n")
+	body.WriteString(title)
+	body.WriteString("\n")
 
 	// Status bar
-	b.WriteString(m.renderStatusBar())
-	b.WriteString("\n")
+	body.WriteString(status)
+	body.WriteString("\n")
+
+	// Remaining height for the view content (below title + status, above help)
+	remainingHeight := bodyHeight - lipgloss.Height(title) - lipgloss.Height(status) - 2
+	if remainingHeight < 0 {
+		remainingHeight = 0
+	}
 
 	switch mode {
 	case viewLogs, viewSearch, viewIndex, viewQuery:
-		b.WriteString(m.renderLogListWithHeight(logListHeight))
-		b.WriteString("\n")
-		b.WriteString(m.renderCompactDetail())
+		compact := m.renderCompactDetail()
+		compactHeight := lipgloss.Height(compact)
+
+		search := ""
+		searchHeight := 0
 		if mode == viewSearch {
-			b.WriteString("\n")
-			b.WriteString(m.renderSearchInput())
+			search = m.renderSearchInput()
+			searchHeight = lipgloss.Height(search)
+		}
+		index := ""
+		indexHeight := 0
+		if mode == viewIndex {
+			index = m.renderIndexInput()
+			indexHeight = lipgloss.Height(index)
+		}
+		query := ""
+		queryHeight := 0
+		if mode == viewQuery {
+			query = m.renderQueryOverlay()
+			queryHeight = lipgloss.Height(query)
+		}
+
+		// Layout:
+		// [log list]
+		// \n
+		// [compact detail]
+		// (\n [search/index/query])?
+		listHeight := remainingHeight - 1 - compactHeight - (boolToInt(mode == viewSearch || mode == viewIndex || mode == viewQuery) * 1) - searchHeight - indexHeight - queryHeight
+		if listHeight < 3 {
+			listHeight = 3
+		}
+
+		body.WriteString(m.renderLogListWithHeight(listHeight))
+		body.WriteString("\n")
+		body.WriteString(compact)
+		if mode == viewSearch {
+			body.WriteString("\n")
+			body.WriteString(search)
 		}
 		if mode == viewIndex {
-			b.WriteString("\n")
-			b.WriteString(m.renderIndexInput())
+			body.WriteString("\n")
+			body.WriteString(index)
 		}
 		if mode == viewQuery {
-			b.WriteString("\n")
-			b.WriteString(m.renderQueryOverlay())
+			body.WriteString("\n")
+			body.WriteString(query)
 		}
 	case viewDetail, viewDetailJSON:
-		b.WriteString(m.renderDetailView())
+		body.WriteString(m.renderDetailView())
 	case viewFields:
-		b.WriteString(m.renderFieldSelector())
+		body.WriteString(m.renderFieldSelector())
 	case viewMetricsDashboard:
-		b.WriteString(m.renderMetricsDashboard(logListHeight))
-		b.WriteString("\n")
-		b.WriteString(m.renderMetricsCompactDetail())
+		// Metrics dashboard shares the log-list height model (dashboard + compact)
+		compact := m.renderMetricsCompactDetail()
+		compactHeight := lipgloss.Height(compact)
+		dashHeight := remainingHeight - 1 - compactHeight
+		if dashHeight < 3 {
+			dashHeight = 3
+		}
+
+		body.WriteString(m.renderMetricsDashboard(dashHeight))
+		body.WriteString("\n")
+		body.WriteString(compact)
 	case viewMetricDetail:
-		b.WriteString(m.renderMetricDetail())
+		body.WriteString(m.renderMetricDetail())
 	case viewTraceNames:
-		b.WriteString(m.renderTransactionNames(logListHeight))
+		body.WriteString(m.renderTransactionNames(remainingHeight))
 	case viewPerspectiveList:
-		b.WriteString(m.renderPerspectiveList(logListHeight))
-		b.WriteString("\n")
-		b.WriteString(m.renderCompactDetail())
+		body.WriteString(m.renderPerspectiveList(remainingHeight))
+		body.WriteString("\n")
+		body.WriteString(m.renderCompactDetail())
 	case viewChat:
-		b.WriteString(m.renderChatView(logListHeight))
+		body.WriteString(m.renderChatView(remainingHeight))
 	}
 
-	// Help bar (bottom)
-	b.WriteString("\n")
-	b.WriteString(m.renderHelpBar())
+	placedBody := lipgloss.Place(m.width, bodyHeight, lipgloss.Left, lipgloss.Top, body.String())
+	full := lipgloss.JoinVertical(lipgloss.Left, placedBody, help)
+	return AppStyle.Render(full)
+}
 
-	return AppStyle.Render(b.String())
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 // View is the main rendering entry point that routes to specific render functions.

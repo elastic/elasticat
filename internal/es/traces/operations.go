@@ -291,7 +291,7 @@ func GetNames(ctx context.Context, exec Executor, lookback, service, resource st
 
 // GetNamesESSQL retrieves transaction aggregations using ES|QL
 // This uses a 3-query approach with client-side correlation to calculate accurate span counts per transaction name
-func GetNamesESSQL(ctx context.Context, exec Executor, lookback, service, resource string, negateService, negateResource bool) ([]TransactionNameAgg, error) {
+func GetNamesESSQL(ctx context.Context, exec Executor, lookback, service, resource string, negateService, negateResource bool) (*TransactionNamesResult, error) {
 	index := exec.GetIndex()
 
 	// Build filter clauses for queries
@@ -341,7 +341,7 @@ func GetNamesESSQL(ctx context.Context, exec Executor, lookback, service, resour
 		// Treat expected empty-state errors (no matching indices, unsupported field types)
 		// as empty results rather than surfacing errors to the UI.
 		if shared.IsESQLEmptyStateError(err) {
-			return []TransactionNameAgg{}, nil
+			return &TransactionNamesResult{Names: []TransactionNameAgg{}, Query: q1}, nil
 		}
 		return nil, fmt.Errorf("failed to execute transaction stats query: %w", err)
 	}
@@ -404,7 +404,7 @@ func GetNamesESSQL(ctx context.Context, exec Executor, lookback, service, resour
 	mappingResult, err := exec.ExecuteESQLQuery(ctx, q2)
 	if err != nil {
 		if shared.IsESQLEmptyStateError(err) {
-			return []TransactionNameAgg{}, nil
+			return &TransactionNamesResult{Names: []TransactionNameAgg{}, Query: q1}, nil
 		}
 		return nil, fmt.Errorf("failed to execute trace mapping query: %w", err)
 	}
@@ -439,7 +439,7 @@ func GetNamesESSQL(ctx context.Context, exec Executor, lookback, service, resour
 	spanResult, err := exec.ExecuteESQLQuery(ctx, q3)
 	if err != nil {
 		if shared.IsESQLEmptyStateError(err) {
-			return []TransactionNameAgg{}, nil
+			return &TransactionNamesResult{Names: []TransactionNameAgg{}, Query: q1}, nil
 		}
 		return nil, fmt.Errorf("failed to execute span counts query: %w", err)
 	}
@@ -481,5 +481,5 @@ func GetNamesESSQL(ctx context.Context, exec Executor, lookback, service, resour
 		}
 	}
 
-	return txStats, nil
+	return &TransactionNamesResult{Names: txStats, Query: q1}, nil
 }

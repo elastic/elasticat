@@ -55,7 +55,8 @@ func (m Model) keymapLogs() []KeyBinding {
 		ActionBinding(ActionQuery, KeyKindFull, "View"),
 		ActionBinding(ActionRefresh, KeyKindFull, "View"),
 		ActionBinding(ActionAutoRefresh, KeyKindFull, "View"),
-		ActionBinding(ActionCreds, KeyKindFull, "View"),
+		ActionBinding(ActionSendToChat, KeyKindFull, "AI"),
+		ActionBinding(ActionCreds, KeyKindFull, "System"),
 		ActionBinding(ActionOtelConfig, KeyKindFull, "System"),
 		CombinedBinding([]string{"0-4"}, "level filters", KeyKindFull, "Filter"),
 		ActionBinding(ActionQuit, KeyKindFull, "System"),
@@ -111,7 +112,8 @@ func (m Model) keymapMetricsDashboard() []KeyBinding {
 	full := []KeyBinding{
 		ActionBinding(ActionCycleSignal, KeyKindFull, "View"),
 		ActionBinding(ActionRefresh, KeyKindFull, "View"),
-		ActionBinding(ActionCreds, KeyKindFull, "View"),
+		ActionBinding(ActionSendToChat, KeyKindFull, "AI"),
+		ActionBinding(ActionCreds, KeyKindFull, "System"),
 		ActionBinding(ActionOtelConfig, KeyKindFull, "System"),
 		CombinedBinding([]string{"d"}, "documents", KeyKindFull, "View"),
 		ActionBinding(ActionSearch, KeyKindFull, "Filter"),
@@ -144,8 +146,10 @@ func (m Model) keymapTraceNames() []KeyBinding {
 	}
 	full := []KeyBinding{
 		ActionBinding(ActionCycleSignal, KeyKindFull, "View"),
+		ActionBinding(ActionQuery, KeyKindFull, "View"),
 		ActionBinding(ActionSearch, KeyKindFull, "Filter"),
 		ActionBinding(ActionRefresh, KeyKindFull, "View"),
+		ActionBinding(ActionSendToChat, KeyKindFull, "AI"),
 		ActionBinding(ActionCreds, KeyKindFull, "System"),
 		ActionBinding(ActionOtelConfig, KeyKindFull, "System"),
 		ActionBinding(ActionQuit, KeyKindFull, "System"),
@@ -192,9 +196,18 @@ func (m Model) keymapErrorModal() []KeyBinding {
 }
 
 func (m Model) keymapChat() []KeyBinding {
+	if m.chatInsertMode {
+		quick := []KeyBinding{
+			CombinedBinding([]string{"enter"}, "send", KeyKindQuick, "Input"),
+			CombinedBinding([]string{"esc"}, "normal", KeyKindQuick, "Input"),
+		}
+		return append(quick, SystemBindings()...)
+	}
+
 	quick := []KeyBinding{
-		ScrollBinding(KeyKindQuick),
-		CombinedBinding([]string{"i", "enter"}, "type", KeyKindQuick, "Input"),
+		CombinedBinding([]string{"j", "k", "↑", "↓"}, "scroll", KeyKindQuick, "Navigation"),
+		CombinedBinding([]string{"i", "enter"}, "insert", KeyKindQuick, "Input"),
+		ActionBinding(ActionCycleSignal, KeyKindQuick, "View"),
 		ActionBindingWithLabel(ActionBack, "close", KeyKindQuick, "Navigation"),
 	}
 	full := []KeyBinding{

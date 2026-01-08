@@ -6,6 +6,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -40,6 +41,11 @@ var (
 				BorderForeground(lipgloss.Color("62")).
 				Padding(0, 1)
 
+	chatInputBorderInactiveStyle = lipgloss.NewStyle().
+					Border(lipgloss.RoundedBorder()).
+					BorderForeground(lipgloss.Color("240")). // Gray border when inactive
+					Padding(0, 1)
+
 	chatTitleStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("86")).
@@ -55,6 +61,9 @@ func (m Model) renderChatView(height int) string {
 	inputHeight := 3 // Border + input + padding
 	titleHeight := 1
 	availableHeight := height - inputHeight - titleHeight - 2
+	if availableHeight < 1 {
+		availableHeight = 1
+	}
 
 	// Update viewport dimensions
 	m.chatViewport.Width = m.width - 4
@@ -68,20 +77,64 @@ func (m Model) renderChatView(height int) string {
 	b.WriteString("\n")
 
 	// Messages viewport
-	b.WriteString(m.chatViewport.View())
+	// Ensure the viewport area consumes its full height so the input stays pinned above the help bar.
+	messagesView := lipgloss.NewStyle().
+		Width(m.chatViewport.Width).
+		Height(m.chatViewport.Height).
+		Render(m.chatViewport.View())
+	b.WriteString(messagesView)
 	b.WriteString("\n")
 
 	// Loading indicator or input
-	if m.chatLoading {
-		loading := chatLoadingStyle.Render("⏳ Thinking...")
+	isLoading := false
+	if m.requests != nil {
+		isLoading = m.requests.inFlight(requestChat)
+	}
+
+	if isLoading {
+		loading := m.renderChatLoadingIndicator()
 		b.WriteString(loading)
 	} else {
-		// Input area
-		inputBox := chatInputBorderStyle.Width(m.width - 6).Render(m.chatInput.View())
+		// Input area - style depends on whether we're in insert mode
+		var inputBox string
+		if m.chatInsertMode {
+			// Active: colored border, normal placeholder
+			inputBox = chatInputBorderStyle.Width(m.width - 6).Render(m.chatInput.View())
+		} else {
+			// Inactive: gray border, hint to activate
+			inactiveHint := lipgloss.NewStyle().
+				Foreground(lipgloss.Color("240")).
+				Italic(true).
+				Render("Press 'i' or [Enter] to type...")
+			inputBox = chatInputBorderInactiveStyle.Width(m.width - 6).Render(inactiveHint)
+		}
 		b.WriteString(inputBox)
 	}
 
 	return b.String()
+}
+
+// renderChatLoadingIndicator returns the loading message for chat requests.
+// Shows a dynamic timer and context-aware message when analyzing selected items.
+func (m Model) renderChatLoadingIndicator() string {
+	// Calculate elapsed time
+	elapsed := ""
+	if !m.chatRequestStart.IsZero() {
+		duration := time.Since(m.chatRequestStart)
+		elapsed = fmt.Sprintf(" (%.1fs)", duration.Seconds())
+	}
+
+	// Build message based on context
+	var message string
+	if m.chatAnalysisContext != "" {
+		// Analyzing a specific item (from "C" key)
+		message = fmt.Sprintf("⏳ Analyzing the %s as requested...%s", m.chatAnalysisContext, elapsed)
+	} else {
+		// Regular chat message
+		message = fmt.Sprintf("⏳ Thinking...%s", elapsed)
+	}
+
+	return chatLoadingStyle.Render(message)
 }
 
 // renderChatContextBar shows the current TUI context.

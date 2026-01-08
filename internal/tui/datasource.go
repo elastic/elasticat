@@ -36,7 +36,7 @@ type DataSource interface {
 	AggregateMetrics(ctx context.Context, opts metrics.AggregateMetricsOptions) (*metrics.MetricsAggResult, error)
 
 	// GetTransactionNamesESQL retrieves transaction aggregations using ES|QL.
-	GetTransactionNamesESQL(ctx context.Context, lookback, service, resource string, negateService, negateResource bool) ([]traces.TransactionNameAgg, error)
+	GetTransactionNamesESQL(ctx context.Context, lookback, service, resource string, negateService, negateResource bool) (*traces.TransactionNamesResult, error)
 
 	// GetServices returns aggregated counts per service.
 	GetServices(ctx context.Context, lookback string) ([]perspectives.PerspectiveAgg, error)

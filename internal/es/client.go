@@ -591,7 +591,7 @@ func (c *Client) GetTransactionNames(ctx context.Context, lookback, service, res
 }
 
 // GetTransactionNamesESQL retrieves transaction aggregations using ES|QL
-func (c *Client) GetTransactionNamesESQL(ctx context.Context, lookback, service, resource string, negateService, negateResource bool) ([]traces.TransactionNameAgg, error) {
+func (c *Client) GetTransactionNamesESQL(ctx context.Context, lookback, service, resource string, negateService, negateResource bool) (*traces.TransactionNamesResult, error) {
 	return traces.GetNamesESSQL(ctx, c, lookback, service, resource, negateService, negateResource)
 }
 

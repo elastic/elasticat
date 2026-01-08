@@ -37,7 +37,9 @@ func (m Model) Init() tea.Cmd {
 
 	// Chat mode doesn't need auto-detect or data fetching
 	if m.signalType == signalChat {
-		cmds = append(cmds, m.enterChatView())
+		var cmd tea.Cmd
+		m, cmd = m.enterChatView()
+		cmds = append(cmds, cmd)
 	} else {
 		cmds = append(cmds, m.autoDetectLookback())
 	}
@@ -329,6 +331,11 @@ func (m Model) handleTransactionNamesMsg(msg transactionNamesMsg) (Model, tea.Cm
 	}
 
 	m.transactionNames = msg.names
+	// Store the ES|QL query for display and chat context
+	if msg.query != "" {
+		m.lastQueryJSON = msg.query
+		m.lastQueryIndex = m.client.GetIndex()
+	}
 	m.err = nil
 	return m, nil
 }

@@ -44,7 +44,8 @@ const (
 	ActionNextDoc       // n - next document (in metric detail)
 	ActionPrevDoc       // N - prev document (in metric detail)
 	ActionChat          // c - open AI chat
-	ActionCreds         // C - show credentials modal
+	ActionSendToChat    // C - send selected item to chat
+	ActionCreds         // X - show credentials modal
 	ActionOtelConfig    // O - open OTel collector config
 	ActionCopyOriginal  // Y - copy log.record.original to clipboard
 )
@@ -91,7 +92,8 @@ var DefaultKeyBindings = map[string]Action{
 	"n": ActionNextDoc,      // Next document in metric detail
 	"N": ActionPrevDoc,      // Prev document in metric detail
 	"c": ActionChat,         // Open AI chat
-	"C": ActionCreds,        // Show credentials modal
+	"C": ActionSendToChat,   // Send selected item to chat
+	"X": ActionCreds,        // Show credentials modal
 	"O": ActionOtelConfig,   // Open OTel collector config
 	"Y": ActionCopyOriginal, // Copy log.record.original in detail view
 
@@ -156,7 +158,8 @@ var ActionDisplay = map[Action]ActionInfo{
 	ActionNextDoc:       {DisplayKeys: []string{"n"}, Label: "next doc"},
 	ActionPrevDoc:       {DisplayKeys: []string{"N"}, Label: "prev doc"},
 	ActionChat:          {DisplayKeys: []string{"c"}, Label: "chat"},
-	ActionCreds:         {DisplayKeys: []string{"C"}, Label: "creds"},
+	ActionSendToChat:    {DisplayKeys: []string{"C"}, Label: "send to chat"},
+	ActionCreds:         {DisplayKeys: []string{"X"}, Label: "creds"},
 	ActionOtelConfig:    {DisplayKeys: []string{"O"}, Label: "edit otel collector config"},
 	ActionCopyOriginal:  {DisplayKeys: []string{"Y"}, Label: "copy 'log.original'"},
 }

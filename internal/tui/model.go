@@ -110,11 +110,14 @@ type Model struct {
 	perspectiveLoading bool
 
 	// === Chat State ===
-	chatMessages       []ChatMessage   // Conversation history
-	chatLoading        bool            // Waiting for AI response
-	chatConversationID string          // Agent Builder conversation ID
-	chatInput          textinput.Model // Chat message input
-	chatViewport       viewport.Model  // Chat message history viewport
+	chatMessages        []ChatMessage   // Conversation history
+	chatLoading         bool            // Waiting for AI response
+	chatConversationID  string          // Agent Builder conversation ID
+	chatInput           textinput.Model // Chat message input
+	chatViewport        viewport.Model  // Chat message history viewport
+	chatInsertMode      bool            // Vim-style insert mode for chat input (false = normal mode)
+	chatAnalysisContext string          // What's being analyzed (e.g., "log", "metric", "trace") - empty for normal chat
+	chatRequestStart    time.Time       // When the current chat request started (for elapsed timer)
 
 	// === Credentials Modal State ===
 	hideCredsModal bool   // Don't show creds modal after Kibana open (session preference)
@@ -286,7 +289,7 @@ func NewModelWithOpts(ctx context.Context, client DataSource, signal SignalType,
 		kibanaURL = config.DefaultKibanaURL
 	}
 
-	return Model{
+	m := Model{
 		ctx:             ctx,
 		client:          client,
 		tuiConfig:       tuiCfg,
@@ -316,4 +319,21 @@ func NewModelWithOpts(ctx context.Context, client DataSource, signal SignalType,
 		metricsViewMode: metricsViewAggregated, // Start at aggregated view for metrics
 		requests:        newRequestManager(),
 	}
+
+	// If we start in chat view, initialize chat state like enterChatView would.
+	if initialMode == viewChat {
+		m.chatInsertMode = false
+		m.chatInput.Blur()
+		m.chatLoading = false
+		if len(m.chatMessages) == 0 {
+			m.chatMessages = append(m.chatMessages, ChatMessage{
+				Role:      "assistant",
+				Content:   "Hello! I'm your AI assistant powered by Elastic Agent Builder. Ask me anything about your observability data - logs, traces, or metrics. I have context about your current filters and selections.",
+				Timestamp: time.Now(),
+			})
+		}
+		m.updateChatViewport()
+	}
+
+	return m
 }

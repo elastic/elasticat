@@ -62,11 +62,12 @@ func filterByKind(bindings []KeyBinding, kind KeyKind) []KeyBinding {
 // === Common Binding Sets ===
 // These helpers reduce duplication across view keymaps.
 
-// GlobalBindings returns the standard global action bindings (Chat, Creds, OtelConfig).
+// GlobalBindings returns the standard global action bindings (Chat, SendToChat, Creds, OtelConfig).
 // Use this for views where these actions work but aren't in the quick bar.
 func GlobalBindings() []KeyBinding {
 	return []KeyBinding{
 		ActionBinding(ActionChat, KeyKindFull, "AI"),
+		ActionBinding(ActionSendToChat, KeyKindFull, "AI"),
 		ActionBinding(ActionCreds, KeyKindFull, "System"),
 		ActionBinding(ActionOtelConfig, KeyKindFull, "System"),
 	}
@@ -77,6 +78,7 @@ func GlobalBindings() []KeyBinding {
 func GlobalBindingsWithQuit() []KeyBinding {
 	return []KeyBinding{
 		ActionBinding(ActionChat, KeyKindFull, "AI"),
+		ActionBinding(ActionSendToChat, KeyKindFull, "AI"),
 		ActionBinding(ActionCreds, KeyKindFull, "System"),
 		ActionBinding(ActionOtelConfig, KeyKindFull, "System"),
 		ActionBinding(ActionQuit, KeyKindFull, "System"),
@@ -98,6 +100,7 @@ func DetailGlobalBindings() []KeyBinding {
 	return []KeyBinding{
 		ActionBinding(ActionCopyOriginal, KeyKindFull, "Clipboard"),
 		ActionBinding(ActionChat, KeyKindFull, "AI"),
+		ActionBinding(ActionSendToChat, KeyKindFull, "AI"),
 		ActionBinding(ActionCreds, KeyKindFull, "System"),
 		ActionBinding(ActionOtelConfig, KeyKindFull, "System"),
 	}
