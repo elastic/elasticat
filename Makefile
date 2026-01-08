@@ -112,6 +112,11 @@ prep: fmt license-add notice
 # Usage: make release VERSION=v1.0.0
 release:
 	@if [ -z "$(VERSION)" ]; then echo "Usage: make release VERSION=v1.0.0"; exit 1; fi
+	@if [ ! -f "release-notes/$(VERSION).md" ]; then \
+		echo "ERROR: Missing release-notes/$(VERSION).md"; \
+		echo "Create this file with release notes before running make release"; \
+		exit 1; \
+	fi
 	@echo "Preparing release $(VERSION)..."
 	@$(MAKE) test
 	@$(MAKE) fmt-check
