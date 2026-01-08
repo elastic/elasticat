@@ -5,7 +5,7 @@ package tui
 
 // ViewKeymap returns the full keymap for the current view/mode.
 func (m Model) ViewKeymap() []KeyBinding {
-	mode := m.mode
+	mode := m.UI.Mode
 	if mode == viewHelp {
 		mode = m.peekViewStack()
 	}
@@ -62,10 +62,10 @@ func (m Model) keymapLogs() []KeyBinding {
 		ActionBinding(ActionQuit, KeyKindFull, "System"),
 	}
 
-	if m.signalType == signalMetrics && m.metricsViewMode == metricsViewDocuments {
+	if m.Filters.Signal == signalMetrics && m.Metrics.ViewMode == metricsViewDocuments {
 		full = append([]KeyBinding{CombinedBinding([]string{"d"}, "dashboard", KeyKindFull, "View")}, full...)
 	}
-	if m.signalType == signalTraces && (m.traceViewLevel == traceViewTransactions || m.traceViewLevel == traceViewSpans) {
+	if m.Filters.Signal == signalTraces && (m.Traces.ViewLevel == traceViewTransactions || m.Traces.ViewLevel == traceViewSpans) {
 		full = append([]KeyBinding{ActionBinding(ActionBack, KeyKindFull, "Navigation")}, full...)
 	}
 
@@ -82,7 +82,7 @@ func (m Model) keymapDetail() []KeyBinding {
 		ActionBindingWithLabel(ActionBack, "close", KeyKindQuick, "Navigation"),
 	}
 	full := DetailGlobalBindings()
-	if m.signalType == signalTraces {
+	if m.Filters.Signal == signalTraces {
 		full = append(full, ActionBinding(ActionSpans, KeyKindFull, "View"))
 	}
 	return append(quick, full...)
@@ -196,7 +196,7 @@ func (m Model) keymapErrorModal() []KeyBinding {
 }
 
 func (m Model) keymapChat() []KeyBinding {
-	if m.chatInsertMode {
+	if m.Chat.InsertMode {
 		quick := []KeyBinding{
 			CombinedBinding([]string{"enter"}, "send", KeyKindQuick, "Input"),
 			CombinedBinding([]string{"esc"}, "normal", KeyKindQuick, "Input"),

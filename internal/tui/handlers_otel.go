@@ -35,22 +35,22 @@ func (m Model) handleOtelConfigModalKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "y":
 		// Copy config path to clipboard
-		if m.otelConfigPath != "" {
-			m.copyToClipboard(m.otelConfigPath, "Path copied to clipboard!")
+		if m.Otel.ConfigPath != "" {
+			m.copyToClipboard(m.Otel.ConfigPath, "Path copied to clipboard!")
 		}
 		return m, nil
 	case "Y":
 		// Copy error to clipboard (validation or reload error)
-		if !m.otelValidationValid && m.otelValidationStatus != "" {
-			m.copyToClipboard(m.otelValidationStatus, "Error copied to clipboard!")
-		} else if m.otelReloadError != nil {
-			m.copyToClipboard(m.otelReloadError.Error(), "Error copied to clipboard!")
+		if !m.Otel.ValidationValid && m.Otel.ValidationStatus != "" {
+			m.copyToClipboard(m.Otel.ValidationStatus, "Error copied to clipboard!")
+		} else if m.Otel.ReloadError != nil {
+			m.copyToClipboard(m.Otel.ReloadError.Error(), "Error copied to clipboard!")
 		}
 		return m, nil
 	case "esc":
 		// Close modal and stop watching
 		m.popView()
-		m.otelWatchingConfig = false
+		m.Otel.WatchingConfig = false
 		return m, nil
 	}
 	return m, nil
@@ -222,12 +222,12 @@ func (m *Model) handleOtelFileChanged() tea.Cmd {
 
 // handleOtelValidated handles validation result - if valid, proceeds to reload.
 func (m *Model) handleOtelValidated(valid bool, message string) tea.Cmd {
-	m.otelValidationValid = valid
-	m.otelValidationStatus = message
+	m.Otel.ValidationValid = valid
+	m.Otel.ValidationStatus = message
 
 	if !valid {
 		// Config is invalid - don't reload, keep watching
-		return watchOtelConfig(m.otelConfigPath)
+		return watchOtelConfig(m.Otel.ConfigPath)
 	}
 
 	// Config is valid - proceed to reload

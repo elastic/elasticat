@@ -21,7 +21,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Quit confirmation (unless in text input or already showing quit modal)
-	if key == "q" && m.mode != viewQuitConfirm && !m.isTextInputActive() {
+	if key == "q" && m.UI.Mode != viewQuitConfirm && !m.isTextInputActive() {
 		m.pushView(viewQuitConfirm)
 		return m, nil
 	}
@@ -40,31 +40,31 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case ActionChat:
 		// Open chat from any view (except during text input or chat itself)
-		if !m.isTextInputActive() && m.mode != viewChat {
+		if !m.isTextInputActive() && m.UI.Mode != viewChat {
 			return m.enterChatView()
 		}
 	case ActionCreds:
 		// Show credentials modal from any view (except during text input or already in creds modal)
-		if !m.isTextInputActive() && m.mode != viewCredsModal {
-			m.lastKibanaURL = "" // Clear any previous URL since this is direct access
+		if !m.isTextInputActive() && m.UI.Mode != viewCredsModal {
+			m.Creds.LastKibanaURL = "" // Clear any previous URL since this is direct access
 			m.pushView(viewCredsModal)
 			return m, nil
 		}
 	case ActionOtelConfig:
 		// Show OTel config explanation modal from any view (except during text input)
-		if !m.isTextInputActive() && m.mode != viewOtelConfigExplain && m.mode != viewOtelConfigModal {
+		if !m.isTextInputActive() && m.UI.Mode != viewOtelConfigExplain && m.UI.Mode != viewOtelConfigModal {
 			m.pushView(viewOtelConfigExplain)
 			return m, nil
 		}
 	case ActionSendToChat:
 		// Send selected item to chat from any view (except during text input or chat itself)
-		if !m.isTextInputActive() && m.mode != viewChat {
+		if !m.isTextInputActive() && m.UI.Mode != viewChat {
 			return m.enterChatWithSelectedItem()
 		}
 	}
 
 	// Mode-specific keys
-	switch m.mode {
+	switch m.UI.Mode {
 	case viewLogs:
 		return m.handleLogsKey(msg)
 	case viewSearch:
@@ -106,13 +106,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // isTextInputActive returns true when a text input is active, disabling global hotkeys like h.
 func (m Model) isTextInputActive() bool {
-	switch m.mode {
+	switch m.UI.Mode {
 	case viewSearch, viewIndex, viewQuery:
 		return true
 	case viewFields:
-		return m.fieldsSearchMode
+		return m.Fields.SearchMode
 	case viewChat:
-		return m.chatInsertMode // Fixed: was m.chatInput.Focused()
+		return m.Chat.InsertMode // Fixed: was m.Chat.Input.Focused()
 	default:
 		return false
 	}
@@ -123,104 +123,104 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	// Handle mouse wheel scrolling
 	switch msg.Button {
 	case tea.MouseButtonWheelUp:
-		switch m.mode {
+		switch m.UI.Mode {
 		case viewLogs:
 			// Scroll up in log list (2 items at a time for speed)
-			if m.selectedIndex > 0 {
-				m.selectedIndex -= 2
-				if m.selectedIndex < 0 {
-					m.selectedIndex = 0
+			if m.Logs.SelectedIndex > 0 {
+				m.Logs.SelectedIndex -= 2
+				if m.Logs.SelectedIndex < 0 {
+					m.Logs.SelectedIndex = 0
 				}
 			}
 		case viewDetail, viewDetailJSON:
 			// Scroll up in detail viewport
-			m.viewport.ScrollUp(3)
+			m.Components.Viewport.ScrollUp(3)
 		case viewFields:
 			// Scroll up in field selector
-			if m.fieldsCursor > 0 {
-				m.fieldsCursor -= 2
-				if m.fieldsCursor < 0 {
-					m.fieldsCursor = 0
+			if m.Fields.Cursor > 0 {
+				m.Fields.Cursor -= 2
+				if m.Fields.Cursor < 0 {
+					m.Fields.Cursor = 0
 				}
 			}
 		case viewMetricsDashboard:
 			// Scroll up in metrics dashboard
-			if m.metricsCursor > 0 {
-				m.metricsCursor -= 2
-				if m.metricsCursor < 0 {
-					m.metricsCursor = 0
+			if m.Metrics.Cursor > 0 {
+				m.Metrics.Cursor -= 2
+				if m.Metrics.Cursor < 0 {
+					m.Metrics.Cursor = 0
 				}
 			}
 		case viewTraceNames:
 			// Scroll up in trace names list
-			if m.traceNamesCursor > 0 {
-				m.traceNamesCursor -= 2
-				if m.traceNamesCursor < 0 {
-					m.traceNamesCursor = 0
+			if m.Traces.NamesCursor > 0 {
+				m.Traces.NamesCursor -= 2
+				if m.Traces.NamesCursor < 0 {
+					m.Traces.NamesCursor = 0
 				}
 			}
 		case viewPerspectiveList:
 			// Scroll up in perspective list
-			if m.perspectiveCursor > 0 {
-				m.perspectiveCursor -= 2
-				if m.perspectiveCursor < 0 {
-					m.perspectiveCursor = 0
+			if m.Perspective.Cursor > 0 {
+				m.Perspective.Cursor -= 2
+				if m.Perspective.Cursor < 0 {
+					m.Perspective.Cursor = 0
 				}
 			}
 		case viewChat:
 			// Scroll up in chat viewport
-			m.chatViewport.ScrollUp(3)
+			m.Chat.Viewport.ScrollUp(3)
 		}
 		return m, nil
 	case tea.MouseButtonWheelDown:
-		switch m.mode {
+		switch m.UI.Mode {
 		case viewLogs:
 			// Scroll down in log list (2 items at a time for speed)
-			if m.selectedIndex < len(m.logs)-1 {
-				m.selectedIndex += 2
-				if m.selectedIndex >= len(m.logs) {
-					m.selectedIndex = len(m.logs) - 1
+			if m.Logs.SelectedIndex < len(m.Logs.Entries)-1 {
+				m.Logs.SelectedIndex += 2
+				if m.Logs.SelectedIndex >= len(m.Logs.Entries) {
+					m.Logs.SelectedIndex = len(m.Logs.Entries) - 1
 				}
 			}
 		case viewDetail, viewDetailJSON:
 			// Scroll down in detail viewport
-			m.viewport.ScrollDown(3)
+			m.Components.Viewport.ScrollDown(3)
 		case viewFields:
 			// Scroll down in field selector
 			sortedFields := m.getSortedFieldList()
-			if m.fieldsCursor < len(sortedFields)-1 {
-				m.fieldsCursor += 2
-				if m.fieldsCursor >= len(sortedFields) {
-					m.fieldsCursor = len(sortedFields) - 1
+			if m.Fields.Cursor < len(sortedFields)-1 {
+				m.Fields.Cursor += 2
+				if m.Fields.Cursor >= len(sortedFields) {
+					m.Fields.Cursor = len(sortedFields) - 1
 				}
 			}
 		case viewMetricsDashboard:
 			// Scroll down in metrics dashboard
-			if m.aggregatedMetrics != nil && m.metricsCursor < len(m.aggregatedMetrics.Metrics)-1 {
-				m.metricsCursor += 2
-				if m.metricsCursor >= len(m.aggregatedMetrics.Metrics) {
-					m.metricsCursor = len(m.aggregatedMetrics.Metrics) - 1
+			if m.Metrics.Aggregated != nil && m.Metrics.Cursor < len(m.Metrics.Aggregated.Metrics)-1 {
+				m.Metrics.Cursor += 2
+				if m.Metrics.Cursor >= len(m.Metrics.Aggregated.Metrics) {
+					m.Metrics.Cursor = len(m.Metrics.Aggregated.Metrics) - 1
 				}
 			}
 		case viewTraceNames:
 			// Scroll down in trace names list
-			if m.traceNamesCursor < len(m.transactionNames)-1 {
-				m.traceNamesCursor += 2
-				if m.traceNamesCursor >= len(m.transactionNames) {
-					m.traceNamesCursor = len(m.transactionNames) - 1
+			if m.Traces.NamesCursor < len(m.Traces.TransactionNames)-1 {
+				m.Traces.NamesCursor += 2
+				if m.Traces.NamesCursor >= len(m.Traces.TransactionNames) {
+					m.Traces.NamesCursor = len(m.Traces.TransactionNames) - 1
 				}
 			}
 		case viewPerspectiveList:
 			// Scroll down in perspective list
-			if m.perspectiveCursor < len(m.perspectiveItems)-1 {
-				m.perspectiveCursor += 2
-				if m.perspectiveCursor >= len(m.perspectiveItems) {
-					m.perspectiveCursor = len(m.perspectiveItems) - 1
+			if m.Perspective.Cursor < len(m.Perspective.Items)-1 {
+				m.Perspective.Cursor += 2
+				if m.Perspective.Cursor >= len(m.Perspective.Items) {
+					m.Perspective.Cursor = len(m.Perspective.Items) - 1
 				}
 			}
 		case viewChat:
 			// Scroll down in chat viewport
-			m.chatViewport.ScrollDown(3)
+			m.Chat.Viewport.ScrollDown(3)
 		}
 		return m, nil
 	}
@@ -231,14 +231,14 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Only handle clicks in log list mode on the first row (status bar)
-	if m.mode == viewLogs && msg.Y == 0 {
+	if m.UI.Mode == viewLogs && msg.Y == 0 {
 		// Calculate the approximate position of the "Sort:" label in the status bar
 		// The status bar contains: Signal, ES, Idx, Total, [Query], [Level], [Service], Sort, Auto
 		sortStart, sortEnd := m.getSortLabelPosition()
 		if msg.X >= sortStart && msg.X <= sortEnd {
 			// Toggle sort order
-			m.sortAscending = !m.sortAscending
-			m.loading = true
+			m.UI.SortAscending = !m.UI.SortAscending
+			m.UI.Loading = true
 			return m, m.fetchLogs()
 		}
 	}
@@ -253,10 +253,10 @@ func (m Model) getSortLabelPosition() (start, end int) {
 	pos := 1 // Start after padding
 
 	// Signal: <type>
-	pos += len("Signal: ") + len(m.signalType.String()) + 5 // + separator
+	pos += len("Signal: ") + len(m.Filters.Signal.String()) + 5 // + separator
 
 	// ES: ok/err
-	if m.err != nil {
+	if m.UI.Err != nil {
 		pos += len("ES: err") + 5
 	} else {
 		pos += len("ES: ok") + 5
@@ -266,31 +266,31 @@ func (m Model) getSortLabelPosition() (start, end int) {
 	pos += len("Idx: ") + len(m.client.GetIndex()) + 5 // +5 for separator
 
 	// Total: <count>
-	pos += len("Total: ") + len(fmt.Sprintf("%d", m.total)) + 5
+	pos += len("Total: ") + len(fmt.Sprintf("%d", m.Logs.Total)) + 5
 
 	// Optional Query filter
-	if m.searchQuery != "" {
-		displayed := TruncateWithEllipsis(m.searchQuery, 20)
+	if m.Filters.Query != "" {
+		displayed := TruncateWithEllipsis(m.Filters.Query, 20)
 		pos += len("Query: ") + len(displayed) + 5
 	}
 
 	// Optional Level filter
-	if m.levelFilter != "" {
-		pos += len("Level: ") + len(m.levelFilter) + 5
+	if m.Filters.Level != "" {
+		pos += len("Level: ") + len(m.Filters.Level) + 5
 	}
 
 	// Optional Service filter
-	if m.filterService != "" {
-		pos += len("Service: ") + len(m.filterService) + 5
+	if m.Filters.Service != "" {
+		pos += len("Service: ") + len(m.Filters.Service) + 5
 	}
 
 	// Lookback
-	pos += len("Lookback: ") + len(m.lookback.String()) + 5
+	pos += len("Lookback: ") + len(m.Filters.Lookback.String()) + 5
 
 	// Now we're at "Sort: "
 	start = pos
 	sortText := "newest→"
-	if m.sortAscending {
+	if m.UI.SortAscending {
 		sortText = "oldest→"
 	}
 	end = start + len("Sort: ") + len(sortText)

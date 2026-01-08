@@ -19,68 +19,68 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case ActionBack, ActionQuit:
 		// Return to previous view via stack
 		m.popView()
-		m.statusMessage = ""
+		m.UI.StatusMessage = ""
 		return m, nil
 	case ActionPrevItem:
 		// Navigate to previous entry
-		if m.selectedIndex > 0 {
-			m.selectedIndex--
+		if m.Logs.SelectedIndex > 0 {
+			m.Logs.SelectedIndex--
 			m.updateDetailContent()
 			// Fetch spans for traces signal type
-			if m.signalType == signalTraces {
+			if m.Filters.Signal == signalTraces {
 				return m, m.maybeFetchSpansForSelection()
 			}
 		}
 		return m, nil
 	case ActionNextItem:
 		// Navigate to next entry
-		if m.selectedIndex < len(m.logs)-1 {
-			m.selectedIndex++
+		if m.Logs.SelectedIndex < len(m.Logs.Entries)-1 {
+			m.Logs.SelectedIndex++
 			m.updateDetailContent()
 			// Fetch spans for traces signal type
-			if m.signalType == signalTraces {
+			if m.Filters.Signal == signalTraces {
 				return m, m.maybeFetchSpansForSelection()
 			}
 		}
 		return m, nil
 	case ActionSelect:
 		// Toggle between detail and JSON view (same stack level)
-		if m.mode == viewDetail {
-			m.mode = viewDetailJSON
-			if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
-				m.setViewportContent(es.PrettyJSON(m.logs[m.selectedIndex].RawJSON))
-				m.viewport.GotoTop()
+		if m.UI.Mode == viewDetail {
+			m.UI.Mode = viewDetailJSON
+			if len(m.Logs.Entries) > 0 && m.Logs.SelectedIndex < len(m.Logs.Entries) {
+				m.setViewportContent(es.PrettyJSON(m.Logs.Entries[m.Logs.SelectedIndex].RawJSON))
+				m.Components.Viewport.GotoTop()
 			}
 		} else {
-			m.mode = viewDetail
-			if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
-				m.setViewportContent(m.renderLogDetail(m.logs[m.selectedIndex]))
-				m.viewport.GotoTop()
+			m.UI.Mode = viewDetail
+			if len(m.Logs.Entries) > 0 && m.Logs.SelectedIndex < len(m.Logs.Entries) {
+				m.setViewportContent(m.renderLogDetail(m.Logs.Entries[m.Logs.SelectedIndex]))
+				m.Components.Viewport.GotoTop()
 			}
 		}
 		return m, nil
 	case ActionCopy:
 		// Copy raw JSON to clipboard
-		if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
-			m.copyToClipboard(es.PrettyJSON(m.logs[m.selectedIndex].RawJSON), "Copied JSON to clipboard!")
+		if len(m.Logs.Entries) > 0 && m.Logs.SelectedIndex < len(m.Logs.Entries) {
+			m.copyToClipboard(es.PrettyJSON(m.Logs.Entries[m.Logs.SelectedIndex].RawJSON), "Copied JSON to clipboard!")
 		}
 		return m, nil
 	case ActionCopyOriginal:
 		// Copy log.record.original to clipboard (Y key)
-		if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
-			log := m.logs[m.selectedIndex]
+		if len(m.Logs.Entries) > 0 && m.Logs.SelectedIndex < len(m.Logs.Entries) {
+			log := m.Logs.Entries[m.Logs.SelectedIndex]
 			if original := log.GetOriginal(); original != "" {
 				m.copyToClipboard(original, "Copied original log to clipboard!")
 			} else {
-				m.statusMessage = "No log.record.original found"
-				m.statusTime = time.Now()
+				m.UI.StatusMessage = "No log.record.original found"
+				m.UI.StatusTime = time.Now()
 			}
 		}
 		return m, nil
 	case ActionKibana:
 		// Prepare Kibana URL for trace and show creds modal (only for traces)
-		if m.signalType == signalTraces && len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
-			log := m.logs[m.selectedIndex]
+		if m.Filters.Signal == signalTraces && len(m.Logs.Entries) > 0 && m.Logs.SelectedIndex < len(m.Logs.Entries) {
+			log := m.Logs.Entries[m.Logs.SelectedIndex]
 			if log.TraceID != "" && m.prepareTraceKibanaURL(log.TraceID) {
 				m.showCredsModal()
 			}
@@ -92,36 +92,36 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch action {
 	case ActionJSON:
 		// Toggle JSON view on/off
-		if m.mode == viewDetailJSON {
+		if m.UI.Mode == viewDetailJSON {
 			// If we came from metric detail (via J key), pop back to it
 			if m.peekViewStack() == viewMetricDetail {
 				m.popView()
 			} else {
 				// Otherwise toggle to formatted detail view
-				m.mode = viewDetail
-				if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
-					m.setViewportContent(m.renderLogDetail(m.logs[m.selectedIndex]))
-					m.viewport.GotoTop()
+				m.UI.Mode = viewDetail
+				if len(m.Logs.Entries) > 0 && m.Logs.SelectedIndex < len(m.Logs.Entries) {
+					m.setViewportContent(m.renderLogDetail(m.Logs.Entries[m.Logs.SelectedIndex]))
+					m.Components.Viewport.GotoTop()
 				}
 			}
 		} else {
-			m.mode = viewDetailJSON
-			if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
-				m.setViewportContent(es.PrettyJSON(m.logs[m.selectedIndex].RawJSON))
-				m.viewport.GotoTop()
+			m.UI.Mode = viewDetailJSON
+			if len(m.Logs.Entries) > 0 && m.Logs.SelectedIndex < len(m.Logs.Entries) {
+				m.setViewportContent(es.PrettyJSON(m.Logs.Entries[m.Logs.SelectedIndex].RawJSON))
+				m.Components.Viewport.GotoTop()
 			}
 		}
 		return m, nil
 	case ActionSpans:
 		// Show spans for this trace (only for traces)
-		if m.signalType == signalTraces && len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
-			log := m.logs[m.selectedIndex]
+		if m.Filters.Signal == signalTraces && len(m.Logs.Entries) > 0 && m.Logs.SelectedIndex < len(m.Logs.Entries) {
+			log := m.Logs.Entries[m.Logs.SelectedIndex]
 			if log.TraceID != "" {
-				m.selectedTraceID = log.TraceID
-				m.traceViewLevel = traceViewSpans
-				m.mode = viewLogs
-				m.selectedIndex = 0
-				m.loading = true
+				m.Traces.SelectedTraceID = log.TraceID
+				m.Traces.ViewLevel = traceViewSpans
+				m.UI.Mode = viewLogs
+				m.Logs.SelectedIndex = 0
+				m.UI.Loading = true
 				return m, m.fetchLogs()
 			}
 		}
@@ -129,19 +129,19 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	var cmd tea.Cmd
-	m.viewport, cmd = m.viewport.Update(msg)
+	m.Components.Viewport, cmd = m.Components.Viewport.Update(msg)
 	return m, cmd
 }
 
 // updateDetailContent refreshes the detail view content for the current selection
 func (m *Model) updateDetailContent() {
-	if len(m.logs) == 0 || m.selectedIndex >= len(m.logs) {
+	if len(m.Logs.Entries) == 0 || m.Logs.SelectedIndex >= len(m.Logs.Entries) {
 		return
 	}
-	if m.mode == viewDetailJSON {
-		m.setViewportContent(es.PrettyJSON(m.logs[m.selectedIndex].RawJSON))
+	if m.UI.Mode == viewDetailJSON {
+		m.setViewportContent(es.PrettyJSON(m.Logs.Entries[m.Logs.SelectedIndex].RawJSON))
 	} else {
-		m.setViewportContent(m.renderLogDetail(m.logs[m.selectedIndex]))
+		m.setViewportContent(m.renderLogDetail(m.Logs.Entries[m.Logs.SelectedIndex]))
 	}
-	m.viewport.GotoTop()
+	m.Components.Viewport.GotoTop()
 }

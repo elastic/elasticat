@@ -22,7 +22,7 @@ type KeyBinding struct {
 // HelpEnabled returns true if this view should show the help overlay.
 // For compact views (e.g., small hotkey sets), this returns false.
 func (m Model) HelpEnabled() bool {
-	switch m.mode {
+	switch m.UI.Mode {
 	case viewDetailJSON, viewErrorModal:
 		return false
 	}

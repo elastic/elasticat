@@ -11,49 +11,53 @@ import (
 
 func TestMoveSelectionClampsAndScrolls(t *testing.T) {
 	m := Model{
-		logs:          []es.LogEntry{{}, {}},
-		selectedIndex: 0,
+		Logs: LogsState{
+			Entries:       []es.LogEntry{{}, {}},
+			SelectedIndex: 0,
+		},
 	}
 
 	if moved := m.moveSelection(-1); moved {
 		t.Fatalf("expected no movement when already at top")
 	}
-	if m.selectedIndex != 0 || m.userHasScrolled {
-		t.Fatalf("unexpected state after no-op move: idx=%d scrolled=%v", m.selectedIndex, m.userHasScrolled)
+	if m.Logs.SelectedIndex != 0 || m.Logs.UserHasScrolled {
+		t.Fatalf("unexpected state after no-op move: idx=%d scrolled=%v", m.Logs.SelectedIndex, m.Logs.UserHasScrolled)
 	}
 
 	if moved := m.moveSelection(1); !moved {
 		t.Fatalf("expected movement downward")
 	}
-	if m.selectedIndex != 1 || !m.userHasScrolled {
-		t.Fatalf("expected index 1 and scrolled after move, got idx=%d scrolled=%v", m.selectedIndex, m.userHasScrolled)
+	if m.Logs.SelectedIndex != 1 || !m.Logs.UserHasScrolled {
+		t.Fatalf("expected index 1 and scrolled after move, got idx=%d scrolled=%v", m.Logs.SelectedIndex, m.Logs.UserHasScrolled)
 	}
 
 	if moved := m.moveSelection(10); moved {
 		t.Fatalf("expected no movement when already at bottom")
 	}
-	if m.selectedIndex != 1 {
-		t.Fatalf("expected index to remain at bottom, got %d", m.selectedIndex)
+	if m.Logs.SelectedIndex != 1 {
+		t.Fatalf("expected index to remain at bottom, got %d", m.Logs.SelectedIndex)
 	}
 }
 
 func TestNeedsSpanFetch(t *testing.T) {
 	m := Model{
-		lastFetchedTraceID: "trace-1",
-		spans:              []es.LogEntry{{TraceID: "trace-1"}},
+		Traces: TracesState{
+			LastFetchedTraceID: "trace-1",
+			Spans:              []es.LogEntry{{TraceID: "trace-1"}},
+		},
 	}
 
 	if m.needsSpanFetch("trace-1") {
 		t.Fatalf("should not fetch when spans already loaded for the same trace")
 	}
 
-	m.spans = nil
-	m.spansLoading = true
+	m.Traces.Spans = nil
+	m.Traces.SpansLoading = true
 	if m.needsSpanFetch("trace-1") {
 		t.Fatalf("should not fetch when a fetch is already in flight")
 	}
 
-	m.spansLoading = false
+	m.Traces.SpansLoading = false
 	if !m.needsSpanFetch("trace-2") {
 		t.Fatalf("expected fetch for a new trace id")
 	}

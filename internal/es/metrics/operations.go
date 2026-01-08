@@ -13,7 +13,6 @@ import (
 
 	"github.com/elastic/elasticat/internal/es/errfmt"
 	"github.com/elastic/elasticat/internal/es/shared"
-	"github.com/elastic/elasticat/internal/es/traces"
 )
 
 // GetFieldNames discovers metric field names from field_caps API
@@ -318,7 +317,7 @@ func generateKibanaESQLQuery(index string, opts AggregateMetricsOptions) string 
 	// Build WHERE clause
 	whereParts := []string{}
 	if opts.Lookback != "" {
-		whereParts = append(whereParts, fmt.Sprintf("@timestamp >= NOW() - %s", traces.LookbackToESQLInterval(opts.Lookback)))
+		whereParts = append(whereParts, fmt.Sprintf("@timestamp >= NOW() - %s", shared.LookbackToESQLInterval(opts.Lookback)))
 	}
 	if opts.Service != "" {
 		op := "=="
@@ -539,7 +538,7 @@ func buildMetricsESQLQuery(index string, fields []MetricFieldInfo, opts Aggregat
 	// Build WHERE clause
 	whereParts := []string{}
 	if opts.Lookback != "" {
-		whereParts = append(whereParts, fmt.Sprintf("@timestamp >= NOW() - %s", traces.LookbackToESQLInterval(opts.Lookback)))
+		whereParts = append(whereParts, fmt.Sprintf("@timestamp >= NOW() - %s", shared.LookbackToESQLInterval(opts.Lookback)))
 	}
 	if opts.Service != "" {
 		op := "=="
@@ -585,7 +584,7 @@ func buildLatestValueQuery(index string, fields []MetricFieldInfo, opts Aggregat
 	// Build WHERE clause (same as stats query)
 	whereParts := []string{}
 	if opts.Lookback != "" {
-		whereParts = append(whereParts, fmt.Sprintf("@timestamp >= NOW() - %s", traces.LookbackToESQLInterval(opts.Lookback)))
+		whereParts = append(whereParts, fmt.Sprintf("@timestamp >= NOW() - %s", shared.LookbackToESQLInterval(opts.Lookback)))
 	}
 	if opts.Service != "" {
 		op := "=="

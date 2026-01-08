@@ -21,29 +21,29 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch action {
 	case ActionBack:
 		// For traces, go back up the hierarchy
-		if m.signalType == signalTraces {
-			switch m.traceViewLevel {
+		if m.Filters.Signal == signalTraces {
+			switch m.Traces.ViewLevel {
 			case traceViewSpans:
 				// Go back to transactions list
-				m.traceViewLevel = traceViewTransactions
-				m.selectedTraceID = ""
-				m.selectedIndex = 0
-				m.loading = true
+				m.Traces.ViewLevel = traceViewTransactions
+				m.Traces.SelectedTraceID = ""
+				m.Logs.SelectedIndex = 0
+				m.UI.Loading = true
 				return m, m.fetchLogs()
 			case traceViewTransactions:
 				// Go back to transaction names
-				m.traceViewLevel = traceViewNames
-				m.selectedTxName = ""
-				m.mode = viewTraceNames
-				m.tracesLoading = true
+				m.Traces.ViewLevel = traceViewNames
+				m.Traces.SelectedTxName = ""
+				m.UI.Mode = viewTraceNames
+				m.Traces.Loading = true
 				return m, m.fetchTransactionNames()
 			}
 		}
 		// For metrics in documents view, go back to dashboard
-		if m.signalType == signalMetrics && m.metricsViewMode == metricsViewDocuments {
-			m.metricsViewMode = metricsViewAggregated
-			m.mode = viewMetricsDashboard
-			m.metricsLoading = true
+		if m.Filters.Signal == signalMetrics && m.Metrics.ViewMode == metricsViewDocuments {
+			m.Metrics.ViewMode = metricsViewAggregated
+			m.UI.Mode = viewMetricsDashboard
+			m.Metrics.Loading = true
 			return m, m.fetchAggregatedMetrics()
 		}
 		// Logs is a base view - esc does nothing (user can press 'q' to quit)
@@ -61,7 +61,7 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, m.maybeFetchSpansForSelection()
 		}
 	case ActionGoBottom:
-		if m.setSelectedIndex(len(m.logs) - 1) {
+		if m.setSelectedIndex(len(m.Logs.Entries) - 1) {
 			return m, m.maybeFetchSpansForSelection()
 		}
 	case ActionPageUp:
@@ -74,32 +74,32 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case ActionSearch:
 		m.pushView(viewSearch)
-		m.searchInput.Focus()
+		m.Components.SearchInput.Focus()
 		return m, textinput.Blink
 	case ActionSelect:
-		if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
+		if len(m.Logs.Entries) > 0 && m.Logs.SelectedIndex < len(m.Logs.Entries) {
 			m.pushView(viewDetail)
-			m.setViewportContent(m.renderLogDetail(m.logs[m.selectedIndex]))
-			m.viewport.GotoTop()
+			m.setViewportContent(m.renderLogDetail(m.Logs.Entries[m.Logs.SelectedIndex]))
+			m.Components.Viewport.GotoTop()
 		}
 	case ActionRefresh:
-		m.loading = true
+		m.UI.Loading = true
 		return m, m.fetchLogs()
 	case ActionAutoRefresh:
-		m.autoRefresh = !m.autoRefresh
+		m.UI.AutoRefresh = !m.UI.AutoRefresh
 	case ActionQuery:
 		m.pushView(viewQuery)
-		m.queryFormat = formatKibana
+		m.Query.Format = formatKibana
 	case ActionFields:
 		m.pushView(viewFields)
-		m.fieldsCursor = 0
-		m.fieldsSearch = ""
-		m.fieldsSearchMode = false
-		m.fieldsLoading = true
+		m.Fields.Cursor = 0
+		m.Fields.Search = ""
+		m.Fields.SearchMode = false
+		m.Fields.Loading = true
 		return m, m.fetchFieldCaps()
 	case ActionSort:
-		m.sortAscending = !m.sortAscending
-		m.loading = true
+		m.UI.SortAscending = !m.UI.SortAscending
+		m.UI.Loading = true
 		return m, m.fetchLogs()
 		// NOTE: ActionCycleLookback, ActionCycleSignal, ActionPerspective, ActionKibana
 		// are now handled by handleCommonAction() above
@@ -108,56 +108,56 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Handle view-specific keys that aren't common actions
 	switch key {
 	case "1":
-		m.levelFilter = "ERROR"
-		m.userHasScrolled = false // Reset for tail -f behavior
-		m.loading = true
+		m.Filters.Level = "ERROR"
+		m.Logs.UserHasScrolled = false // Reset for tail -f behavior
+		m.UI.Loading = true
 		return m, m.fetchLogs()
 	case "2":
-		m.levelFilter = "WARN"
-		m.userHasScrolled = false // Reset for tail -f behavior
-		m.loading = true
+		m.Filters.Level = "WARN"
+		m.Logs.UserHasScrolled = false // Reset for tail -f behavior
+		m.UI.Loading = true
 		return m, m.fetchLogs()
 	case "3":
-		m.levelFilter = "INFO"
-		m.userHasScrolled = false // Reset for tail -f behavior
-		m.loading = true
+		m.Filters.Level = "INFO"
+		m.Logs.UserHasScrolled = false // Reset for tail -f behavior
+		m.UI.Loading = true
 		return m, m.fetchLogs()
 	case "4":
-		m.levelFilter = "DEBUG"
-		m.userHasScrolled = false // Reset for tail -f behavior
-		m.loading = true
+		m.Filters.Level = "DEBUG"
+		m.Logs.UserHasScrolled = false // Reset for tail -f behavior
+		m.UI.Loading = true
 		return m, m.fetchLogs()
 	case "0":
-		m.levelFilter = ""
-		m.userHasScrolled = false // Reset for tail -f behavior
-		m.loading = true
+		m.Filters.Level = ""
+		m.Logs.UserHasScrolled = false // Reset for tail -f behavior
+		m.UI.Loading = true
 		return m, m.fetchLogs()
 	case "i":
 		m.pushView(viewIndex)
-		m.indexInput.SetValue(m.client.GetIndex())
-		m.indexInput.Focus()
+		m.Components.IndexInput.SetValue(m.client.GetIndex())
+		m.Components.IndexInput.Focus()
 		return m, textinput.Blink
 	case "t":
-		switch m.timeDisplayMode {
+		switch m.UI.TimeDisplayMode {
 		case timeDisplayClock:
-			m.timeDisplayMode = timeDisplayRelative
+			m.UI.TimeDisplayMode = timeDisplayRelative
 		case timeDisplayRelative:
-			m.timeDisplayMode = timeDisplayFull
+			m.UI.TimeDisplayMode = timeDisplayFull
 		default:
-			m.timeDisplayMode = timeDisplayClock
+			m.UI.TimeDisplayMode = timeDisplayClock
 		}
 	case "d":
 		// Toggle between document view and aggregated view for metrics
-		if m.signalType == signalMetrics {
-			if m.metricsViewMode == metricsViewAggregated {
-				m.metricsViewMode = metricsViewDocuments
-				m.mode = viewLogs
-				m.loading = true
+		if m.Filters.Signal == signalMetrics {
+			if m.Metrics.ViewMode == metricsViewAggregated {
+				m.Metrics.ViewMode = metricsViewDocuments
+				m.UI.Mode = viewLogs
+				m.UI.Loading = true
 				return m, m.fetchLogs()
 			} else {
-				m.metricsViewMode = metricsViewAggregated
-				m.mode = viewMetricsDashboard
-				m.metricsLoading = true
+				m.Metrics.ViewMode = metricsViewAggregated
+				m.UI.Mode = viewMetricsDashboard
+				m.Metrics.Loading = true
 				return m, m.fetchAggregatedMetrics()
 			}
 		}
@@ -167,43 +167,43 @@ func (m Model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) setSelectedIndex(newIdx int) bool {
-	if len(m.logs) == 0 {
-		m.selectedIndex = 0
+	if len(m.Logs.Entries) == 0 {
+		m.Logs.SelectedIndex = 0
 		return false
 	}
 
 	if newIdx < 0 {
 		newIdx = 0
 	}
-	if newIdx >= len(m.logs) {
-		newIdx = len(m.logs) - 1
+	if newIdx >= len(m.Logs.Entries) {
+		newIdx = len(m.Logs.Entries) - 1
 	}
-	if newIdx == m.selectedIndex {
+	if newIdx == m.Logs.SelectedIndex {
 		return false
 	}
 
-	m.selectedIndex = newIdx
-	m.userHasScrolled = true
+	m.Logs.SelectedIndex = newIdx
+	m.Logs.UserHasScrolled = true
 	return true
 }
 
 func (m *Model) moveSelection(delta int) bool {
-	return m.setSelectedIndex(m.selectedIndex + delta)
+	return m.setSelectedIndex(m.Logs.SelectedIndex + delta)
 }
 
 // maybeFetchSpansForSelection triggers a spans fetch for traces, avoiding duplicate requests.
 func (m *Model) maybeFetchSpansForSelection() tea.Cmd {
-	if m.signalType != signalTraces {
+	if m.Filters.Signal != signalTraces {
 		return nil
 	}
-	if len(m.logs) == 0 || m.selectedIndex < 0 || m.selectedIndex >= len(m.logs) {
-		m.lastFetchedTraceID = ""
+	if len(m.Logs.Entries) == 0 || m.Logs.SelectedIndex < 0 || m.Logs.SelectedIndex >= len(m.Logs.Entries) {
+		m.Traces.LastFetchedTraceID = ""
 		return nil
 	}
 
-	traceID := m.logs[m.selectedIndex].TraceID
+	traceID := m.Logs.Entries[m.Logs.SelectedIndex].TraceID
 	if traceID == "" {
-		m.lastFetchedTraceID = ""
+		m.Traces.LastFetchedTraceID = ""
 		return nil
 	}
 
@@ -211,9 +211,9 @@ func (m *Model) maybeFetchSpansForSelection() tea.Cmd {
 		return nil
 	}
 
-	m.spansLoading = true
-	m.lastFetchedTraceID = traceID
-	m.spans = nil
+	m.Traces.SpansLoading = true
+	m.Traces.LastFetchedTraceID = traceID
+	m.Traces.Spans = nil
 	return m.fetchSpans(traceID)
 }
 
@@ -222,7 +222,7 @@ func (m Model) needsSpanFetch(traceID string) bool {
 	if traceID == "" {
 		return false
 	}
-	if traceID == m.lastFetchedTraceID && (m.spansLoading || len(m.spans) > 0) {
+	if traceID == m.Traces.LastFetchedTraceID && (m.Traces.SpansLoading || len(m.Traces.Spans) > 0) {
 		return false
 	}
 	return true

@@ -15,12 +15,12 @@ func (m Model) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Handle viewport scrolling
-	if viewportScroll(&m.helpViewport, key) {
+	if viewportScroll(&m.Components.HelpViewport, key) {
 		return m, nil
 	}
 
 	// Pass other keys to viewport for mouse wheel support
 	var cmd tea.Cmd
-	m.helpViewport, cmd = m.helpViewport.Update(msg)
+	m.Components.HelpViewport, cmd = m.Components.HelpViewport.Update(msg)
 	return m, cmd
 }

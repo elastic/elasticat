@@ -65,16 +65,18 @@ func TestStartRequestDoneDoesNotClearNewer(t *testing.T) {
 }
 
 func TestHandleLogsMsgIgnoresCanceled(t *testing.T) {
-	m := Model{mode: viewLogs, loading: true}
+	m := Model{
+		UI: UIState{Mode: viewLogs, Loading: true},
+	}
 	m2, _ := m.handleLogsMsg(logsMsg{err: context.Canceled})
 
-	if m2.mode != viewLogs {
-		t.Fatalf("mode changed unexpectedly: %v", m2.mode)
+	if m2.UI.Mode != viewLogs {
+		t.Fatalf("mode changed unexpectedly: %v", m2.UI.Mode)
 	}
-	if m2.err != nil {
-		t.Fatalf("err should remain nil on cancellation, got %v", m2.err)
+	if m2.UI.Err != nil {
+		t.Fatalf("err should remain nil on cancellation, got %v", m2.UI.Err)
 	}
-	if m2.loading {
+	if m2.UI.Loading {
 		t.Fatalf("loading should be false after handling logsMsg")
 	}
 }

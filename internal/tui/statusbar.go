@@ -16,38 +16,38 @@ func (m Model) renderStatusBar() string {
 	var row1Parts []string
 
 	// Signal type
-	row1Parts = append(row1Parts, StatusKeyStyle.Render("Signal: ")+StatusValueStyle.Render(m.signalType.String()))
+	row1Parts = append(row1Parts, StatusKeyStyle.Render("Signal: ")+StatusValueStyle.Render(m.Filters.Signal.String()))
 
 	// Current index
 	row1Parts = append(row1Parts, StatusKeyStyle.Render("Idx: ")+StatusValueStyle.Render(m.client.GetIndex()))
 
 	// Total logs
-	row1Parts = append(row1Parts, StatusKeyStyle.Render("Total: ")+StatusValueStyle.Render(fmt.Sprintf("%d", m.total)))
+	row1Parts = append(row1Parts, StatusKeyStyle.Render("Total: ")+StatusValueStyle.Render(fmt.Sprintf("%d", m.Logs.Total)))
 
 	// Filters (with visual indicator when active)
-	if m.searchQuery != "" {
-		row1Parts = append(row1Parts, StatusKeyStyle.Render("Query: ")+StatusValueStyle.Render(TruncateWithEllipsis(m.searchQuery, 20)))
+	if m.Filters.Query != "" {
+		row1Parts = append(row1Parts, StatusKeyStyle.Render("Query: ")+StatusValueStyle.Render(TruncateWithEllipsis(m.Filters.Query, 20)))
 	}
-	if m.levelFilter != "" {
-		row1Parts = append(row1Parts, StatusKeyStyle.Render("Level: ")+StatusValueStyle.Render(m.levelFilter))
+	if m.Filters.Level != "" {
+		row1Parts = append(row1Parts, StatusKeyStyle.Render("Level: ")+StatusValueStyle.Render(m.Filters.Level))
 	}
-	if m.filterService != "" {
-		if m.negateService {
-			row1Parts = append(row1Parts, lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6B6B")).Bold(true).Render("⛔ NOT Service: ")+StatusValueStyle.Render(m.filterService))
+	if m.Filters.Service != "" {
+		if m.Filters.NegateService {
+			row1Parts = append(row1Parts, lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6B6B")).Bold(true).Render("⛔ NOT Service: ")+StatusValueStyle.Render(m.Filters.Service))
 		} else {
-			row1Parts = append(row1Parts, lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")).Bold(true).Render("⚡ Service: ")+StatusValueStyle.Render(m.filterService))
+			row1Parts = append(row1Parts, lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")).Bold(true).Render("⚡ Service: ")+StatusValueStyle.Render(m.Filters.Service))
 		}
 	}
-	if m.filterResource != "" {
-		if m.negateResource {
-			row1Parts = append(row1Parts, lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6B6B")).Bold(true).Render("⛔ NOT Resource: ")+StatusValueStyle.Render(m.filterResource))
+	if m.Filters.Resource != "" {
+		if m.Filters.NegateResource {
+			row1Parts = append(row1Parts, lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6B6B")).Bold(true).Render("⛔ NOT Resource: ")+StatusValueStyle.Render(m.Filters.Resource))
 		} else {
-			row1Parts = append(row1Parts, lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")).Bold(true).Render("⚡ Resource: ")+StatusValueStyle.Render(m.filterResource))
+			row1Parts = append(row1Parts, lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")).Bold(true).Render("⚡ Resource: ")+StatusValueStyle.Render(m.Filters.Resource))
 		}
 	}
 
 	// Loading indicator
-	if m.loading {
+	if m.UI.Loading {
 		row1Parts = append(row1Parts, LoadingStyle.Render("loading..."))
 	}
 
@@ -55,10 +55,10 @@ func (m Model) renderStatusBar() string {
 
 	// Row 2: Only ES status if there's an error
 	var row2 string
-	if m.err != nil {
+	if m.UI.Err != nil {
 		row2 = "\n" + ErrorStyle.Render("ES: err")
 	}
 
 	// Combine rows (row2 only if it has content)
-	return StatusBarStyle.Width(m.width - 2).Render(row1 + row2)
+	return StatusBarStyle.Width(m.UI.Width - 2).Render(row1 + row2)
 }

@@ -17,53 +17,53 @@ func (m Model) handlePerspectiveListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Handle list navigation (adds pgup/pgdown, home/end support)
 	if isNavKey(key) {
-		m.perspectiveCursor = listNav(m.perspectiveCursor, len(m.perspectiveItems), key)
+		m.Perspective.Cursor = listNav(m.Perspective.Cursor, len(m.Perspective.Items), key)
 		return m, nil
 	}
 
 	switch action {
 	case ActionSelect:
 		// Cycle through filter states: unset → include → exclude → unset
-		if len(m.perspectiveItems) > 0 {
-			selected := m.perspectiveItems[m.perspectiveCursor]
+		if len(m.Perspective.Items) > 0 {
+			selected := m.Perspective.Items[m.Perspective.Cursor]
 
-			switch m.currentPerspective {
+			switch m.Perspective.Current {
 			case PerspectiveServices:
-				if m.filterService != selected.Name {
+				if m.Filters.Service != selected.Name {
 					// Different item or no filter: set include filter
-					m.filterService = selected.Name
-					m.negateService = false
-					m.statusMessage = fmt.Sprintf("Filtered to service: %s", selected.Name)
-				} else if !m.negateService {
+					m.Filters.Service = selected.Name
+					m.Filters.NegateService = false
+					m.UI.StatusMessage = fmt.Sprintf("Filtered to service: %s", selected.Name)
+				} else if !m.Filters.NegateService {
 					// Same item, currently included: switch to exclude
-					m.negateService = true
-					m.statusMessage = fmt.Sprintf("Excluding service: %s", selected.Name)
+					m.Filters.NegateService = true
+					m.UI.StatusMessage = fmt.Sprintf("Excluding service: %s", selected.Name)
 				} else {
 					// Same item, currently excluded: clear filter
-					m.filterService = ""
-					m.negateService = false
-					m.statusMessage = fmt.Sprintf("Cleared service filter: %s", selected.Name)
+					m.Filters.Service = ""
+					m.Filters.NegateService = false
+					m.UI.StatusMessage = fmt.Sprintf("Cleared service filter: %s", selected.Name)
 				}
-				m.userHasScrolled = false // Reset for tail -f behavior
+				m.Logs.UserHasScrolled = false // Reset for tail -f behavior
 			case PerspectiveResources:
-				if m.filterResource != selected.Name {
+				if m.Filters.Resource != selected.Name {
 					// Different item or no filter: set include filter
-					m.filterResource = selected.Name
-					m.negateResource = false
-					m.statusMessage = fmt.Sprintf("Filtered to resource: %s", selected.Name)
-				} else if !m.negateResource {
+					m.Filters.Resource = selected.Name
+					m.Filters.NegateResource = false
+					m.UI.StatusMessage = fmt.Sprintf("Filtered to resource: %s", selected.Name)
+				} else if !m.Filters.NegateResource {
 					// Same item, currently included: switch to exclude
-					m.negateResource = true
-					m.statusMessage = fmt.Sprintf("Excluding resource: %s", selected.Name)
+					m.Filters.NegateResource = true
+					m.UI.StatusMessage = fmt.Sprintf("Excluding resource: %s", selected.Name)
 				} else {
 					// Same item, currently excluded: clear filter
-					m.filterResource = ""
-					m.negateResource = false
-					m.statusMessage = fmt.Sprintf("Cleared resource filter: %s", selected.Name)
+					m.Filters.Resource = ""
+					m.Filters.NegateResource = false
+					m.UI.StatusMessage = fmt.Sprintf("Cleared resource filter: %s", selected.Name)
 				}
-				m.userHasScrolled = false // Reset for tail -f behavior
+				m.Logs.UserHasScrolled = false // Reset for tail -f behavior
 			}
-			m.statusTime = time.Now()
+			m.UI.StatusTime = time.Now()
 
 			// Stay in perspective view - user can navigate back with 'esc' when ready
 		}
@@ -72,16 +72,16 @@ func (m Model) handlePerspectiveListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.cyclePerspective()
 	case ActionCycleLookback:
 		m.cycleLookback()
-		m.perspectiveLoading = true
+		m.Perspective.Loading = true
 		return m, m.fetchPerspectiveData()
 	case ActionRefresh:
 		// Refresh perspective data
-		m.perspectiveLoading = true
+		m.Perspective.Loading = true
 		return m, m.fetchPerspectiveData()
 	case ActionSearch:
 		// Enter search mode (consistent with other list views)
 		m.pushView(viewSearch)
-		m.searchInput.Focus()
+		m.Components.SearchInput.Focus()
 		return m, textinput.Blink
 	case ActionBack:
 		// Return to previous view via stack

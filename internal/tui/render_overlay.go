@@ -17,11 +17,11 @@ import (
 func (m Model) renderQueryOverlay() string {
 	var b strings.Builder
 
-	index := m.lastQueryIndex
+	index := m.Query.LastIndex
 
 	// Header showing format and status
 	var formatLabel string
-	if m.queryFormat == formatKibana {
+	if m.Query.Format == formatKibana {
 		formatLabel = "Kibana Dev Tools"
 	} else {
 		formatLabel = "curl"
@@ -31,18 +31,18 @@ func (m Model) renderQueryOverlay() string {
 	b.WriteString(QueryHeaderStyle.Render(header))
 
 	// Show status message if recent (within 2 seconds)
-	if m.statusMessage != "" && time.Since(m.statusTime) < 2*time.Second {
+	if m.UI.StatusMessage != "" && time.Since(m.UI.StatusTime) < 2*time.Second {
 		b.WriteString("  ")
-		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")).Bold(true).Render(m.statusMessage))
+		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")).Bold(true).Render(m.UI.StatusMessage))
 	}
 	b.WriteString("\n\n")
 
-	if m.queryFormat == formatKibana {
+	if m.Query.Format == formatKibana {
 		// Kibana Dev Tools format
 		b.WriteString(QueryMethodStyle.Render("GET "))
 		b.WriteString(QueryPathStyle.Render(index + "/_search"))
 		b.WriteString("\n")
-		b.WriteString(QueryBodyStyle.Render(m.lastQueryJSON))
+		b.WriteString(QueryBodyStyle.Render(m.Query.LastJSON))
 	} else {
 		// curl format
 		b.WriteString(QueryBodyStyle.Render("curl -X GET 'http://localhost:9200/" + index + "/_search' \\\n"))
@@ -50,10 +50,10 @@ func (m Model) renderQueryOverlay() string {
 		b.WriteString(QueryBodyStyle.Render("  -d '"))
 		// Compact JSON for curl
 		var compact bytes.Buffer
-		if err := json.Compact(&compact, []byte(m.lastQueryJSON)); err == nil {
+		if err := json.Compact(&compact, []byte(m.Query.LastJSON)); err == nil {
 			b.WriteString(QueryBodyStyle.Render(compact.String()))
 		} else {
-			b.WriteString(QueryBodyStyle.Render(m.lastQueryJSON))
+			b.WriteString(QueryBodyStyle.Render(m.Query.LastJSON))
 		}
 		b.WriteString(QueryBodyStyle.Render("'"))
 	}
@@ -64,12 +64,12 @@ func (m Model) renderQueryOverlay() string {
 		height = 10
 	}
 
-	return QueryOverlayStyle.Width(m.width - 8).Height(height).Render(b.String())
+	return QueryOverlayStyle.Width(m.UI.Width - 8).Height(height).Render(b.String())
 }
 
 func (m Model) renderErrorModal() string {
 	// Modal dimensions
-	modalWidth := min(m.width-8, 80)
+	modalWidth := min(m.UI.Width-8, 80)
 
 	// Modal box style
 	modalStyle := lipgloss.NewStyle().
@@ -86,15 +86,15 @@ func (m Model) renderErrorModal() string {
 		Render("⚠ Error")
 
 	// Check if we just copied (statusMessage set within last 2 seconds)
-	justCopied := m.statusMessage == "Error copied to clipboard!" &&
-		time.Since(m.statusTime) < 2*time.Second
+	justCopied := m.UI.StatusMessage == "Error copied to clipboard!" &&
+		time.Since(m.UI.StatusTime) < 2*time.Second
 
 	// Scroll indicator
 	scrollInfo := ""
-	if m.errorViewport.TotalLineCount() > m.errorViewport.Height {
+	if m.Components.ErrorViewport.TotalLineCount() > m.Components.ErrorViewport.Height {
 		scrollInfo = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240")).
-			Render(fmt.Sprintf(" (scroll: %d%%) ", int(m.errorViewport.ScrollPercent()*100)))
+			Render(fmt.Sprintf(" (scroll: %d%%) ", int(m.Components.ErrorViewport.ScrollPercent()*100)))
 	}
 
 	// Action buttons
@@ -132,7 +132,7 @@ func (m Model) renderErrorModal() string {
 	// Get viewport content (wrap it in a style to constrain width)
 	viewportContent := lipgloss.NewStyle().
 		Width(modalWidth - 8). // Account for border (2) + padding (2*2) + margin (2)
-		Render(m.errorViewport.View())
+		Render(m.Components.ErrorViewport.View())
 
 	// Combine content with viewport for scrollable error message
 	content := lipgloss.JoinVertical(
@@ -150,7 +150,7 @@ func (m Model) renderErrorModal() string {
 
 func (m Model) renderQuitConfirmModal() string {
 	// Modal dimensions
-	modalWidth := min(m.width-8, 80)
+	modalWidth := min(m.UI.Width-8, 80)
 
 	// Modal box style
 	modalStyle := lipgloss.NewStyle().
@@ -188,7 +188,7 @@ func (m Model) renderQuitConfirmModal() string {
 
 func (m Model) renderOtelConfigExplainModal() string {
 	// Modal dimensions
-	modalWidth := min(m.width-8, 65)
+	modalWidth := min(m.UI.Width-8, 65)
 
 	// Modal box style - use cyan border
 	modalStyle := lipgloss.NewStyle().
@@ -254,7 +254,7 @@ func (m Model) renderOtelConfigExplainModal() string {
 
 func (m Model) renderOtelConfigModal() string {
 	// Modal dimensions
-	modalWidth := min(m.width-8, 70)
+	modalWidth := min(m.UI.Width-8, 70)
 
 	// Modal box style - use a nice cyan border for config
 	modalStyle := lipgloss.NewStyle().
@@ -282,13 +282,13 @@ func (m Model) renderOtelConfigModal() string {
 	// Show config path (never truncate - user needs to copy it)
 	b.WriteString(labelStyle.Render("Config file:"))
 	b.WriteString("\n")
-	b.WriteString(valueStyle.Render("  " + m.otelConfigPath))
+	b.WriteString(valueStyle.Render("  " + m.Otel.ConfigPath))
 	b.WriteString("\n\n")
 
 	// Watching status
 	b.WriteString(labelStyle.Render("Status:"))
 	b.WriteString("\n")
-	if m.otelWatchingConfig {
+	if m.Otel.WatchingConfig {
 		b.WriteString(successStyle.Render("  ● Watching for changes"))
 	} else {
 		b.WriteString(dimStyle.Render("  ○ Not watching"))
@@ -296,12 +296,12 @@ func (m Model) renderOtelConfigModal() string {
 	b.WriteString("\n\n")
 
 	// Validation status (if any)
-	if m.otelValidationStatus != "" {
+	if m.Otel.ValidationStatus != "" {
 		b.WriteString(labelStyle.Render("Validation:"))
 		b.WriteString("\n")
-		if m.otelValidationValid {
-			if m.otelValidationStatus == "Validating config..." {
-				b.WriteString(dimStyle.Render("  ⏳ " + m.otelValidationStatus))
+		if m.Otel.ValidationValid {
+			if m.Otel.ValidationStatus == "Validating config..." {
+				b.WriteString(dimStyle.Render("  ⏳ " + m.Otel.ValidationStatus))
 			} else {
 				b.WriteString(successStyle.Render("  ✓ Config is valid"))
 			}
@@ -310,7 +310,7 @@ func (m Model) renderOtelConfigModal() string {
 			b.WriteString(errorStyle.Render("  ✗ Invalid config:"))
 			b.WriteString("\n")
 			// Wrap long error messages
-			errMsg := m.otelValidationStatus
+			errMsg := m.Otel.ValidationStatus
 			if len(errMsg) > modalWidth-8 {
 				// Split into multiple lines
 				for len(errMsg) > 0 {
@@ -331,13 +331,13 @@ func (m Model) renderOtelConfigModal() string {
 	// Last reload info
 	b.WriteString(labelStyle.Render("Last reload:"))
 	b.WriteString("\n")
-	if m.otelReloadError != nil {
-		b.WriteString(errorStyle.Render("  ✗ Error: " + m.otelReloadError.Error()))
-	} else if !m.otelLastReload.IsZero() {
-		reloadTime := m.otelLastReload.Format("15:04:05")
+	if m.Otel.ReloadError != nil {
+		b.WriteString(errorStyle.Render("  ✗ Error: " + m.Otel.ReloadError.Error()))
+	} else if !m.Otel.LastReload.IsZero() {
+		reloadTime := m.Otel.LastReload.Format("15:04:05")
 		b.WriteString(successStyle.Render(fmt.Sprintf("  ✓ Reloaded at %s", reloadTime)))
-		if m.otelReloadCount > 1 {
-			b.WriteString(dimStyle.Render(fmt.Sprintf(" (%d times)", m.otelReloadCount)))
+		if m.Otel.ReloadCount > 1 {
+			b.WriteString(dimStyle.Render(fmt.Sprintf(" (%d times)", m.Otel.ReloadCount)))
 		}
 	} else {
 		b.WriteString(dimStyle.Render("  (none yet)"))
@@ -346,17 +346,17 @@ func (m Model) renderOtelConfigModal() string {
 
 	// Instructions
 	instructionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("226")) // Yellow
-	if m.otelWatchingConfig {
+	if m.Otel.WatchingConfig {
 		b.WriteString(instructionStyle.Render("Save to validate & hot-reload. Invalid configs won't reload."))
 	} else {
 		b.WriteString(instructionStyle.Render("Run 'elasticat down && up' to apply extracted config."))
 	}
 
 	// Check if we just copied
-	justCopiedPath := m.statusMessage == "Path copied to clipboard!" &&
-		time.Since(m.statusTime) < 2*time.Second
-	justCopiedError := m.statusMessage == "Error copied to clipboard!" &&
-		time.Since(m.statusTime) < 2*time.Second
+	justCopiedPath := m.UI.StatusMessage == "Path copied to clipboard!" &&
+		time.Since(m.UI.StatusTime) < 2*time.Second
+	justCopiedError := m.UI.StatusMessage == "Error copied to clipboard!" &&
+		time.Since(m.UI.StatusTime) < 2*time.Second
 
 	// Build action hints
 	var actionParts []string
@@ -369,7 +369,7 @@ func (m Model) renderOtelConfigModal() string {
 	}
 
 	// Copy error hint (only if there's an error)
-	hasError := (!m.otelValidationValid && m.otelValidationStatus != "" && m.otelValidationStatus != "Validating config...") || m.otelReloadError != nil
+	hasError := (!m.Otel.ValidationValid && m.Otel.ValidationStatus != "" && m.Otel.ValidationStatus != "Validating config...") || m.Otel.ReloadError != nil
 	if hasError {
 		if justCopiedError {
 			actionParts = append(actionParts, lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true).Render(keysHint("error ✓", "Y")))
@@ -397,7 +397,7 @@ func (m Model) renderOtelConfigModal() string {
 
 func (m Model) renderCredsModal() string {
 	// Modal dimensions
-	modalWidth := min(m.width-8, 70)
+	modalWidth := min(m.UI.Width-8, 70)
 
 	// Modal box style - use a nice blue/cyan border for credentials
 	modalStyle := lipgloss.NewStyle().
@@ -422,7 +422,7 @@ func (m Model) renderCredsModal() string {
 	instructionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("226")).Bold(true) // Yellow
 
 	// Instruction message at top
-	if m.lastKibanaURL != "" {
+	if m.Creds.LastKibanaURL != "" {
 		b.WriteString(instructionStyle.Render("Press enter to open Kibana, then log in with the credentials below."))
 		b.WriteString("\n\n")
 	}
@@ -438,11 +438,11 @@ func (m Model) renderCredsModal() string {
 	b.WriteString("\n\n")
 
 	// If we have a lastKibanaURL, show it
-	if m.lastKibanaURL != "" {
+	if m.Creds.LastKibanaURL != "" {
 		b.WriteString(labelStyle.Render("Kibana URL:"))
 		b.WriteString("\n")
 		// Truncate long URLs
-		displayURL := m.lastKibanaURL
+		displayURL := m.Creds.LastKibanaURL
 		if len(displayURL) > modalWidth-6 {
 			displayURL = displayURL[:modalWidth-9] + "..."
 		}
@@ -465,14 +465,14 @@ func (m Model) renderCredsModal() string {
 	b.WriteString(dimStyle.Render(" (HTTP)"))
 
 	// Check if we just copied (statusMessage set within last 2 seconds)
-	justCopiedURL := m.statusMessage == "URL copied to clipboard!" &&
-		time.Since(m.statusTime) < 2*time.Second
-	justCopiedPass := m.statusMessage == "Password copied to clipboard!" &&
-		time.Since(m.statusTime) < 2*time.Second
+	justCopiedURL := m.UI.StatusMessage == "URL copied to clipboard!" &&
+		time.Since(m.UI.StatusTime) < 2*time.Second
+	justCopiedPass := m.UI.StatusMessage == "Password copied to clipboard!" &&
+		time.Since(m.UI.StatusTime) < 2*time.Second
 
 	// Actions - include enter/y/p when we have a URL
 	var actions string
-	if m.lastKibanaURL != "" {
+	if m.Creds.LastKibanaURL != "" {
 		var copyURLHint string
 		if justCopiedURL {
 			copyURLHint = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true).Render(keysHint("url ✓", "y"))

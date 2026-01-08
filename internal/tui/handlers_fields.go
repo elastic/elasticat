@@ -15,26 +15,26 @@ func (m Model) handleFieldsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	action := GetAction(key)
 
 	// If in search mode, handle text input
-	if m.fieldsSearchMode {
+	if m.Fields.SearchMode {
 		switch action {
 		case ActionBack:
-			m.fieldsSearchMode = false
-			m.fieldsSearch = ""
+			m.Fields.SearchMode = false
+			m.Fields.Search = ""
 			return m, nil
 		case ActionSelect:
-			m.fieldsSearchMode = false
+			m.Fields.SearchMode = false
 			return m, nil
 		}
 		switch key {
 		case "backspace":
-			if len(m.fieldsSearch) > 0 {
-				m.fieldsSearch = m.fieldsSearch[:len(m.fieldsSearch)-1]
+			if len(m.Fields.Search) > 0 {
+				m.Fields.Search = m.Fields.Search[:len(m.Fields.Search)-1]
 			}
 			return m, nil
 		default:
 			// Add character to search
 			if len(key) == 1 {
-				m.fieldsSearch += key
+				m.Fields.Search += key
 			}
 			return m, nil
 		}
@@ -48,41 +48,41 @@ func (m Model) handleFieldsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.popView()
 		return m, nil
 	case ActionScrollUp:
-		if m.fieldsCursor > 0 {
-			m.fieldsCursor--
+		if m.Fields.Cursor > 0 {
+			m.Fields.Cursor--
 		}
 	case ActionScrollDown:
-		if m.fieldsCursor < len(sortedFields)-1 {
-			m.fieldsCursor++
+		if m.Fields.Cursor < len(sortedFields)-1 {
+			m.Fields.Cursor++
 		}
 	case ActionGoTop:
-		m.fieldsCursor = 0
+		m.Fields.Cursor = 0
 	case ActionGoBottom:
 		if len(sortedFields) > 0 {
-			m.fieldsCursor = len(sortedFields) - 1
+			m.Fields.Cursor = len(sortedFields) - 1
 		}
 	case ActionPageUp:
-		m.fieldsCursor -= 10
-		if m.fieldsCursor < 0 {
-			m.fieldsCursor = 0
+		m.Fields.Cursor -= 10
+		if m.Fields.Cursor < 0 {
+			m.Fields.Cursor = 0
 		}
 	case ActionPageDown:
-		m.fieldsCursor += 10
-		if m.fieldsCursor >= len(sortedFields) {
-			m.fieldsCursor = len(sortedFields) - 1
+		m.Fields.Cursor += 10
+		if m.Fields.Cursor >= len(sortedFields) {
+			m.Fields.Cursor = len(sortedFields) - 1
 		}
 	case ActionToggle, ActionSelect:
 		// Toggle field selection
-		if m.fieldsCursor < len(sortedFields) {
-			fieldName := sortedFields[m.fieldsCursor].Name
+		if m.Fields.Cursor < len(sortedFields) {
+			fieldName := sortedFields[m.Fields.Cursor].Name
 			m.toggleField(fieldName)
 		}
 	case ActionSearch:
-		m.fieldsSearchMode = true
-		m.fieldsSearch = ""
+		m.Fields.SearchMode = true
+		m.Fields.Search = ""
 	case ActionReset:
 		// Reset to defaults for current signal type
-		m.displayFields = DefaultFields(m.signalType)
+		m.Fields.Display = DefaultFields(m.Filters.Signal)
 	}
 
 	return m, nil
@@ -91,10 +91,10 @@ func (m Model) handleFieldsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // toggleField toggles a field's selection state
 func (m *Model) toggleField(fieldName string) {
 	// Check if it's already in displayFields
-	for i, f := range m.displayFields {
+	for i, f := range m.Fields.Display {
 		if f.Name == fieldName {
 			// Remove it
-			m.displayFields = append(m.displayFields[:i], m.displayFields[i+1:]...)
+			m.Fields.Display = append(m.Fields.Display[:i], m.Fields.Display[i+1:]...)
 			return
 		}
 	}
@@ -117,7 +117,7 @@ func (m *Model) toggleField(fieldName string) {
 		searchFields = []string{} // Empty slice means use Name as search field
 	}
 
-	m.displayFields = append(m.displayFields, DisplayField{
+	m.Fields.Display = append(m.Fields.Display, DisplayField{
 		Name:         fieldName,
 		Label:        label,
 		Width:        15, // Default width for custom fields
@@ -130,21 +130,21 @@ func (m *Model) toggleField(fieldName string) {
 func (m Model) getSortedFieldList() []es.FieldInfo {
 	// Create a map of selected field names
 	selectedNames := make(map[string]bool)
-	for _, f := range m.displayFields {
+	for _, f := range m.Fields.Display {
 		selectedNames[f.Name] = true
 	}
 
 	// Create a map of available fields for quick lookup
 	availableByName := make(map[string]es.FieldInfo)
-	for _, f := range m.availableFields {
+	for _, f := range m.Fields.Available {
 		availableByName[f.Name] = f
 	}
 
 	// Filter available fields by search if active
 	var filtered []es.FieldInfo
-	for _, f := range m.availableFields {
-		if m.fieldsSearch != "" {
-			if !strings.Contains(strings.ToLower(f.Name), strings.ToLower(m.fieldsSearch)) {
+	for _, f := range m.Fields.Available {
+		if m.Fields.Search != "" {
+			if !strings.Contains(strings.ToLower(f.Name), strings.ToLower(m.Fields.Search)) {
 				continue
 			}
 		}
@@ -153,9 +153,9 @@ func (m Model) getSortedFieldList() []es.FieldInfo {
 
 	// Also filter display fields by search
 	var filteredDisplayFields []DisplayField
-	for _, df := range m.displayFields {
-		if m.fieldsSearch != "" {
-			if !strings.Contains(strings.ToLower(df.Name), strings.ToLower(m.fieldsSearch)) {
+	for _, df := range m.Fields.Display {
+		if m.Fields.Search != "" {
+			if !strings.Contains(strings.ToLower(df.Name), strings.ToLower(m.Fields.Search)) {
 				continue
 			}
 		}

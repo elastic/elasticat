@@ -15,14 +15,14 @@ import (
 
 // renderCompactDetail renders a compact detail view of the selected log at the bottom
 func (m Model) renderCompactDetail() string {
-	if len(m.logs) == 0 || m.selectedIndex >= len(m.logs) {
-		return CompactDetailStyle.Width(m.width - 4).Height(4).Render(
+	if len(m.Logs.Entries) == 0 || m.Logs.SelectedIndex >= len(m.Logs.Entries) {
+		return CompactDetailStyle.Width(m.UI.Width - 4).Height(4).Render(
 			DetailMutedStyle.Render("No entry selected"),
 		)
 	}
 
-	log := m.logs[m.selectedIndex]
-	switch m.signalType {
+	log := m.Logs.Entries[m.Logs.SelectedIndex]
+	switch m.Filters.Signal {
 	case signalTraces:
 		return m.renderCompactDetailTraces(log)
 	case signalMetrics:
@@ -60,7 +60,7 @@ func (m Model) renderCompactDetailLogs(log es.LogEntry) string {
 		b.WriteString(hl.ApplyToField(attrs, DetailMutedStyle))
 	}
 
-	return CompactDetailStyle.Width(m.width - 4).Height(compactDetailHeight).Render(b.String())
+	return CompactDetailStyle.Width(m.UI.Width - 4).Height(compactDetailHeight).Render(b.String())
 }
 
 func (m Model) renderCompactDetailTraces(log es.LogEntry) string {
@@ -111,13 +111,13 @@ func (m Model) renderCompactDetailTraces(log es.LogEntry) string {
 	}
 
 	b.WriteString("\n")
-	if m.spansLoading {
+	if m.Traces.SpansLoading {
 		b.WriteString(DetailKeyStyle.Render("Spans: "))
 		b.WriteString(LoadingStyle.Render("Loading..."))
-	} else if len(m.spans) > 0 {
-		b.WriteString(DetailKeyStyle.Render(fmt.Sprintf("Spans (%d): ", len(m.spans))))
+	} else if len(m.Traces.Spans) > 0 {
+		b.WriteString(DetailKeyStyle.Render(fmt.Sprintf("Spans (%d): ", len(m.Traces.Spans))))
 		spanNames := []string{}
-		for i, span := range m.spans {
+		for i, span := range m.Traces.Spans {
 			if i >= 5 {
 				spanNames = append(spanNames, "…")
 				break
@@ -138,7 +138,7 @@ func (m Model) renderCompactDetailTraces(log es.LogEntry) string {
 		b.WriteString(DetailMutedStyle.Render("No child spans"))
 	}
 
-	return CompactDetailStyle.Width(m.width - 4).Height(compactDetailHeight).Render(b.String())
+	return CompactDetailStyle.Width(m.UI.Width - 4).Height(compactDetailHeight).Render(b.String())
 }
 
 func (m Model) renderCompactDetailMetrics(log es.LogEntry) string {
@@ -169,7 +169,7 @@ func (m Model) renderCompactDetailMetrics(log es.LogEntry) string {
 		b.WriteString(hl.ApplyToField(attrs, DetailMutedStyle))
 	}
 
-	return CompactDetailStyle.Width(m.width - 4).Height(compactDetailHeight).Render(b.String())
+	return CompactDetailStyle.Width(m.UI.Width - 4).Height(compactDetailHeight).Render(b.String())
 }
 
 func (m Model) writeBaseHeader(b *strings.Builder, log es.LogEntry, hl *Highlighter, appendExtras func()) {
@@ -239,22 +239,22 @@ func (m Model) renderDetailView() string {
 	var parts []string
 
 	// Position indicator
-	if len(m.logs) > 0 {
-		parts = append(parts, DetailMutedStyle.Render(fmt.Sprintf("%d/%d", m.selectedIndex+1, len(m.logs))))
+	if len(m.Logs.Entries) > 0 {
+		parts = append(parts, DetailMutedStyle.Render(fmt.Sprintf("%d/%d", m.Logs.SelectedIndex+1, len(m.Logs.Entries))))
 	}
 
 	// View mode indicator
-	if m.mode == viewDetailJSON {
+	if m.UI.Mode == viewDetailJSON {
 		parts = append(parts, DetailKeyStyle.Render("JSON"))
 	}
 
 	// Show status message if recent (within 2 seconds)
-	if m.statusMessage != "" && time.Since(m.statusTime) < 2*time.Second {
-		parts = append(parts, lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")).Bold(true).Render(m.statusMessage))
+	if m.UI.StatusMessage != "" && time.Since(m.UI.StatusTime) < 2*time.Second {
+		parts = append(parts, lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")).Bold(true).Render(m.UI.StatusMessage))
 	}
 
 	header := strings.Join(parts, "  ")
-	content := m.viewport.View()
+	content := m.Components.Viewport.View()
 
 	contentHeight := m.getFullScreenHeight()
 
@@ -270,10 +270,10 @@ func (m Model) renderFieldSelector() string {
 
 	// Header
 	header := "Select Fields"
-	if m.fieldsSearchMode {
-		header = fmt.Sprintf("Search: %s_", m.fieldsSearch)
-	} else if m.fieldsSearch != "" {
-		header = fmt.Sprintf("Filter: %s", m.fieldsSearch)
+	if m.Fields.SearchMode {
+		header = fmt.Sprintf("Search: %s_", m.Fields.Search)
+	} else if m.Fields.Search != "" {
+		header = fmt.Sprintf("Filter: %s", m.Fields.Search)
 	}
 	b.WriteString(QueryHeaderStyle.Render(header))
 	b.WriteString("\n")
@@ -282,26 +282,26 @@ func (m Model) renderFieldSelector() string {
 
 	contentHeight := m.getFullScreenHeight()
 
-	if m.fieldsLoading {
+	if m.Fields.Loading {
 		b.WriteString(LoadingStyle.Render("Loading fields..."))
-		return DetailStyle.Width(m.width - 4).Height(contentHeight).Render(b.String())
+		return DetailStyle.Width(m.UI.Width - 4).Height(contentHeight).Render(b.String())
 	}
 
 	// Get sorted fields
 	sortedFields := m.getSortedFieldList()
 
 	if len(sortedFields) == 0 {
-		if m.fieldsSearch != "" {
-			b.WriteString(DetailMutedStyle.Render("No fields matching '" + m.fieldsSearch + "'"))
+		if m.Fields.Search != "" {
+			b.WriteString(DetailMutedStyle.Render("No fields matching '" + m.Fields.Search + "'"))
 		} else {
 			b.WriteString(DetailMutedStyle.Render("No fields available"))
 		}
-		return DetailStyle.Width(m.width - 4).Height(contentHeight).Render(b.String())
+		return DetailStyle.Width(m.UI.Width - 4).Height(contentHeight).Render(b.String())
 	}
 
 	// Create set of selected field names
 	selectedNames := make(map[string]bool)
-	for _, f := range m.displayFields {
+	for _, f := range m.Fields.Display {
 		selectedNames[f.Name] = true
 	}
 
@@ -311,7 +311,7 @@ func (m Model) renderFieldSelector() string {
 		visibleHeight = 5
 	}
 
-	startIdx := m.fieldsCursor - visibleHeight/2
+	startIdx := m.Fields.Cursor - visibleHeight/2
 	if startIdx < 0 {
 		startIdx = 0
 	}
@@ -353,8 +353,8 @@ func (m Model) renderFieldSelector() string {
 		// Field name, type, and count
 		fieldLine := fmt.Sprintf("%s %-40s %-10s %6s docs", checkbox, field.Name, field.Type, countStr)
 
-		if i == m.fieldsCursor {
-			b.WriteString(SelectedLogStyle.Width(m.width - 8).Render(fieldLine))
+		if i == m.Fields.Cursor {
+			b.WriteString(SelectedLogStyle.Width(m.UI.Width - 8).Render(fieldLine))
 		} else if selected {
 			b.WriteString(StatusKeyStyle.Render(fieldLine))
 		} else {
@@ -365,8 +365,8 @@ func (m Model) renderFieldSelector() string {
 
 	// Show scroll indicator
 	if len(sortedFields) > visibleHeight {
-		b.WriteString(DetailMutedStyle.Render(fmt.Sprintf("\n%d/%d fields", m.fieldsCursor+1, len(sortedFields))))
+		b.WriteString(DetailMutedStyle.Render(fmt.Sprintf("\n%d/%d fields", m.Fields.Cursor+1, len(sortedFields))))
 	}
 
-	return DetailStyle.Width(m.width - 4).Height(contentHeight).Render(b.String())
+	return DetailStyle.Width(m.UI.Width - 4).Height(contentHeight).Render(b.String())
 }

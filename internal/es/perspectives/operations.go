@@ -9,13 +9,12 @@ import (
 	"strings"
 
 	"github.com/elastic/elasticat/internal/es/shared"
-	"github.com/elastic/elasticat/internal/es/traces"
 	"github.com/elastic/elasticat/internal/index"
 )
 
 // GetByField aggregates counts of logs, traces, and metrics for a given field
 func GetByField(ctx context.Context, exec Executor, lookback string, field string) ([]PerspectiveAgg, error) {
-	lookbackInterval := traces.LookbackToESQLInterval(lookback)
+	lookbackInterval := shared.LookbackToESQLInterval(lookback)
 
 	// Use data_stream.type to distinguish signal types:
 	// - "logs" for log documents

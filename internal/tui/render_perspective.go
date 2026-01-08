@@ -9,19 +9,19 @@ import (
 )
 
 func (m Model) renderPerspectiveList(listHeight int) string {
-	if m.perspectiveLoading {
-		return LogListStyle.Width(m.width - 4).Height(listHeight).Render(
-			LoadingStyle.Render(fmt.Sprintf("Loading %s...", strings.ToLower(m.currentPerspective.String()))))
+	if m.Perspective.Loading {
+		return LogListStyle.Width(m.UI.Width - 4).Height(listHeight).Render(
+			LoadingStyle.Render(fmt.Sprintf("Loading %s...", strings.ToLower(m.Perspective.Current.String()))))
 	}
 
-	if m.err != nil {
-		return LogListStyle.Width(m.width - 4).Height(listHeight).Render(
-			ErrorStyle.Render(fmt.Sprintf("Error: %v", m.err)))
+	if m.UI.Err != nil {
+		return LogListStyle.Width(m.UI.Width - 4).Height(listHeight).Render(
+			ErrorStyle.Render(fmt.Sprintf("Error: %v", m.UI.Err)))
 	}
 
-	if len(m.perspectiveItems) == 0 {
-		return LogListStyle.Width(m.width - 4).Height(listHeight).Render(
-			LoadingStyle.Render(fmt.Sprintf("No %s found in the selected time range.", strings.ToLower(m.currentPerspective.String()))))
+	if len(m.Perspective.Items) == 0 {
+		return LogListStyle.Width(m.UI.Width - 4).Height(listHeight).Render(
+			LoadingStyle.Render(fmt.Sprintf("No %s found in the selected time range.", strings.ToLower(m.Perspective.Current.String()))))
 	}
 
 	// Calculate column widths
@@ -30,13 +30,13 @@ func (m Model) renderPerspectiveList(listHeight int) string {
 	tracesWidth := 10
 	metricsWidth := 10
 	fixedWidth := logsWidth + tracesWidth + metricsWidth + 4 // separators
-	nameWidth := m.width - fixedWidth - 10
+	nameWidth := m.UI.Width - fixedWidth - 10
 	if nameWidth < 20 {
 		nameWidth = 20
 	}
 
 	// Header
-	headerLabel := strings.ToUpper(m.currentPerspective.String()[:len(m.currentPerspective.String())-1]) // Remove trailing 's'
+	headerLabel := strings.ToUpper(m.Perspective.Current.String()[:len(m.Perspective.Current.String())-1]) // Remove trailing 's'
 	header := HeaderRowStyle.Render(
 		PadOrTruncate(headerLabel, nameWidth) + " " +
 			PadOrTruncate("LOGS", logsWidth) + " " +
@@ -44,26 +44,26 @@ func (m Model) renderPerspectiveList(listHeight int) string {
 			PadOrTruncate("METRICS", metricsWidth))
 
 	// Calculate visible range using common helper
-	startIdx, endIdx := calcVisibleRange(m.perspectiveCursor, len(m.perspectiveItems), listHeight)
+	startIdx, endIdx := calcVisibleRange(m.Perspective.Cursor, len(m.Perspective.Items), listHeight)
 
 	var lines []string
 	lines = append(lines, header)
 
 	for i := startIdx; i < endIdx; i++ {
-		item := m.perspectiveItems[i]
-		selected := i == m.perspectiveCursor
+		item := m.Perspective.Items[i]
+		selected := i == m.Perspective.Cursor
 
 		// Check if this item is currently active as a filter (include or exclude)
 		isIncluded := false
 		isExcluded := false
-		if m.currentPerspective == PerspectiveServices && m.filterService == item.Name {
-			if m.negateService {
+		if m.Perspective.Current == PerspectiveServices && m.Filters.Service == item.Name {
+			if m.Filters.NegateService {
 				isExcluded = true
 			} else {
 				isIncluded = true
 			}
-		} else if m.currentPerspective == PerspectiveResources && m.filterResource == item.Name {
-			if m.negateResource {
+		} else if m.Perspective.Current == PerspectiveResources && m.Filters.Resource == item.Name {
+			if m.Filters.NegateResource {
 				isExcluded = true
 			} else {
 				isIncluded = true
@@ -89,12 +89,12 @@ func (m Model) renderPerspectiveList(listHeight int) string {
 			PadOrTruncate(metricsStr, metricsWidth)
 
 		if selected {
-			lines = append(lines, SelectedLogStyle.Width(m.width-6).Render(line))
+			lines = append(lines, SelectedLogStyle.Width(m.UI.Width-6).Render(line))
 		} else {
 			lines = append(lines, LogEntryStyle.Render(line))
 		}
 	}
 
 	content := strings.Join(lines, "\n")
-	return LogListStyle.Width(m.width - 4).Height(listHeight).Render(content)
+	return LogListStyle.Width(m.UI.Width - 4).Height(listHeight).Render(content)
 }

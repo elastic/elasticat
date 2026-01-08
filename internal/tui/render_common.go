@@ -14,7 +14,7 @@ func (m Model) getContentHeight(includeCompactDetail bool) int {
 		fixedHeight += compactDetailHeight
 	}
 
-	contentHeight := m.height - fixedHeight
+	contentHeight := m.UI.Height - fixedHeight
 	if contentHeight < 3 {
 		contentHeight = 3
 	}
@@ -29,7 +29,7 @@ func (m Model) getFullScreenHeight() int {
 
 	fixedHeight := titleHeaderHeight + statusBarHeight + helpBarHeight + layoutPadding + extraPadding
 
-	contentHeight := m.height - fixedHeight
+	contentHeight := m.UI.Height - fixedHeight
 	if contentHeight < 3 {
 		contentHeight = 3
 	}

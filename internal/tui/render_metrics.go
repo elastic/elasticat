@@ -9,18 +9,18 @@ import (
 )
 
 func (m Model) renderMetricsDashboard(listHeight int) string {
-	if m.metricsLoading {
-		return LogListStyle.Width(m.width - 4).Height(listHeight).Render(
+	if m.Metrics.Loading {
+		return LogListStyle.Width(m.UI.Width - 4).Height(listHeight).Render(
 			LoadingStyle.Render("Loading metrics..."))
 	}
 
-	if m.err != nil {
-		return LogListStyle.Width(m.width - 4).Height(listHeight).Render(
-			ErrorStyle.Render(fmt.Sprintf("Error: %v", m.err)))
+	if m.UI.Err != nil {
+		return LogListStyle.Width(m.UI.Width - 4).Height(listHeight).Render(
+			ErrorStyle.Render(fmt.Sprintf("Error: %v", m.UI.Err)))
 	}
 
-	if m.aggregatedMetrics == nil || len(m.aggregatedMetrics.Metrics) == 0 {
-		return LogListStyle.Width(m.width - 4).Height(listHeight).Render(
+	if m.Metrics.Aggregated == nil || len(m.Metrics.Aggregated.Metrics) == 0 {
+		return LogListStyle.Width(m.UI.Width - 4).Height(listHeight).Render(
 			LoadingStyle.Render("No metrics found. " + keysHint("documents view", "d")))
 	}
 
@@ -30,7 +30,7 @@ func (m Model) renderMetricsDashboard(listHeight int) string {
 	numWidth := 10
 	lastSeenWidth := 10
 	fixedWidth := sparklineWidth + (numWidth * 4) + lastSeenWidth + 7 // 7 for separators
-	metricWidth := m.width - fixedWidth - 10                          // padding
+	metricWidth := m.UI.Width - fixedWidth - 10                       // padding
 	if metricWidth < 20 {
 		metricWidth = 20
 	}
@@ -46,15 +46,15 @@ func (m Model) renderMetricsDashboard(listHeight int) string {
 			PadOrTruncate("LAST SEEN", lastSeenWidth))
 
 	// Calculate visible range using common helper
-	metrics := m.aggregatedMetrics.Metrics
-	startIdx, endIdx := calcVisibleRange(m.metricsCursor, len(metrics), listHeight)
+	metrics := m.Metrics.Aggregated.Metrics
+	startIdx, endIdx := calcVisibleRange(m.Metrics.Cursor, len(metrics), listHeight)
 
 	var lines []string
 	lines = append(lines, header)
 
 	for i := startIdx; i < endIdx; i++ {
 		metric := metrics[i]
-		selected := i == m.metricsCursor
+		selected := i == m.Metrics.Cursor
 
 		// Generate sparkline
 		sparkline := generateSparkline(metric.Buckets, sparklineWidth)
@@ -81,28 +81,28 @@ func (m Model) renderMetricsDashboard(listHeight int) string {
 			PadOrTruncate(lastSeenStr, lastSeenWidth)
 
 		if selected {
-			lines = append(lines, SelectedLogStyle.Width(m.width-6).Render(line))
+			lines = append(lines, SelectedLogStyle.Width(m.UI.Width-6).Render(line))
 		} else {
 			lines = append(lines, LogEntryStyle.Render(line))
 		}
 	}
 
 	content := strings.Join(lines, "\n")
-	return LogListStyle.Width(m.width - 4).Height(listHeight).Render(content)
+	return LogListStyle.Width(m.UI.Width - 4).Height(listHeight).Render(content)
 }
 
 func (m Model) renderMetricsCompactDetail() string {
-	if m.aggregatedMetrics == nil || len(m.aggregatedMetrics.Metrics) == 0 {
-		return CompactDetailStyle.Width(m.width - 4).Height(compactDetailHeight).Render(
+	if m.Metrics.Aggregated == nil || len(m.Metrics.Aggregated.Metrics) == 0 {
+		return CompactDetailStyle.Width(m.UI.Width - 4).Height(compactDetailHeight).Render(
 			DetailMutedStyle.Render("No metric selected"))
 	}
 
-	if m.metricsCursor >= len(m.aggregatedMetrics.Metrics) {
-		return CompactDetailStyle.Width(m.width - 4).Height(compactDetailHeight).Render(
+	if m.Metrics.Cursor >= len(m.Metrics.Aggregated.Metrics) {
+		return CompactDetailStyle.Width(m.UI.Width - 4).Height(compactDetailHeight).Render(
 			DetailMutedStyle.Render("No metric selected"))
 	}
 
-	metric := m.aggregatedMetrics.Metrics[m.metricsCursor]
+	metric := m.Metrics.Aggregated.Metrics[m.Metrics.Cursor]
 
 	var b strings.Builder
 
@@ -133,36 +133,36 @@ func (m Model) renderMetricsCompactDetail() string {
 	// Third line: Bucket info
 	b.WriteString(DetailKeyStyle.Render("Buckets: "))
 	b.WriteString(DetailMutedStyle.Render(fmt.Sprintf("%d @ %s intervals",
-		len(metric.Buckets), m.aggregatedMetrics.BucketSize)))
+		len(metric.Buckets), m.Metrics.Aggregated.BucketSize)))
 
-	return CompactDetailStyle.Width(m.width - 4).Height(compactDetailHeight).Render(b.String())
+	return CompactDetailStyle.Width(m.UI.Width - 4).Height(compactDetailHeight).Render(b.String())
 }
 
 // renderMetricDetail renders the metric detail view using the viewport for scrolling
 func (m Model) renderMetricDetail() string {
 	contentHeight := m.getFullScreenHeight()
 
-	if m.aggregatedMetrics == nil || m.metricsCursor >= len(m.aggregatedMetrics.Metrics) {
-		return DetailStyle.Width(m.width - 4).Height(contentHeight).Render(
+	if m.Metrics.Aggregated == nil || m.Metrics.Cursor >= len(m.Metrics.Aggregated.Metrics) {
+		return DetailStyle.Width(m.UI.Width - 4).Height(contentHeight).Render(
 			DetailMutedStyle.Render("No metric selected"))
 	}
 
 	// Use viewport for scrollable content
-	content := m.viewport.View()
-	return DetailStyle.Width(m.width - 4).Height(contentHeight).Render(content)
+	content := m.Components.Viewport.View()
+	return DetailStyle.Width(m.UI.Width - 4).Height(contentHeight).Render(content)
 }
 
 // renderMetricDetailContent generates the full content for the metric detail viewport
 func (m Model) renderMetricDetailContent() string {
-	if m.aggregatedMetrics == nil || m.metricsCursor >= len(m.aggregatedMetrics.Metrics) {
+	if m.Metrics.Aggregated == nil || m.Metrics.Cursor >= len(m.Metrics.Aggregated.Metrics) {
 		return DetailMutedStyle.Render("No metric selected")
 	}
 
-	metric := m.aggregatedMetrics.Metrics[m.metricsCursor]
+	metric := m.Metrics.Aggregated.Metrics[m.Metrics.Cursor]
 
 	// Calculate chart dimensions
 	chartHeight := 12 // Fixed height for chart
-	chartWidth := m.width - 10
+	chartWidth := m.UI.Width - 10
 	if chartWidth < 20 {
 		chartWidth = 20
 	}
@@ -200,7 +200,7 @@ func (m Model) renderMetricDetailContent() string {
 			metric.Buckets[0].Timestamp.Format("15:04:05"),
 			metric.Buckets[len(metric.Buckets)-1].Timestamp.Format("15:04:05"),
 			len(metric.Buckets),
-			m.aggregatedMetrics.BucketSize)))
+			m.Metrics.Aggregated.BucketSize)))
 	}
 	b.WriteString("\n\n")
 
@@ -220,8 +220,8 @@ func (m Model) renderMetricDetailDocs() string {
 	var b strings.Builder
 
 	// Header with navigation hint
-	docCount := len(m.metricDetailDocs)
-	if m.metricDetailDocsLoading {
+	docCount := len(m.Metrics.DetailDocs)
+	if m.Metrics.DetailDocsLoading {
 		b.WriteString(DetailKeyStyle.Render("Documents: "))
 		b.WriteString(LoadingStyle.Render("Loading..."))
 		return b.String()
@@ -235,14 +235,14 @@ func (m Model) renderMetricDetailDocs() string {
 
 	// Navigation header
 	b.WriteString(DetailKeyStyle.Render("Documents: "))
-	b.WriteString(DetailValueStyle.Render(fmt.Sprintf("%d/%d", m.metricDetailDocCursor+1, docCount)))
+	b.WriteString(DetailValueStyle.Render(fmt.Sprintf("%d/%d", m.Metrics.DetailDocCursor+1, docCount)))
 	b.WriteString("  ")
 	b.WriteString(DetailMutedStyle.Render("(n/N: prev/next doc)"))
 	b.WriteString("\n")
 
 	// Show current document
-	if m.metricDetailDocCursor < docCount {
-		doc := m.metricDetailDocs[m.metricDetailDocCursor]
+	if m.Metrics.DetailDocCursor < docCount {
+		doc := m.Metrics.DetailDocs[m.Metrics.DetailDocCursor]
 
 		// Timestamp and service
 		b.WriteString(DetailKeyStyle.Render("Time: "))

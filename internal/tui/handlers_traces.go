@@ -19,7 +19,7 @@ func (m Model) handleTraceNamesKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Handle list navigation
 	if isNavKey(key) {
-		m.traceNamesCursor = listNav(m.traceNamesCursor, len(m.transactionNames), key)
+		m.Traces.NamesCursor = listNav(m.Traces.NamesCursor, len(m.Traces.TransactionNames), key)
 		return m, nil
 	}
 
@@ -29,23 +29,23 @@ func (m Model) handleTraceNamesKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case ActionSelect:
 		// Select transaction name and show transactions
-		if len(m.transactionNames) > 0 && m.traceNamesCursor < len(m.transactionNames) {
-			m.selectedTxName = m.transactionNames[m.traceNamesCursor].Name
-			m.traceViewLevel = traceViewTransactions
-			m.mode = viewLogs
-			m.selectedIndex = 0
-			m.loading = true
+		if len(m.Traces.TransactionNames) > 0 && m.Traces.NamesCursor < len(m.Traces.TransactionNames) {
+			m.Traces.SelectedTxName = m.Traces.TransactionNames[m.Traces.NamesCursor].Name
+			m.Traces.ViewLevel = traceViewTransactions
+			m.UI.Mode = viewLogs
+			m.Logs.SelectedIndex = 0
+			m.UI.Loading = true
 			return m, m.fetchLogs()
 		}
 	case ActionRefresh:
-		m.tracesLoading = true
+		m.Traces.Loading = true
 		return m, m.fetchTransactionNames()
 	case ActionQuery:
 		m.pushView(viewQuery)
 		return m, nil
 	case ActionSearch:
 		m.pushView(viewSearch)
-		m.searchInput.Focus()
+		m.Components.SearchInput.Focus()
 		return m, textinput.Blink
 	case ActionQuit:
 		return m, tea.Quit

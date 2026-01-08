@@ -14,19 +14,19 @@ import (
 )
 
 func (m Model) renderLogListWithHeight(listHeight int) string {
-	if m.err != nil {
-		return LogListStyle.Width(m.width - 4).Height(listHeight).Render(
-			ErrorStyle.Render(fmt.Sprintf("Error: %v", m.err)))
+	if m.UI.Err != nil {
+		return LogListStyle.Width(m.UI.Width - 4).Height(listHeight).Render(
+			ErrorStyle.Render(fmt.Sprintf("Error: %v", m.UI.Err)))
 	}
 
-	if len(m.logs) == 0 {
-		return LogListStyle.Width(m.width - 4).Height(listHeight).Render(
+	if len(m.Logs.Entries) == 0 {
+		return LogListStyle.Width(m.UI.Width - 4).Height(listHeight).Render(
 			LoadingStyle.Render("No logs found. Waiting for data..."))
 	}
 
 	// Calculate flexible column width first (needed for both header and content)
 	fixedWidth := 0
-	for _, field := range m.displayFields {
+	for _, field := range m.Fields.Display {
 		width := field.Width
 		if field.Name == "@timestamp" {
 			width = m.timestampWidth(width)
@@ -35,18 +35,18 @@ func (m Model) renderLogListWithHeight(listHeight int) string {
 			fixedWidth += width + 1 // +1 for space between columns
 		}
 	}
-	flexWidth := m.width - fixedWidth - 10
+	flexWidth := m.UI.Width - fixedWidth - 10
 	if flexWidth < 20 {
 		flexWidth = 20
 	}
 
 	// Build dynamic column header from displayFields
 	var headerParts []string
-	for _, field := range m.displayFields {
+	for _, field := range m.Fields.Display {
 		label := field.Label
 		// Special handling for timestamp label
 		if field.Name == "@timestamp" {
-			switch m.timeDisplayMode {
+			switch m.UI.TimeDisplayMode {
 			case timeDisplayRelative:
 				label = "AGE"
 			case timeDisplayFull:
@@ -73,13 +73,13 @@ func (m Model) renderLogListWithHeight(listHeight int) string {
 		visibleHeight = 1
 	}
 
-	startIdx := m.selectedIndex - visibleHeight/2
+	startIdx := m.Logs.SelectedIndex - visibleHeight/2
 	if startIdx < 0 {
 		startIdx = 0
 	}
 	endIdx := startIdx + visibleHeight
-	if endIdx > len(m.logs) {
-		endIdx = len(m.logs)
+	if endIdx > len(m.Logs.Entries) {
+		endIdx = len(m.Logs.Entries)
 		startIdx = endIdx - visibleHeight
 		if startIdx < 0 {
 			startIdx = 0
@@ -89,13 +89,13 @@ func (m Model) renderLogListWithHeight(listHeight int) string {
 	var lines []string
 	lines = append(lines, header)
 	for i := startIdx; i < endIdx; i++ {
-		log := m.logs[i]
-		line := m.renderLogEntry(log, i == m.selectedIndex)
+		log := m.Logs.Entries[i]
+		line := m.renderLogEntry(log, i == m.Logs.SelectedIndex)
 		lines = append(lines, line)
 	}
 
 	content := strings.Join(lines, "\n")
-	return LogListStyle.Width(m.width - 4).Height(listHeight).Render(content)
+	return LogListStyle.Width(m.UI.Width - 4).Height(listHeight).Render(content)
 }
 
 // timestampWidth returns the width to use for the timestamp column based on mode.
@@ -103,7 +103,7 @@ func (m Model) timestampWidth(base int) int {
 	if base <= 0 {
 		base = 8
 	}
-	switch m.timeDisplayMode {
+	switch m.UI.TimeDisplayMode {
 	case timeDisplayFull:
 		if base < 19 {
 			return 19
@@ -119,7 +119,7 @@ func (m Model) renderLogEntry(log es.LogEntry, selected bool) string {
 	// Calculate fixed column widths to determine flexible column width
 	fixedWidth := 0
 	flexibleFieldIdx := -1
-	for i, field := range m.displayFields {
+	for i, field := range m.Fields.Display {
 		width := field.Width
 		if field.Name == "@timestamp" {
 			width = m.timestampWidth(width)
@@ -132,7 +132,7 @@ func (m Model) renderLogEntry(log es.LogEntry, selected bool) string {
 	}
 
 	// Available width for flexible field (usually MESSAGE)
-	flexWidth := m.width - fixedWidth - 10 // Account for borders and padding
+	flexWidth := m.UI.Width - fixedWidth - 10 // Account for borders and padding
 	if flexWidth < 20 {
 		flexWidth = 20
 	}
@@ -149,7 +149,7 @@ func (m Model) renderLogEntry(log es.LogEntry, selected bool) string {
 	}
 
 	var parts []string
-	for i, field := range m.displayFields {
+	for i, field := range m.Fields.Display {
 		var value string
 		var styled string
 		width := field.Width
@@ -166,7 +166,7 @@ func (m Model) renderLogEntry(log es.LogEntry, selected bool) string {
 
 		switch field.Name {
 		case "@timestamp":
-			switch m.timeDisplayMode {
+			switch m.UI.TimeDisplayMode {
 			case timeDisplayRelative:
 				value = formatRelativeTime(log.Timestamp)
 			case timeDisplayFull:
@@ -228,7 +228,7 @@ func (m Model) renderLogEntry(log es.LogEntry, selected bool) string {
 	line := strings.Join(parts, " ")
 
 	if selected {
-		return SelectedLogStyle.Width(m.width - 6).Render(line)
+		return SelectedLogStyle.Width(m.UI.Width - 6).Render(line)
 	}
 	return LogEntryStyle.Render(line)
 }
@@ -384,7 +384,7 @@ func (m Model) renderLogDetail(log es.LogEntry) string {
 	}
 
 	// Signal-specific fields
-	switch m.signalType {
+	switch m.Filters.Signal {
 	case signalMetrics:
 		// Scope
 		if log.Scope != nil {
@@ -451,19 +451,19 @@ func (m Model) renderLogDetail(log es.LogEntry) string {
 		}
 
 		// Child spans - render as waterfall timeline
-		if m.spansLoading {
+		if m.Traces.SpansLoading {
 			b.WriteString(DetailKeyStyle.Render("Child Spans: "))
 			b.WriteString(LoadingStyle.Render("Loading..."))
 			b.WriteString("\n\n")
-		} else if len(m.spans) > 0 {
-			b.WriteString(DetailKeyStyle.Render(fmt.Sprintf("Child Spans (%d):", len(m.spans))))
+		} else if len(m.Traces.Spans) > 0 {
+			b.WriteString(DetailKeyStyle.Render(fmt.Sprintf("Child Spans (%d):", len(m.Traces.Spans))))
 			b.WriteString("\n")
 			// Render waterfall visualization - use viewport width or default
-			waterfallWidth := m.viewport.Width
+			waterfallWidth := m.Components.Viewport.Width
 			if waterfallWidth < 60 {
 				waterfallWidth = 80
 			}
-			b.WriteString(renderSpanWaterfall(m.spans, waterfallWidth))
+			b.WriteString(renderSpanWaterfall(m.Traces.Spans, waterfallWidth))
 			b.WriteString("\n")
 		}
 

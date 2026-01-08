@@ -8,7 +8,7 @@ import "testing"
 func TestQuickBindings_PrependsHelpKey(t *testing.T) {
 	t.Parallel()
 
-	m := Model{mode: viewLogs}
+	m := Model{UI: UIState{Mode: viewLogs}}
 	b := m.QuickBindings()
 	if len(b) == 0 {
 		t.Fatalf("QuickBindings() returned empty")

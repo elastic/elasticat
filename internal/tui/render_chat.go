@@ -66,8 +66,8 @@ func (m Model) renderChatView(height int) string {
 	}
 
 	// Update viewport dimensions
-	m.chatViewport.Width = m.width - 4
-	m.chatViewport.Height = availableHeight
+	m.Chat.Viewport.Width = m.UI.Width - 4
+	m.Chat.Viewport.Height = availableHeight
 
 	// Chat title bar
 	title := chatTitleStyle.Render(" 💬 AI Chat (Agent Builder) ")
@@ -79,9 +79,9 @@ func (m Model) renderChatView(height int) string {
 	// Messages viewport
 	// Ensure the viewport area consumes its full height so the input stays pinned above the help bar.
 	messagesView := lipgloss.NewStyle().
-		Width(m.chatViewport.Width).
-		Height(m.chatViewport.Height).
-		Render(m.chatViewport.View())
+		Width(m.Chat.Viewport.Width).
+		Height(m.Chat.Viewport.Height).
+		Render(m.Chat.Viewport.View())
 	b.WriteString(messagesView)
 	b.WriteString("\n")
 
@@ -97,16 +97,16 @@ func (m Model) renderChatView(height int) string {
 	} else {
 		// Input area - style depends on whether we're in insert mode
 		var inputBox string
-		if m.chatInsertMode {
+		if m.Chat.InsertMode {
 			// Active: colored border, normal placeholder
-			inputBox = chatInputBorderStyle.Width(m.width - 6).Render(m.chatInput.View())
+			inputBox = chatInputBorderStyle.Width(m.UI.Width - 6).Render(m.Chat.Input.View())
 		} else {
 			// Inactive: gray border, hint to activate
 			inactiveHint := lipgloss.NewStyle().
 				Foreground(lipgloss.Color("240")).
 				Italic(true).
 				Render("Press 'i' or [Enter] to type...")
-			inputBox = chatInputBorderInactiveStyle.Width(m.width - 6).Render(inactiveHint)
+			inputBox = chatInputBorderInactiveStyle.Width(m.UI.Width - 6).Render(inactiveHint)
 		}
 		b.WriteString(inputBox)
 	}
@@ -119,16 +119,16 @@ func (m Model) renderChatView(height int) string {
 func (m Model) renderChatLoadingIndicator() string {
 	// Calculate elapsed time
 	elapsed := ""
-	if !m.chatRequestStart.IsZero() {
-		duration := time.Since(m.chatRequestStart)
+	if !m.Chat.RequestStart.IsZero() {
+		duration := time.Since(m.Chat.RequestStart)
 		elapsed = fmt.Sprintf(" (%.1fs)", duration.Seconds())
 	}
 
 	// Build message based on context
 	var message string
-	if m.chatAnalysisContext != "" {
+	if m.Chat.AnalysisContext != "" {
 		// Analyzing a specific item (from "C" key)
-		message = fmt.Sprintf("⏳ Analyzing the %s as requested...%s", m.chatAnalysisContext, elapsed)
+		message = fmt.Sprintf("⏳ Analyzing the %s as requested...%s", m.Chat.AnalysisContext, elapsed)
 	} else {
 		// Regular chat message
 		message = fmt.Sprintf("⏳ Thinking...%s", elapsed)
@@ -142,24 +142,24 @@ func (m Model) renderChatContextBar() string {
 	var parts []string
 
 	// Signal type context
-	if m.signalType != signalChat {
-		parts = append(parts, fmt.Sprintf("Signal: %s", m.signalType.String()))
+	if m.Filters.Signal != signalChat {
+		parts = append(parts, fmt.Sprintf("Signal: %s", m.Filters.Signal.String()))
 	}
 
 	// Time range
-	parts = append(parts, fmt.Sprintf("Time: %s", m.lookback.String()))
+	parts = append(parts, fmt.Sprintf("Time: %s", m.Filters.Lookback.String()))
 
 	// Filters
-	if m.filterService != "" {
+	if m.Filters.Service != "" {
 		prefix := "Service: "
-		if m.negateService {
+		if m.Filters.NegateService {
 			prefix = "Service (not): "
 		}
-		parts = append(parts, prefix+m.filterService)
+		parts = append(parts, prefix+m.Filters.Service)
 	}
 
-	if m.searchQuery != "" {
-		parts = append(parts, fmt.Sprintf("Query: %s", TruncateWithEllipsis(m.searchQuery, 20)))
+	if m.Filters.Query != "" {
+		parts = append(parts, fmt.Sprintf("Query: %s", TruncateWithEllipsis(m.Filters.Query, 20)))
 	}
 
 	if len(parts) == 0 {
@@ -171,14 +171,14 @@ func (m Model) renderChatContextBar() string {
 
 // renderChatMessages formats all chat messages for display.
 func (m Model) renderChatMessages() string {
-	if len(m.chatMessages) == 0 {
+	if len(m.Chat.Messages) == 0 {
 		return chatTimestampStyle.Render("No messages yet. Type a question to get started!")
 	}
 
 	var b strings.Builder
-	maxWidth := m.width - 8 // Leave some margin
+	maxWidth := m.UI.Width - 8 // Leave some margin
 
-	for i, msg := range m.chatMessages {
+	for i, msg := range m.Chat.Messages {
 		if i > 0 {
 			b.WriteString("\n\n")
 		}
@@ -223,11 +223,11 @@ func (m Model) renderChatMessages() string {
 
 // renderChatCompactDetail renders a compact preview below the chat (if needed).
 func (m Model) renderChatCompactDetail() string {
-	if m.chatLoading {
+	if m.Chat.Loading {
 		return chatLoadingStyle.Render("  Waiting for response...")
 	}
 
-	if len(m.chatMessages) == 0 {
+	if len(m.Chat.Messages) == 0 {
 		return chatTimestampStyle.Render("  Press 'i' or Enter to start typing")
 	}
 

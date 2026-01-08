@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/elastic/elasticat/internal/es/errfmt"
+	"github.com/elastic/elasticat/internal/es/shared"
 )
 
 // GetTailQueryJSON returns the JSON query body for a tail operation
@@ -103,286 +104,72 @@ func (c *Client) Search(ctx context.Context, queryStr string, opts SearchOptions
 
 // buildTailQuery constructs an ES query for tailing logs.
 //
-// DESIGN PRINCIPLE: Support Multiple Log Formats
-// The query uses "should" clauses with minimum_should_match for fields that
-// may appear in different locations depending on the log format (e.g., OTel
-// semconv vs. ECS vs. custom formats). This ensures we find logs regardless
-// of their structure.
+// Uses shared.FilterBuilder for common filter clauses.
 func buildTailQuery(opts TailOptions) map[string]interface{} {
-	must := []map[string]interface{}{}
-	mustNot := []map[string]interface{}{}
+	fb := shared.NewFilterBuilder()
 
-	// Time range filter - use Lookback if set, otherwise Since, otherwise default 1h
-	if opts.Lookback != "" || !opts.Since.IsZero() {
-		timeRange := map[string]interface{}{}
-		if opts.Lookback != "" {
-			timeRange["gte"] = opts.Lookback
-		} else if !opts.Since.IsZero() {
-			timeRange["gte"] = opts.Since.Format(time.RFC3339)
-		}
-		must = append(must, map[string]interface{}{
-			"range": map[string]interface{}{
-				"@timestamp": timeRange,
-			},
-		})
+	// Time range filter - use Lookback if set, otherwise Since
+	if opts.Lookback != "" {
+		fb.AddTimeRangeFilter(opts.Lookback, "")
+	} else if !opts.Since.IsZero() {
+		fb.AddTimeRangeFilter(opts.Since.Format(time.RFC3339), "")
 	}
 	// If both Lookback is empty and Since is zero, no time filter is applied (query all time)
 
-	// Service filter - check both OTel format (resource.attributes.service.name) and flat format
-	if opts.Service != "" {
-		serviceClause := map[string]interface{}{
-			"bool": map[string]interface{}{
-				"should": []map[string]interface{}{
-					{"term": map[string]interface{}{"resource.attributes.service.name": opts.Service}},
-					{"term": map[string]interface{}{"resource.service.name": opts.Service}},
-				},
-				"minimum_should_match": 1,
-			},
-		}
-		if opts.NegateService {
-			mustNot = append(mustNot, serviceClause)
-		} else {
-			must = append(must, serviceClause)
-		}
-	}
+	// Common filters
+	fb.AddServiceFilter(opts.Service, opts.NegateService)
+	fb.AddResourceFilter(opts.Resource, opts.NegateResource)
+	fb.AddLevelFilter(opts.Level)
+	fb.AddProcessorEventFilter(opts.ProcessorEvent)
+	fb.AddTransactionNameFilter(opts.TransactionName)
+	fb.AddTraceIDFilter(opts.TraceID)
 
-	// Resource filter - filter on deployment environment
-	if opts.Resource != "" {
-		resourceClause := map[string]interface{}{
-			"term": map[string]interface{}{
-				"resource.attributes.deployment.environment": opts.Resource,
-			},
-		}
-		if opts.NegateResource {
-			mustNot = append(mustNot, resourceClause)
-		} else {
-			must = append(must, resourceClause)
-		}
-	}
-
-	// Level filter - check both severity_text (OTel) and level
-	if opts.Level != "" {
-		must = append(must, map[string]interface{}{
-			"bool": map[string]interface{}{
-				"should": []map[string]interface{}{
-					{"term": map[string]interface{}{"severity_text": opts.Level}},
-					{"term": map[string]interface{}{"level": opts.Level}},
-				},
-				"minimum_should_match": 1,
-			},
-		})
-	}
-
-	// Container ID filter
-	if opts.ContainerID != "" {
-		must = append(must, map[string]interface{}{
-			"prefix": map[string]interface{}{
-				"container_id": opts.ContainerID,
-			},
-		})
-	}
-
-	// Processor event filter (e.g., "transaction" for traces)
-	if opts.ProcessorEvent != "" {
-		must = append(must, map[string]interface{}{
-			"term": map[string]interface{}{
-				"attributes.processor.event": opts.ProcessorEvent,
-			},
-		})
-	}
-
-	// Transaction name filter (for traces)
-	if opts.TransactionName != "" {
-		must = append(must, map[string]interface{}{
-			"bool": map[string]interface{}{
-				"should": []map[string]interface{}{
-					{"term": map[string]interface{}{"transaction.name": opts.TransactionName}},
-					{"term": map[string]interface{}{"name": opts.TransactionName}},
-				},
-				"minimum_should_match": 1,
-			},
-		})
-	}
-
-	// Trace ID filter (for viewing all spans in a trace)
-	if opts.TraceID != "" {
-		must = append(must, map[string]interface{}{
-			"term": map[string]interface{}{
-				"trace_id": opts.TraceID,
-			},
-		})
-	}
-
-	// Metric field filter (for metric detail view - filter docs containing this metric)
-	if opts.MetricField != "" {
-		must = append(must, map[string]interface{}{
-			"exists": map[string]interface{}{
-				"field": opts.MetricField,
-			},
-		})
-	}
+	// Tail-specific filters
+	fb.AddPrefixFilter("container_id", opts.ContainerID)
+	fb.AddExistsFilter(opts.MetricField)
 
 	if opts.Size == 0 {
 		opts.Size = 100
 	}
 
-	boolQuery := map[string]interface{}{
-		"must": must,
-	}
-	if len(mustNot) > 0 {
-		boolQuery["must_not"] = mustNot
-	}
-
-	return map[string]interface{}{
-		"query": map[string]interface{}{
-			"bool": boolQuery,
-		},
-	}
+	return fb.Build()
 }
 
 // buildSearchQuery constructs an ES query for searching logs.
 //
-// DESIGN PRINCIPLE: Support Multiple Log Formats
-// Uses multi_match across configured search fields to find text.
-// If no search fields are provided, defaults to common message fields.
-// Service/level filters check multiple possible field paths.
+// Uses shared.FilterBuilder for common filter clauses.
 func buildSearchQuery(queryStr string, opts SearchOptions) map[string]interface{} {
-	must := []map[string]interface{}{}
-	mustNot := []map[string]interface{}{}
+	fb := shared.NewFilterBuilder()
 
-	// Full-text search across configured fields
-	if queryStr != "" {
-		// Use provided search fields, or fall back to defaults
-		searchFields := opts.SearchFields
-		if len(searchFields) == 0 {
-			searchFields = []string{"body.text", "body", "message", "event_name"}
-		}
-
-		// Use query_string for flexible searching that works with both
-		// analyzed (text) and non-analyzed (keyword) fields
-		// Wrap the query in wildcards for partial matching on keyword fields
-		wildcardQuery := "*" + queryStr + "*"
-
-		must = append(must, map[string]interface{}{
-			"query_string": map[string]interface{}{
-				"query":            wildcardQuery,
-				"fields":           searchFields,
-				"default_operator": "AND",
-				"analyze_wildcard": true,
-			},
-		})
-	}
+	// Full-text search
+	fb.AddQueryString(queryStr, opts.SearchFields)
 
 	// Time range - prefer Lookback, then From/To
-	timeRange := map[string]interface{}{}
+	gte := ""
+	lte := ""
 	if opts.Lookback != "" {
-		timeRange["gte"] = opts.Lookback
+		gte = opts.Lookback
 	} else if !opts.From.IsZero() {
-		timeRange["gte"] = opts.From.Format(time.RFC3339)
+		gte = opts.From.Format(time.RFC3339)
 	}
 	if !opts.To.IsZero() {
-		timeRange["lte"] = opts.To.Format(time.RFC3339)
+		lte = opts.To.Format(time.RFC3339)
 	}
-	if len(timeRange) > 0 {
-		must = append(must, map[string]interface{}{
-			"range": map[string]interface{}{
-				"@timestamp": timeRange,
-			},
-		})
-	}
+	fb.AddTimeRangeFilter(gte, lte)
 
-	// Service filter - check both OTel format and flat format
-	if opts.Service != "" {
-		serviceClause := map[string]interface{}{
-			"bool": map[string]interface{}{
-				"should": []map[string]interface{}{
-					{"term": map[string]interface{}{"resource.attributes.service.name": opts.Service}},
-					{"term": map[string]interface{}{"resource.service.name": opts.Service}},
-				},
-				"minimum_should_match": 1,
-			},
-		}
-		if opts.NegateService {
-			mustNot = append(mustNot, serviceClause)
-		} else {
-			must = append(must, serviceClause)
-		}
-	}
-
-	// Resource filter - filter on deployment environment
-	if opts.Resource != "" {
-		resourceClause := map[string]interface{}{
-			"term": map[string]interface{}{
-				"resource.attributes.deployment.environment": opts.Resource,
-			},
-		}
-		if opts.NegateResource {
-			mustNot = append(mustNot, resourceClause)
-		} else {
-			must = append(must, resourceClause)
-		}
-	}
-
-	// Level filter - check both severity_text (OTel) and level
-	if opts.Level != "" {
-		must = append(must, map[string]interface{}{
-			"bool": map[string]interface{}{
-				"should": []map[string]interface{}{
-					{"term": map[string]interface{}{"severity_text": opts.Level}},
-					{"term": map[string]interface{}{"level": opts.Level}},
-				},
-				"minimum_should_match": 1,
-			},
-		})
-	}
-
-	// Processor event filter (e.g., "transaction" for traces)
-	if opts.ProcessorEvent != "" {
-		must = append(must, map[string]interface{}{
-			"term": map[string]interface{}{
-				"attributes.processor.event": opts.ProcessorEvent,
-			},
-		})
-	}
-
-	// Transaction name filter (for traces)
-	if opts.TransactionName != "" {
-		must = append(must, map[string]interface{}{
-			"bool": map[string]interface{}{
-				"should": []map[string]interface{}{
-					{"term": map[string]interface{}{"transaction.name": opts.TransactionName}},
-					{"term": map[string]interface{}{"name": opts.TransactionName}},
-				},
-				"minimum_should_match": 1,
-			},
-		})
-	}
-
-	// Trace ID filter (for viewing all spans in a trace)
-	if opts.TraceID != "" {
-		must = append(must, map[string]interface{}{
-			"term": map[string]interface{}{
-				"trace_id": opts.TraceID,
-			},
-		})
-	}
+	// Common filters
+	fb.AddServiceFilter(opts.Service, opts.NegateService)
+	fb.AddResourceFilter(opts.Resource, opts.NegateResource)
+	fb.AddLevelFilter(opts.Level)
+	fb.AddProcessorEventFilter(opts.ProcessorEvent)
+	fb.AddTransactionNameFilter(opts.TransactionName)
+	fb.AddTraceIDFilter(opts.TraceID)
 
 	if opts.Size == 0 {
 		opts.Size = 100
 	}
 
-	boolQuery := map[string]interface{}{
-		"must": must,
-	}
-	if len(mustNot) > 0 {
-		boolQuery["must_not"] = mustNot
-	}
-
-	return map[string]interface{}{
-		"query": map[string]interface{}{
-			"bool": boolQuery,
-		},
-	}
+	return fb.Build()
 }
 
 func parseSearchResponse(body io.Reader) (*SearchResult, error) {

@@ -69,21 +69,8 @@ func NewWithOptions(opts ClientOptions) (*Client, error) {
 	}, nil
 }
 
-// New creates a new Elasticsearch client (for backwards compatibility).
-func New(addresses []string, index string) (*Client, error) {
-	return NewWithOptions(ClientOptions{
-		Addresses: addresses,
-		Index:     index,
-	})
-}
-
-// NewDefault creates a client with default localhost configuration
-func NewDefault() (*Client, error) {
-	return New([]string{"http://localhost:9200"}, "logs")
-}
-
 // NewFromConfig creates a client from the application config.
-// This is the recommended way to create clients as it includes auth settings.
+// This is the recommended constructor as it includes auth settings.
 func NewFromConfig(url, index, apiKey, username, password string) (*Client, error) {
 	return NewWithOptions(ClientOptions{
 		Addresses: []string{url},

@@ -16,20 +16,20 @@ func (m Model) handleCredsModalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch action {
 	case ActionBack:
-		// Dismiss modal and clear lastKibanaURL
-		m.lastKibanaURL = ""
+		// Dismiss modal and clear Creds.LastKibanaURL
+		m.Creds.LastKibanaURL = ""
 		m.popView()
 		return m, nil
 	case ActionSelect:
 		// Open browser with the Kibana URL (keep modal open)
-		if m.lastKibanaURL != "" {
+		if m.Creds.LastKibanaURL != "" {
 			m.openLastKibanaURL()
 		}
 		return m, nil
 	case ActionCopy:
 		// Copy URL to clipboard
-		if m.lastKibanaURL != "" {
-			m.copyToClipboard(m.lastKibanaURL, "URL copied to clipboard!")
+		if m.Creds.LastKibanaURL != "" {
+			m.copyToClipboard(m.Creds.LastKibanaURL, "URL copied to clipboard!")
 		}
 		return m, nil
 	}
@@ -37,11 +37,11 @@ func (m Model) handleCredsModalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch key {
 	case "n":
 		// Never show again this session
-		m.hideCredsModal = true
-		m.lastKibanaURL = ""
+		m.Creds.HideModal = true
+		m.Creds.LastKibanaURL = ""
 		m.popView()
-		m.statusMessage = "Use 'elasticat creds' to view credentials"
-		m.statusTime = time.Now()
+		m.UI.StatusMessage = "Use 'elasticat creds' to view credentials"
+		m.UI.StatusTime = time.Now()
 		return m, nil
 	case "p":
 		// Copy password to clipboard
@@ -55,11 +55,11 @@ func (m Model) handleCredsModalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // showCredsModal pushes the credentials modal onto the view stack.
-// Does nothing if hideCredsModal is true (user opted out for this session).
+// Does nothing if Creds.HideModal is true (user opted out for this session).
 func (m *Model) showCredsModal() {
-	if m.hideCredsModal {
+	if m.Creds.HideModal {
 		// If user opted out, just open the browser directly
-		if m.lastKibanaURL != "" {
+		if m.Creds.LastKibanaURL != "" {
 			m.openLastKibanaURL()
 		}
 		return

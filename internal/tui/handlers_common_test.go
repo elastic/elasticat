@@ -96,40 +96,40 @@ func TestPushView(t *testing.T) {
 
 	t.Run("pushes view onto stack and changes mode", func(t *testing.T) {
 		t.Parallel()
-		m := Model{mode: viewLogs}
+		m := Model{UI: UIState{Mode: viewLogs}}
 
 		m.pushView(viewDetail)
 
-		if m.mode != viewDetail {
-			t.Errorf("mode = %v, want %v", m.mode, viewDetail)
+		if m.UI.Mode != viewDetail {
+			t.Errorf("mode = %v, want %v", m.UI.Mode, viewDetail)
 		}
-		if len(m.viewStack) != 1 {
-			t.Errorf("viewStack len = %d, want 1", len(m.viewStack))
+		if len(m.UI.ViewStack) != 1 {
+			t.Errorf("viewStack len = %d, want 1", len(m.UI.ViewStack))
 		}
-		if m.viewStack[0].Mode != viewLogs {
-			t.Errorf("viewStack[0].Mode = %v, want %v", m.viewStack[0].Mode, viewLogs)
+		if m.UI.ViewStack[0].Mode != viewLogs {
+			t.Errorf("viewStack[0].Mode = %v, want %v", m.UI.ViewStack[0].Mode, viewLogs)
 		}
 	})
 
 	t.Run("multiple pushes grow stack correctly", func(t *testing.T) {
 		t.Parallel()
-		m := Model{mode: viewLogs}
+		m := Model{UI: UIState{Mode: viewLogs}}
 
 		m.pushView(viewDetail)
 		m.pushView(viewDetailJSON)
 		m.pushView(viewHelp)
 
-		if m.mode != viewHelp {
-			t.Errorf("mode = %v, want %v", m.mode, viewHelp)
+		if m.UI.Mode != viewHelp {
+			t.Errorf("mode = %v, want %v", m.UI.Mode, viewHelp)
 		}
-		if len(m.viewStack) != 3 {
-			t.Errorf("viewStack len = %d, want 3", len(m.viewStack))
+		if len(m.UI.ViewStack) != 3 {
+			t.Errorf("viewStack len = %d, want 3", len(m.UI.ViewStack))
 		}
 		// Stack should be: [viewLogs, viewDetail, viewDetailJSON]
 		expected := []viewMode{viewLogs, viewDetail, viewDetailJSON}
 		for i, exp := range expected {
-			if m.viewStack[i].Mode != exp {
-				t.Errorf("viewStack[%d].Mode = %v, want %v", i, m.viewStack[i].Mode, exp)
+			if m.UI.ViewStack[i].Mode != exp {
+				t.Errorf("viewStack[%d].Mode = %v, want %v", i, m.UI.ViewStack[i].Mode, exp)
 			}
 		}
 	})
@@ -140,7 +140,7 @@ func TestPopView(t *testing.T) {
 
 	t.Run("pops view from stack and restores mode", func(t *testing.T) {
 		t.Parallel()
-		m := Model{mode: viewLogs}
+		m := Model{UI: UIState{Mode: viewLogs}}
 		m.pushView(viewDetail)
 
 		ok := m.popView()
@@ -148,51 +148,51 @@ func TestPopView(t *testing.T) {
 		if !ok {
 			t.Error("popView returned false, want true")
 		}
-		if m.mode != viewLogs {
-			t.Errorf("mode = %v, want %v", m.mode, viewLogs)
+		if m.UI.Mode != viewLogs {
+			t.Errorf("mode = %v, want %v", m.UI.Mode, viewLogs)
 		}
-		if len(m.viewStack) != 0 {
-			t.Errorf("viewStack len = %d, want 0", len(m.viewStack))
+		if len(m.UI.ViewStack) != 0 {
+			t.Errorf("viewStack len = %d, want 0", len(m.UI.ViewStack))
 		}
 	})
 
 	t.Run("returns false on empty stack", func(t *testing.T) {
 		t.Parallel()
-		m := Model{mode: viewLogs}
+		m := Model{UI: UIState{Mode: viewLogs}}
 
 		ok := m.popView()
 
 		if ok {
 			t.Error("popView returned true on empty stack, want false")
 		}
-		if m.mode != viewLogs {
-			t.Errorf("mode changed unexpectedly: got %v, want %v", m.mode, viewLogs)
+		if m.UI.Mode != viewLogs {
+			t.Errorf("mode changed unexpectedly: got %v, want %v", m.UI.Mode, viewLogs)
 		}
 	})
 
 	t.Run("multiple pops restore in correct order", func(t *testing.T) {
 		t.Parallel()
-		m := Model{mode: viewLogs}
+		m := Model{UI: UIState{Mode: viewLogs}}
 		m.pushView(viewDetail)
 		m.pushView(viewDetailJSON)
 		m.pushView(viewHelp)
 
 		// Pop viewHelp -> viewDetailJSON
 		m.popView()
-		if m.mode != viewDetailJSON {
-			t.Errorf("after first pop: mode = %v, want %v", m.mode, viewDetailJSON)
+		if m.UI.Mode != viewDetailJSON {
+			t.Errorf("after first pop: mode = %v, want %v", m.UI.Mode, viewDetailJSON)
 		}
 
 		// Pop viewDetailJSON -> viewDetail
 		m.popView()
-		if m.mode != viewDetail {
-			t.Errorf("after second pop: mode = %v, want %v", m.mode, viewDetail)
+		if m.UI.Mode != viewDetail {
+			t.Errorf("after second pop: mode = %v, want %v", m.UI.Mode, viewDetail)
 		}
 
 		// Pop viewDetail -> viewLogs
 		m.popView()
-		if m.mode != viewLogs {
-			t.Errorf("after third pop: mode = %v, want %v", m.mode, viewLogs)
+		if m.UI.Mode != viewLogs {
+			t.Errorf("after third pop: mode = %v, want %v", m.UI.Mode, viewLogs)
 		}
 
 		// Fourth pop should fail (empty)
@@ -208,7 +208,7 @@ func TestPeekViewStack(t *testing.T) {
 
 	t.Run("returns top of stack without modifying it", func(t *testing.T) {
 		t.Parallel()
-		m := Model{mode: viewLogs}
+		m := Model{UI: UIState{Mode: viewLogs}}
 		m.pushView(viewDetail)
 		m.pushView(viewHelp)
 
@@ -218,17 +218,17 @@ func TestPeekViewStack(t *testing.T) {
 			t.Errorf("peekViewStack = %v, want %v", peeked, viewDetail)
 		}
 		// Stack should be unchanged
-		if len(m.viewStack) != 2 {
-			t.Errorf("viewStack len = %d, want 2 (should not be modified)", len(m.viewStack))
+		if len(m.UI.ViewStack) != 2 {
+			t.Errorf("viewStack len = %d, want 2 (should not be modified)", len(m.UI.ViewStack))
 		}
-		if m.mode != viewHelp {
-			t.Errorf("mode = %v, want %v (should not be modified)", m.mode, viewHelp)
+		if m.UI.Mode != viewHelp {
+			t.Errorf("mode = %v, want %v (should not be modified)", m.UI.Mode, viewHelp)
 		}
 	})
 
 	t.Run("returns current mode on empty stack", func(t *testing.T) {
 		t.Parallel()
-		m := Model{mode: viewMetricsDashboard}
+		m := Model{UI: UIState{Mode: viewMetricsDashboard}}
 
 		peeked := m.peekViewStack()
 
@@ -243,29 +243,29 @@ func TestClearViewStack(t *testing.T) {
 
 	t.Run("clears non-empty stack", func(t *testing.T) {
 		t.Parallel()
-		m := Model{mode: viewLogs}
+		m := Model{UI: UIState{Mode: viewLogs}}
 		m.pushView(viewDetail)
 		m.pushView(viewHelp)
 
 		m.clearViewStack()
 
-		if len(m.viewStack) != 0 {
-			t.Errorf("viewStack len = %d, want 0", len(m.viewStack))
+		if len(m.UI.ViewStack) != 0 {
+			t.Errorf("viewStack len = %d, want 0", len(m.UI.ViewStack))
 		}
 		// Mode should not be changed by clear
-		if m.mode != viewHelp {
-			t.Errorf("mode = %v, want %v (should not be modified)", m.mode, viewHelp)
+		if m.UI.Mode != viewHelp {
+			t.Errorf("mode = %v, want %v (should not be modified)", m.UI.Mode, viewHelp)
 		}
 	})
 
 	t.Run("no-op on empty stack", func(t *testing.T) {
 		t.Parallel()
-		m := Model{mode: viewLogs}
+		m := Model{UI: UIState{Mode: viewLogs}}
 
 		m.clearViewStack()
 
-		if len(m.viewStack) != 0 {
-			t.Errorf("viewStack len = %d, want 0", len(m.viewStack))
+		if len(m.UI.ViewStack) != 0 {
+			t.Errorf("viewStack len = %d, want 0", len(m.UI.ViewStack))
 		}
 	})
 }

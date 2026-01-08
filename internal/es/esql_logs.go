@@ -14,8 +14,10 @@ import (
 	"time"
 
 	"github.com/elastic/elasticat/internal/es/shared"
-	"github.com/elastic/elasticat/internal/es/traces"
 )
+
+// escapeESQLString is a local alias for shared.EscapeESQLString for brevity.
+var escapeESQLString = shared.EscapeESQLString
 
 // TailESQL retrieves the most recent documents via ES|QL using TailOptions.
 // Returns the SearchResult plus the rendered ES|QL query string for display.
@@ -126,7 +128,7 @@ func buildCommonFilters(opts commonFilterOptions) esqlFilters {
 
 	// Time filters
 	if opts.lookback != "" {
-		whereParts = append(whereParts, fmt.Sprintf("@timestamp >= NOW() - %s", traces.LookbackToESQLInterval(opts.lookback)))
+		whereParts = append(whereParts, fmt.Sprintf("@timestamp >= NOW() - %s", shared.LookbackToESQLInterval(opts.lookback)))
 	}
 	if !opts.from.IsZero() {
 		whereParts = append(whereParts, fmt.Sprintf("@timestamp >= TIMESTAMP(\"%s\")", opts.from.Format(time.RFC3339)))
@@ -423,8 +425,4 @@ func buildSearchClause(query string, fields []string) string {
 		parts = append(parts, fmt.Sprintf("COALESCE(%s, \"\") LIKE \"*%s*\"", f, q))
 	}
 	return "(" + strings.Join(parts, " OR ") + ")"
-}
-
-func escapeESQLString(s string) string {
-	return strings.ReplaceAll(s, "\"", "\\\"")
 }

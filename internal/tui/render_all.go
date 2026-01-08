@@ -19,7 +19,7 @@ func (m Model) renderBase(mode viewMode) string {
 		helpHeight = 1
 	}
 
-	bodyHeight := m.height - helpHeight
+	bodyHeight := m.UI.Height - helpHeight
 	if bodyHeight < 0 {
 		bodyHeight = 0
 	}
@@ -118,7 +118,7 @@ func (m Model) renderBase(mode viewMode) string {
 		body.WriteString(m.renderChatView(remainingHeight))
 	}
 
-	placedBody := lipgloss.Place(m.width, bodyHeight, lipgloss.Left, lipgloss.Top, body.String())
+	placedBody := lipgloss.Place(m.UI.Width, bodyHeight, lipgloss.Left, lipgloss.Top, body.String())
 	full := lipgloss.JoinVertical(lipgloss.Left, placedBody, help)
 	return AppStyle.Render(full)
 }
@@ -153,33 +153,33 @@ func boolToInt(b bool) int {
 // - formatting_charts.go: renderLargeChart
 // - formatting_text.go: PadLeft, TruncateWithEllipsis, PadOrTruncate
 func (m Model) View() string {
-	if m.width == 0 {
+	if m.UI.Width == 0 {
 		return "Loading..."
 	}
 
 	// Main content based on mode
-	switch m.mode {
+	switch m.UI.Mode {
 	case viewLogs, viewSearch, viewIndex, viewQuery:
-		return m.renderBase(m.mode)
+		return m.renderBase(m.UI.Mode)
 	case viewDetail, viewDetailJSON:
-		return m.renderBase(m.mode)
+		return m.renderBase(m.UI.Mode)
 	case viewFields:
-		return m.renderBase(m.mode)
+		return m.renderBase(m.UI.Mode)
 	case viewMetricsDashboard:
-		return m.renderBase(m.mode)
+		return m.renderBase(m.UI.Mode)
 	case viewMetricDetail:
-		return m.renderBase(m.mode)
+		return m.renderBase(m.UI.Mode)
 	case viewTraceNames:
-		return m.renderBase(m.mode)
+		return m.renderBase(m.UI.Mode)
 	case viewPerspectiveList:
-		return m.renderBase(m.mode)
+		return m.renderBase(m.UI.Mode)
 	case viewChat:
-		return m.renderBase(m.mode)
+		return m.renderBase(m.UI.Mode)
 	case viewErrorModal:
 		// Use lipgloss.Place to properly overlay the modal in the center of the screen
 		modal := m.renderErrorModal()
 		overlay := lipgloss.Place(
-			m.width, m.height,
+			m.UI.Width, m.UI.Height,
 			lipgloss.Center, lipgloss.Center,
 			modal,
 		)
@@ -188,7 +188,7 @@ func (m Model) View() string {
 		// Use lipgloss.Place to properly overlay the modal in the center of the screen
 		modal := m.renderQuitConfirmModal()
 		overlay := lipgloss.Place(
-			m.width, m.height,
+			m.UI.Width, m.UI.Height,
 			lipgloss.Center, lipgloss.Center,
 			modal,
 		)
@@ -197,40 +197,40 @@ func (m Model) View() string {
 		// Render previous mode as background, then overlay help content
 		base := m.renderBase(m.peekViewStack())
 		modal := lipgloss.Place(
-			m.width, m.height,
+			m.UI.Width, m.UI.Height,
 			lipgloss.Center, lipgloss.Center,
 			m.renderHelpOverlay(),
 		)
-		return overlayCenter(base, modal, m.width, m.height)
+		return overlayCenter(base, modal, m.UI.Width, m.UI.Height)
 	case viewCredsModal:
 		// Render previous mode as background, then overlay credentials modal
 		base := m.renderBase(m.peekViewStack())
 		modal := lipgloss.Place(
-			m.width, m.height,
+			m.UI.Width, m.UI.Height,
 			lipgloss.Center, lipgloss.Center,
 			m.renderCredsModal(),
 		)
-		return overlayCenter(base, modal, m.width, m.height)
+		return overlayCenter(base, modal, m.UI.Width, m.UI.Height)
 	case viewOtelConfigExplain:
 		// Render previous mode as background, then overlay explanation modal
 		base := m.renderBase(m.peekViewStack())
 		modal := lipgloss.Place(
-			m.width, m.height,
+			m.UI.Width, m.UI.Height,
 			lipgloss.Center, lipgloss.Center,
 			m.renderOtelConfigExplainModal(),
 		)
-		return overlayCenter(base, modal, m.width, m.height)
+		return overlayCenter(base, modal, m.UI.Width, m.UI.Height)
 	case viewOtelConfigModal:
 		// Render previous mode as background, then overlay OTel config modal
 		base := m.renderBase(m.peekViewStack())
 		modal := lipgloss.Place(
-			m.width, m.height,
+			m.UI.Width, m.UI.Height,
 			lipgloss.Center, lipgloss.Center,
 			m.renderOtelConfigModal(),
 		)
-		return overlayCenter(base, modal, m.width, m.height)
+		return overlayCenter(base, modal, m.UI.Width, m.UI.Height)
 	}
-	return m.renderBase(m.mode)
+	return m.renderBase(m.UI.Mode)
 }
 
 // overlayCenter overlays 'top' onto 'base' by replacing centered lines, preserving background elsewhere.

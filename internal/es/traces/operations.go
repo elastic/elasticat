@@ -14,35 +14,11 @@ import (
 	"github.com/elastic/elasticat/internal/es/shared"
 )
 
-// LookbackToESQLInterval converts a lookback string (e.g., "now-5m") to ES|QL format (e.g., "5 minutes")
-// ES|QL requires full unit names, not abbreviations
+// LookbackToESQLInterval converts a lookback string (e.g., "now-5m") to ES|QL format (e.g., "5 minutes").
+// ES|QL requires full unit names, not abbreviations.
+// Deprecated: Use shared.LookbackToESQLInterval instead. This wrapper is kept for backward compatibility.
 func LookbackToESQLInterval(lookback string) string {
-	switch lookback {
-	case "now-5m":
-		return "5 minutes"
-	case "now-10m":
-		return "10 minutes"
-	case "now-15m":
-		return "15 minutes"
-	case "now-30m":
-		return "30 minutes"
-	case "now-1h":
-		return "1 hour"
-	case "now-3h":
-		return "3 hours"
-	case "now-6h":
-		return "6 hours"
-	case "now-12h":
-		return "12 hours"
-	case "now-24h":
-		return "24 hours"
-	case "now-1d":
-		return "24 hours"
-	case "now-1w":
-		return "7 days"
-	default:
-		return "24 hours" // Default
-	}
+	return shared.LookbackToESQLInterval(lookback)
 }
 
 // GetNames returns aggregated transaction names with statistics using QueryDSL

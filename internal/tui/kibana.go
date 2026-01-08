@@ -107,30 +107,30 @@ func (l LookbackDuration) KibanaTimeFrom() string {
 // prepareKibanaURL builds the Kibana Discover URL for the current query and stores it.
 // Does not open the browser - call openLastKibanaURL() for that.
 func (m *Model) prepareKibanaURL() bool {
-	if m.lastQueryJSON == "" {
-		m.statusMessage = "No query to open in Kibana"
-		m.statusTime = time.Now()
+	if m.Query.LastJSON == "" {
+		m.UI.StatusMessage = "No query to open in Kibana"
+		m.UI.StatusTime = time.Now()
 		return false
 	}
 
-	m.lastKibanaURL = buildKibanaDiscoverURL(m.kibanaURL, m.kibanaSpace, m.lastQueryJSON, m.lookback)
+	m.Creds.LastKibanaURL = buildKibanaDiscoverURL(m.kibanaURL, m.kibanaSpace, m.Query.LastJSON, m.Filters.Lookback)
 	return true
 }
 
 // openLastKibanaURL opens the lastKibanaURL in the system browser.
 func (m *Model) openLastKibanaURL() {
-	if m.lastKibanaURL == "" {
-		m.statusMessage = "No Kibana URL to open"
-		m.statusTime = time.Now()
+	if m.Creds.LastKibanaURL == "" {
+		m.UI.StatusMessage = "No Kibana URL to open"
+		m.UI.StatusTime = time.Now()
 		return
 	}
 
-	if err := openURLInBrowser(m.lastKibanaURL); err != nil {
-		m.statusMessage = fmt.Sprintf("Failed to open browser: %v", err)
+	if err := openURLInBrowser(m.Creds.LastKibanaURL); err != nil {
+		m.UI.StatusMessage = fmt.Sprintf("Failed to open browser: %v", err)
 	} else {
-		m.statusMessage = "Opened in Kibana"
+		m.UI.StatusMessage = "Opened in Kibana"
 	}
-	m.statusTime = time.Now()
+	m.UI.StatusTime = time.Now()
 }
 
 // prepareMetricKibanaURL builds a Kibana URL for a specific metric and stores it.
@@ -141,8 +141,8 @@ func (m *Model) openLastKibanaURL() {
 // Does not open the browser - call openLastKibanaURL() for that.
 func (m *Model) prepareMetricKibanaURL(metricName, metricType string) {
 	index := m.client.GetIndex()
-	esqlInterval := m.lookback.ToESQLInterval()
-	bucketInterval := m.lookback.ToESQLBucketInterval()
+	esqlInterval := m.Filters.Lookback.ToESQLInterval()
+	bucketInterval := m.Filters.Lookback.ToESQLBucketInterval()
 
 	var query string
 
@@ -174,7 +174,7 @@ func (m *Model) prepareMetricKibanaURL(metricName, metricType string) {
 			index, esqlInterval, metricName, bucketInterval)
 	}
 
-	m.lastKibanaURL = buildKibanaDiscoverURL(m.kibanaURL, m.kibanaSpace, query, m.lookback)
+	m.Creds.LastKibanaURL = buildKibanaDiscoverURL(m.kibanaURL, m.kibanaSpace, query, m.Filters.Lookback)
 }
 
 // prepareTraceKibanaURL builds a Kibana URL for a specific trace ID and stores it.
@@ -182,13 +182,13 @@ func (m *Model) prepareMetricKibanaURL(metricName, metricType string) {
 // Does not open the browser - call openLastKibanaURL() for that.
 func (m *Model) prepareTraceKibanaURL(traceID string) bool {
 	if traceID == "" {
-		m.statusMessage = "No trace ID to open in Kibana"
-		m.statusTime = time.Now()
+		m.UI.StatusMessage = "No trace ID to open in Kibana"
+		m.UI.StatusTime = time.Now()
 		return false
 	}
 
 	index := m.client.GetIndex()
-	esqlInterval := m.lookback.ToESQLInterval()
+	esqlInterval := m.Filters.Lookback.ToESQLInterval()
 
 	// Query with both trace.id and trace_id field variants for compatibility
 	query := fmt.Sprintf(`FROM %s
@@ -197,7 +197,7 @@ func (m *Model) prepareTraceKibanaURL(traceID string) bool {
 | LIMIT 1000`,
 		index, esqlInterval, traceID, traceID)
 
-	m.lastKibanaURL = buildKibanaDiscoverURL(m.kibanaURL, m.kibanaSpace, query, m.lookback)
+	m.Creds.LastKibanaURL = buildKibanaDiscoverURL(m.kibanaURL, m.kibanaSpace, query, m.Filters.Lookback)
 	return true
 }
 

@@ -20,13 +20,13 @@ func (m Model) handleMetricsDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Calculate list length for navigation
 	listLen := 0
-	if m.aggregatedMetrics != nil {
-		listLen = len(m.aggregatedMetrics.Metrics)
+	if m.Metrics.Aggregated != nil {
+		listLen = len(m.Metrics.Aggregated.Metrics)
 	}
 
 	// Handle list navigation
 	if isNavKey(key) {
-		m.metricsCursor = listNav(m.metricsCursor, listLen, key)
+		m.Metrics.Cursor = listNav(m.Metrics.Cursor, listLen, key)
 		return m, nil
 	}
 
@@ -36,19 +36,19 @@ func (m Model) handleMetricsDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case ActionSelect:
 		// Enter detail view for the selected metric
-		if m.aggregatedMetrics != nil && m.metricsCursor < len(m.aggregatedMetrics.Metrics) {
+		if m.Metrics.Aggregated != nil && m.Metrics.Cursor < len(m.Metrics.Aggregated.Metrics) {
 			m.pushView(viewMetricDetail)
-			m.metricDetailDocCursor = 0
-			m.metricDetailDocsLoading = true
+			m.Metrics.DetailDocCursor = 0
+			m.Metrics.DetailDocsLoading = true
 			m.updateMetricDetailViewport() // Initialize viewport with current content
 			return m, m.fetchMetricDetailDocs()
 		}
 	case ActionRefresh:
-		m.metricsLoading = true
+		m.Metrics.Loading = true
 		return m, m.fetchAggregatedMetrics()
 	case ActionSearch:
 		m.pushView(viewSearch)
-		m.searchInput.Focus()
+		m.Components.SearchInput.Focus()
 		return m, textinput.Blink
 	case ActionQuit:
 		return m, tea.Quit
@@ -60,9 +60,9 @@ func (m Model) handleMetricsDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch key {
 	case "d":
 		// Switch to document view
-		m.metricsViewMode = metricsViewDocuments
-		m.mode = viewLogs
-		m.loading = true
+		m.Metrics.ViewMode = metricsViewDocuments
+		m.UI.Mode = viewLogs
+		m.UI.Loading = true
 		return m, m.fetchLogs()
 	}
 
@@ -80,57 +80,57 @@ func (m Model) handleMetricDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case ActionPrevItem:
 		// Previous metric (and re-fetch docs)
-		if m.metricsCursor > 0 {
-			m.metricsCursor--
-			m.metricDetailDocCursor = 0
-			m.metricDetailDocsLoading = true
+		if m.Metrics.Cursor > 0 {
+			m.Metrics.Cursor--
+			m.Metrics.DetailDocCursor = 0
+			m.Metrics.DetailDocsLoading = true
 			m.updateMetricDetailViewport()
 			return m, m.fetchMetricDetailDocs()
 		}
 	case ActionNextItem:
 		// Next metric (and re-fetch docs)
-		if m.aggregatedMetrics != nil && m.metricsCursor < len(m.aggregatedMetrics.Metrics)-1 {
-			m.metricsCursor++
-			m.metricDetailDocCursor = 0
-			m.metricDetailDocsLoading = true
+		if m.Metrics.Aggregated != nil && m.Metrics.Cursor < len(m.Metrics.Aggregated.Metrics)-1 {
+			m.Metrics.Cursor++
+			m.Metrics.DetailDocCursor = 0
+			m.Metrics.DetailDocsLoading = true
 			m.updateMetricDetailViewport()
 			return m, m.fetchMetricDetailDocs()
 		}
 	case ActionPrevDoc:
 		// Previous doc (N)
-		if m.metricDetailDocCursor > 0 {
-			m.metricDetailDocCursor--
+		if m.Metrics.DetailDocCursor > 0 {
+			m.Metrics.DetailDocCursor--
 			m.updateMetricDetailViewport()
 		}
 		return m, nil
 	case ActionNextDoc:
 		// Next doc (n)
-		if m.metricDetailDocCursor < len(m.metricDetailDocs)-1 {
-			m.metricDetailDocCursor++
+		if m.Metrics.DetailDocCursor < len(m.Metrics.DetailDocs)-1 {
+			m.Metrics.DetailDocCursor++
 			m.updateMetricDetailViewport()
 		}
 		return m, nil
 	case ActionCopy:
 		// Copy current doc JSON to clipboard
-		if len(m.metricDetailDocs) > 0 && m.metricDetailDocCursor < len(m.metricDetailDocs) {
-			m.copyToClipboard(es.PrettyJSON(m.metricDetailDocs[m.metricDetailDocCursor].RawJSON), "Copied JSON to clipboard!")
+		if len(m.Metrics.DetailDocs) > 0 && m.Metrics.DetailDocCursor < len(m.Metrics.DetailDocs) {
+			m.copyToClipboard(es.PrettyJSON(m.Metrics.DetailDocs[m.Metrics.DetailDocCursor].RawJSON), "Copied JSON to clipboard!")
 		}
 		return m, nil
 	case ActionRefresh:
 		// Refresh
-		m.metricsLoading = true
-		m.metricDetailDocsLoading = true
+		m.Metrics.Loading = true
+		m.Metrics.DetailDocsLoading = true
 		return m, tea.Batch(m.fetchAggregatedMetrics(), m.fetchMetricDetailDocs())
 	case ActionCycleLookback:
 		// Change lookback - re-fetch metrics with new time range
 		m.cycleLookback()
-		m.metricsLoading = true
-		m.metricDetailDocsLoading = true
+		m.Metrics.Loading = true
+		m.Metrics.DetailDocsLoading = true
 		return m, tea.Batch(m.fetchAggregatedMetrics(), m.fetchMetricDetailDocs())
 	case ActionKibana:
 		// Prepare Kibana URL for this specific metric and show creds modal
-		if m.aggregatedMetrics != nil && m.metricsCursor < len(m.aggregatedMetrics.Metrics) {
-			metric := m.aggregatedMetrics.Metrics[m.metricsCursor]
+		if m.Metrics.Aggregated != nil && m.Metrics.Cursor < len(m.Metrics.Aggregated.Metrics) {
+			metric := m.Metrics.Aggregated.Metrics[m.Metrics.Cursor]
 			// metric.Type contains the time series type: "gauge", "counter", or "histogram"
 			m.prepareMetricKibanaURL(metric.Name, metric.Type)
 			m.showCredsModal()
@@ -138,19 +138,19 @@ func (m Model) handleMetricDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case ActionJSON:
 		// View current doc as JSON (switch to detail JSON view)
-		if len(m.metricDetailDocs) > 0 && m.metricDetailDocCursor < len(m.metricDetailDocs) {
+		if len(m.Metrics.DetailDocs) > 0 && m.Metrics.DetailDocCursor < len(m.Metrics.DetailDocs) {
 			// Temporarily put the doc in logs so detail view can render it
-			m.logs = m.metricDetailDocs
-			m.selectedIndex = m.metricDetailDocCursor
+			m.Logs.Entries = m.Metrics.DetailDocs
+			m.Logs.SelectedIndex = m.Metrics.DetailDocCursor
 			m.pushView(viewDetailJSON)
-			m.setViewportContent(es.PrettyJSON(m.metricDetailDocs[m.metricDetailDocCursor].RawJSON))
-			m.viewport.GotoTop()
+			m.setViewportContent(es.PrettyJSON(m.Metrics.DetailDocs[m.Metrics.DetailDocCursor].RawJSON))
+			m.Components.Viewport.GotoTop()
 		}
 		return m, nil
 	}
 
 	// Handle viewport scrolling for unhandled keys
-	if viewportScroll(&m.viewport, key) {
+	if viewportScroll(&m.Components.Viewport, key) {
 		return m, nil
 	}
 
@@ -161,5 +161,5 @@ func (m Model) handleMetricDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m *Model) updateMetricDetailViewport() {
 	content := m.renderMetricDetailContent()
 	m.setViewportContent(content)
-	m.viewport.GotoTop()
+	m.Components.Viewport.GotoTop()
 }

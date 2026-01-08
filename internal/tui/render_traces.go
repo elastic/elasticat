@@ -9,18 +9,18 @@ import (
 )
 
 func (m Model) renderTransactionNames(listHeight int) string {
-	if m.tracesLoading {
-		return LogListStyle.Width(m.width - 4).Height(listHeight).Render(
+	if m.Traces.Loading {
+		return LogListStyle.Width(m.UI.Width - 4).Height(listHeight).Render(
 			LoadingStyle.Render("Loading transaction names..."))
 	}
 
-	if m.err != nil {
-		return LogListStyle.Width(m.width - 4).Height(listHeight).Render(
-			ErrorStyle.Render(fmt.Sprintf("Error: %v", m.err)))
+	if m.UI.Err != nil {
+		return LogListStyle.Width(m.UI.Width - 4).Height(listHeight).Render(
+			ErrorStyle.Render(fmt.Sprintf("Error: %v", m.UI.Err)))
 	}
 
-	if len(m.transactionNames) == 0 {
-		return LogListStyle.Width(m.width - 4).Height(listHeight).Render(
+	if len(m.Traces.TransactionNames) == 0 {
+		return LogListStyle.Width(m.UI.Width - 4).Height(listHeight).Render(
 			LoadingStyle.Render("No transactions found in the selected time range."))
 	}
 
@@ -35,7 +35,7 @@ func (m Model) renderTransactionNames(listHeight int) string {
 	errWidth := 6
 	lastSeenWidth := 10
 	fixedWidth := countWidth + minWidth + avgWidth + maxWidth + tracesWidth + spansWidth + errWidth + lastSeenWidth + 8 // separators
-	nameWidth := m.width - fixedWidth - 10
+	nameWidth := m.UI.Width - fixedWidth - 10
 	if nameWidth < 20 {
 		nameWidth = 20
 	}
@@ -53,14 +53,14 @@ func (m Model) renderTransactionNames(listHeight int) string {
 			PadOrTruncate("LAST SEEN", lastSeenWidth))
 
 	// Calculate visible range using common helper
-	startIdx, endIdx := calcVisibleRange(m.traceNamesCursor, len(m.transactionNames), listHeight)
+	startIdx, endIdx := calcVisibleRange(m.Traces.NamesCursor, len(m.Traces.TransactionNames), listHeight)
 
 	var lines []string
 	lines = append(lines, header)
 
 	for i := startIdx; i < endIdx; i++ {
-		tx := m.transactionNames[i]
-		selected := i == m.traceNamesCursor
+		tx := m.Traces.TransactionNames[i]
+		selected := i == m.Traces.NamesCursor
 
 		// Format values
 		countStr := fmt.Sprintf("%d", tx.Count)
@@ -88,12 +88,12 @@ func (m Model) renderTransactionNames(listHeight int) string {
 			PadOrTruncate(lastSeenStr, lastSeenWidth)
 
 		if selected {
-			lines = append(lines, SelectedLogStyle.Width(m.width-6).Render(line))
+			lines = append(lines, SelectedLogStyle.Width(m.UI.Width-6).Render(line))
 		} else {
 			lines = append(lines, LogEntryStyle.Render(line))
 		}
 	}
 
 	content := strings.Join(lines, "\n")
-	return LogListStyle.Width(m.width - 4).Height(listHeight).Render(content)
+	return LogListStyle.Width(m.UI.Width - 4).Height(listHeight).Render(content)
 }

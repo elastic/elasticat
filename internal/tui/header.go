@@ -14,21 +14,21 @@ func (m Model) renderTitleHeader() string {
 	title := "\\ =^..^= 𝑬𝓵𝓪𝓼𝓽𝓲𝓒𝓪𝓽 =^..^= /"
 
 	// Add perspective indicator when in perspective view
-	if m.mode == viewPerspectiveList {
-		title = "\\ =^..^= 𝑬𝓵𝓪𝓼𝓽𝓲𝓒𝓪𝓽 [" + m.currentPerspective.String() + "] =^..^= /"
+	if m.UI.Mode == viewPerspectiveList {
+		title = "\\ =^..^= 𝑬𝓵𝓪𝓼𝓽𝓲𝓒𝓪𝓽 [" + m.Perspective.Current.String() + "] =^..^= /"
 	}
 
 	// Build operational info for right side
 	var infoParts []string
-	infoParts = append(infoParts, "Lookback: "+m.lookback.String())
+	infoParts = append(infoParts, "Lookback: "+m.Filters.Lookback.String())
 
-	if m.sortAscending {
+	if m.UI.SortAscending {
 		infoParts = append(infoParts, "Sort: oldest→")
 	} else {
 		infoParts = append(infoParts, "Sort: newest→")
 	}
 
-	if m.autoRefresh {
+	if m.UI.AutoRefresh {
 		infoParts = append(infoParts, "Auto: ON")
 	} else {
 		infoParts = append(infoParts, "Auto: OFF")
@@ -40,7 +40,7 @@ func (m Model) renderTitleHeader() string {
 	// Calculate how many characters we need for the line to fill the width
 	// Account for padding in the style (2 chars)
 	// Use lipgloss.Width to get actual rendered width (ignoring ANSI codes)
-	availableWidth := m.width - 2
+	availableWidth := m.UI.Width - 2
 	titleLen := lipgloss.Width(title)
 	rightInfoLen := lipgloss.Width(rightInfo)
 
@@ -52,7 +52,7 @@ func (m Model) renderTitleHeader() string {
 			lineChars = 0
 		}
 		line := strings.Repeat("═", lineChars)
-		return TitleHeaderStyle.Width(m.width).Render(title + line)
+		return TitleHeaderStyle.Width(m.UI.Width).Render(title + line)
 	}
 
 	// Fill the middle with box drawing characters
@@ -60,5 +60,5 @@ func (m Model) renderTitleHeader() string {
 	line := strings.Repeat("═", lineChars)
 
 	fullHeader := title + line + rightInfo
-	return TitleHeaderStyle.Width(m.width).Render(fullHeader)
+	return TitleHeaderStyle.Width(m.UI.Width).Render(fullHeader)
 }

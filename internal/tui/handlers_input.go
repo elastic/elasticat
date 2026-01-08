@@ -15,12 +15,12 @@ func (m Model) handleQueryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "q", "Q":
 		m.popView()
-		m.statusMessage = ""
+		m.UI.StatusMessage = ""
 		return m, nil
 	case "c":
-		m.queryFormat = formatCurl
+		m.Query.Format = formatCurl
 	case "k":
-		m.queryFormat = formatKibana
+		m.Query.Format = formatKibana
 	case "y":
 		// Copy query to clipboard
 		m.copyToClipboard(m.getQueryText(), "Copied to clipboard!")
@@ -30,17 +30,17 @@ func (m Model) handleQueryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // getQueryText returns the raw query text (without styling) for clipboard
 func (m Model) getQueryText() string {
-	index := m.lastQueryIndex
+	index := m.Query.LastIndex
 
-	if m.queryFormat == formatKibana {
-		return fmt.Sprintf("GET %s/_search\n%s", index, m.lastQueryJSON)
+	if m.Query.Format == formatKibana {
+		return fmt.Sprintf("GET %s/_search\n%s", index, m.Query.LastJSON)
 	}
 
 	// curl format
 	var compact bytes.Buffer
-	if err := json.Compact(&compact, []byte(m.lastQueryJSON)); err != nil {
+	if err := json.Compact(&compact, []byte(m.Query.LastJSON)); err != nil {
 		return fmt.Sprintf("curl -X GET 'http://localhost:9200/%s/_search' \\\n  -H 'Content-Type: application/json' \\\n  -d '%s'",
-			index, m.lastQueryJSON)
+			index, m.Query.LastJSON)
 	}
 	return fmt.Sprintf("curl -X GET 'http://localhost:9200/%s/_search' \\\n  -H 'Content-Type: application/json' \\\n  -d '%s'",
 		index, compact.String())
@@ -49,41 +49,41 @@ func (m Model) getQueryText() string {
 func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
-		m.searchQuery = m.searchInput.Value()
-		m.userHasScrolled = false // Reset for tail -f behavior
+		m.Filters.Query = m.Components.SearchInput.Value()
+		m.Logs.UserHasScrolled = false // Reset for tail -f behavior
 		m.popView()
-		m.searchInput.Blur()
-		m.loading = true
+		m.Components.SearchInput.Blur()
+		m.UI.Loading = true
 		return m, m.fetchLogs()
 	case "esc":
 		m.popView()
-		m.searchInput.Blur()
+		m.Components.SearchInput.Blur()
 		return m, nil
 	}
 
 	var cmd tea.Cmd
-	m.searchInput, cmd = m.searchInput.Update(msg)
+	m.Components.SearchInput, cmd = m.Components.SearchInput.Update(msg)
 	return m, cmd
 }
 
 func (m Model) handleIndexKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
-		newIndex := m.indexInput.Value()
+		newIndex := m.Components.IndexInput.Value()
 		if newIndex != "" {
 			m.client.SetIndex(newIndex)
 		}
 		m.popView()
-		m.indexInput.Blur()
-		m.loading = true
+		m.Components.IndexInput.Blur()
+		m.UI.Loading = true
 		return m, m.fetchLogs()
 	case "esc":
 		m.popView()
-		m.indexInput.Blur()
+		m.Components.IndexInput.Blur()
 		return m, nil
 	}
 
 	var cmd tea.Cmd
-	m.indexInput, cmd = m.indexInput.Update(msg)
+	m.Components.IndexInput, cmd = m.Components.IndexInput.Update(msg)
 	return m, cmd
 }
