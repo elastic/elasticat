@@ -29,13 +29,17 @@ func (m Model) HelpEnabled() bool {
 	return true
 }
 
-// QuickBindings returns the bindings to show in the help bar (max quickLimit, prepend help when enabled).
+// QuickBindings returns the bindings to show in the help bar (max quickLimit, prepend help and signal when enabled).
 func (m Model) QuickBindings() []KeyBinding {
-	const quickLimit = 7
+	const quickLimit = 8
 	bindings := filterByKind(m.ViewKeymap(), KeyKindQuick)
 
 	if m.HelpEnabled() {
-		bindings = append([]KeyBinding{ActionBinding(ActionHelp, KeyKindQuick, "Help")}, bindings...)
+		// Prepend help then signal, so order is: ? m [rest...]
+		bindings = append([]KeyBinding{
+			ActionBinding(ActionHelp, KeyKindQuick, "Help"),
+			ActionBinding(ActionCycleSignal, KeyKindQuick, "View"),
+		}, bindings...)
 	}
 
 	if len(bindings) > quickLimit {

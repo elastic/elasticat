@@ -49,7 +49,6 @@ func (m Model) keymapLogs() []KeyBinding {
 
 	// Full list excludes items already in quick to avoid duplicates in help overlay
 	full := []KeyBinding{
-		ActionBinding(ActionCycleSignal, KeyKindFull, "View"),
 		ActionBinding(ActionSort, KeyKindFull, "View"),
 		ActionBinding(ActionFields, KeyKindFull, "View"),
 		ActionBinding(ActionQuery, KeyKindFull, "View"),
@@ -110,7 +109,6 @@ func (m Model) keymapMetricsDashboard() []KeyBinding {
 	}
 	// Full list only adds items not in quick
 	full := []KeyBinding{
-		ActionBinding(ActionCycleSignal, KeyKindFull, "View"),
 		ActionBinding(ActionRefresh, KeyKindFull, "View"),
 		ActionBinding(ActionSendToChat, KeyKindFull, "AI"),
 		ActionBinding(ActionCreds, KeyKindFull, "System"),
@@ -145,7 +143,6 @@ func (m Model) keymapTraceNames() []KeyBinding {
 		ActionBinding(ActionChat, KeyKindQuick, "AI"),
 	}
 	full := []KeyBinding{
-		ActionBinding(ActionCycleSignal, KeyKindFull, "View"),
 		ActionBinding(ActionQuery, KeyKindFull, "View"),
 		ActionBinding(ActionSearch, KeyKindFull, "Filter"),
 		ActionBinding(ActionRefresh, KeyKindFull, "View"),
@@ -207,7 +204,6 @@ func (m Model) keymapChat() []KeyBinding {
 	quick := []KeyBinding{
 		CombinedBinding([]string{"j", "k", "↑", "↓"}, "scroll", KeyKindQuick, "Navigation"),
 		CombinedBinding([]string{"i", "enter"}, "insert", KeyKindQuick, "Input"),
-		ActionBinding(ActionCycleSignal, KeyKindQuick, "View"),
 		ActionBindingWithLabel(ActionBack, "close", KeyKindQuick, "Navigation"),
 	}
 	full := []KeyBinding{
