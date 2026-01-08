@@ -150,7 +150,7 @@ func modifyComposeForFilemount(composeContent string) (string, error) {
 	//       - ES_LOCAL_PASSWORD=${ES_LOCAL_PASSWORD}
 	beforeReplace := newContent
 	configsBlockPattern := regexp.MustCompile(`(?s)(edot-collector:.*?)(    configs:\s*\n\s+- source: edot-collector-config\s*\n\s+target: /etc/otelcol-contrib/config\.yaml\s*\n)`)
-	newContent = configsBlockPattern.ReplaceAllString(newContent, "${1}    volumes:\n      - ./config/otel-config.yaml:/etc/otelcol-contrib/config.yaml:ro\n    environment:\n      - ES_LOCAL_PASSWORD=${ES_LOCAL_PASSWORD}\n")
+	newContent = configsBlockPattern.ReplaceAllString(newContent, "${1}    volumes:\n      - ./config/otel-config.yaml:/etc/otelcol-contrib/config.yaml:ro\n    environment:\n      - ES_LOCAL_PASSWORD=$${ES_LOCAL_PASSWORD}\n")
 	if newContent == beforeReplace {
 		return "", fmt.Errorf("failed to replace configs block under edot-collector - pattern not found")
 	}
