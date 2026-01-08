@@ -1,4 +1,4 @@
-.PHONY: build install clean up down logs test fmt fmt-check license-check license-add notice dist dist-platform dist-clean prep sloc release demo
+.PHONY: build install clean logs test fmt fmt-check license-check license-add notice dist dist-platform dist-clean prep sloc release demo
 
 # Build the elasticat binary
 build:
@@ -12,26 +12,6 @@ install:
 clean:
 	rm -rf bin/
 	go clean
-
-# Start the Docker stack
-up:
-	cd docker && docker compose up -d
-
-# Start with Kibana
-up-kibana:
-	cd docker && docker compose --profile kibana up -d
-
-# Start with MCP server (for AI assistant integration)
-up-mcp:
-	cd docker && docker compose --profile mcp up -d
-
-# Start with everything (Kibana + MCP)
-up-all:
-	cd docker && docker compose --profile kibana --profile mcp up -d
-
-# Stop the Docker stack
-down:
-	cd docker && docker compose down
 
 # Open the log viewer
 logs: build
@@ -99,7 +79,6 @@ dist: build
 	@cp LICENSE.txt $(DIST_DIR)/
 	@cp NOTICE.txt $(DIST_DIR)/
 	@cp README.md $(DIST_DIR)/
-	@cp -R docker $(DIST_DIR)/docker
 	@echo "Distribution files ready in $(DIST_DIR)/"
 
 # Cross-compile and package for a specific platform (used by CI)
@@ -113,7 +92,6 @@ dist-platform:
 	$(eval ARCHIVE := elasticat-$(VERSION)-$(GOOS)-$(GOARCH)$(ARCHIVE_EXT))
 	@GOOS=$(GOOS) GOARCH=$(GOARCH) go build -ldflags="-s -w" -o $(DIST_DIR)/$(BINARY) ./cmd/elasticat
 	@cp LICENSE.txt NOTICE.txt README.md $(DIST_DIR)/
-	@cp -R docker $(DIST_DIR)/docker
 	@cd $(DIST_DIR) && \
 		if [ "$(GOOS)" = "windows" ]; then \
 			zip $(ARCHIVE) $(BINARY) LICENSE.txt NOTICE.txt README.md; \

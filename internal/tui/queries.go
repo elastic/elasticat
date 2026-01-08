@@ -65,50 +65,50 @@ func (m *Model) fetchLogs() tea.Cmd {
 		var queryString string
 		index := m.client.GetIndex()
 
-		lookbackRange := m.lookback.ESRange()
+		lookbackRange := m.Filters.Lookback.ESRange()
 
 		// For traces, determine processor event filter based on view level
 		processorEvent := ""
 		transactionName := ""
 		traceID := ""
-		if m.signalType == signalTraces {
-			switch m.traceViewLevel {
+		if m.Filters.Signal == signalTraces {
+			switch m.Traces.ViewLevel {
 			case traceViewTransactions:
 				processorEvent = "transaction"
-				transactionName = m.selectedTxName
+				transactionName = m.Traces.SelectedTxName
 			case traceViewSpans:
 				// When viewing spans, show all events for the trace (no processor filter)
-				traceID = m.selectedTraceID
+				traceID = m.Traces.SelectedTraceID
 			default:
 				processorEvent = "transaction"
 			}
 		}
 
-		if m.searchQuery != "" {
+		if m.Filters.Query != "" {
 			opts := es.SearchOptions{
 				Size:            100,
-				Service:         m.filterService,
-				NegateService:   m.negateService,
-				Resource:        m.filterResource,
-				NegateResource:  m.negateResource,
-				Level:           m.levelFilter,
-				SortAsc:         m.sortAscending,
-				SearchFields:    CollectSearchFields(m.displayFields),
+				Service:         m.Filters.Service,
+				NegateService:   m.Filters.NegateService,
+				Resource:        m.Filters.Resource,
+				NegateResource:  m.Filters.NegateResource,
+				Level:           m.Filters.Level,
+				SortAsc:         m.UI.SortAscending,
+				SearchFields:    CollectSearchFields(m.Fields.Display),
 				Lookback:        lookbackRange,
 				ProcessorEvent:  processorEvent,
 				TransactionName: transactionName,
 				TraceID:         traceID,
 			}
-			result, queryString, err = m.client.SearchESQL(ctx, m.searchQuery, opts)
+			result, queryString, err = m.client.SearchESQL(ctx, m.Filters.Query, opts)
 		} else {
 			opts := es.TailOptions{
 				Size:            100,
-				Service:         m.filterService,
-				NegateService:   m.negateService,
-				Resource:        m.filterResource,
-				NegateResource:  m.negateResource,
-				Level:           m.levelFilter,
-				SortAsc:         m.sortAscending,
+				Service:         m.Filters.Service,
+				NegateService:   m.Filters.NegateService,
+				Resource:        m.Filters.Resource,
+				NegateResource:  m.Filters.NegateResource,
+				Level:           m.Filters.Level,
+				SortAsc:         m.UI.SortAscending,
 				Lookback:        lookbackRange,
 				ProcessorEvent:  processorEvent,
 				TransactionName: transactionName,
@@ -136,16 +136,16 @@ func (m Model) fetchAggregatedMetrics() tea.Cmd {
 		ctx, done := m.startRequest(requestMetricsAgg, m.tuiConfig.MetricsTimeout)
 		defer done()
 
-		lookbackRange := m.lookback.ESRange()
+		lookbackRange := m.Filters.Lookback.ESRange()
 		bucketInterval := es.LookbackToBucketInterval(lookbackRange)
 
 		opts := metrics.AggregateMetricsOptions{
 			Lookback:       lookbackRange,
 			BucketSize:     bucketInterval,
-			Service:        m.filterService,
-			NegateService:  m.negateService,
-			Resource:       m.filterResource,
-			NegateResource: m.negateResource,
+			Service:        m.Filters.Service,
+			NegateService:  m.Filters.NegateService,
+			Resource:       m.Filters.Resource,
+			NegateResource: m.Filters.NegateResource,
 		}
 
 		result, err := m.client.AggregateMetrics(ctx, opts)
@@ -160,10 +160,10 @@ func (m Model) fetchAggregatedMetrics() tea.Cmd {
 // fetchMetricDetailDocs fetches the latest 10 documents containing the selected metric
 func (m *Model) fetchMetricDetailDocs() tea.Cmd {
 	// Capture the metric info before returning the command
-	if m.aggregatedMetrics == nil || m.metricsCursor >= len(m.aggregatedMetrics.Metrics) {
+	if m.Metrics.Aggregated == nil || m.Metrics.Cursor >= len(m.Metrics.Aggregated.Metrics) {
 		return nil
 	}
-	metric := m.aggregatedMetrics.Metrics[m.metricsCursor]
+	metric := m.Metrics.Aggregated.Metrics[m.Metrics.Cursor]
 
 	return func() tea.Msg {
 		ctx, done := m.startRequest(requestMetricDetailDocs, m.tuiConfig.MetricsTimeout)
@@ -171,7 +171,7 @@ func (m *Model) fetchMetricDetailDocs() tea.Cmd {
 
 		opts := es.TailOptions{
 			Size:        10,
-			Lookback:    m.lookback.ESRange(),
+			Lookback:    m.Filters.Lookback.ESRange(),
 			MetricField: metric.Name, // Filter for docs containing this metric
 			SortAsc:     false,       // Latest first
 		}
@@ -201,9 +201,9 @@ func (m *Model) fetchTransactionNames() tea.Cmd {
 		ctx, done := m.startRequest(requestTransactionNames, m.tuiConfig.TracesTimeout)
 		defer done()
 
-		lookbackRange := m.lookback.ESRange()
+		lookbackRange := m.Filters.Lookback.ESRange()
 
-		result, err := m.client.GetTransactionNamesESQL(ctx, lookbackRange, m.filterService, m.filterResource, m.negateService, m.negateResource)
+		result, err := m.client.GetTransactionNamesESQL(ctx, lookbackRange, m.Filters.Service, m.Filters.Resource, m.Filters.NegateService, m.Filters.NegateResource)
 		if err != nil {
 			return transactionNamesMsg{err: err}
 		}
@@ -242,11 +242,11 @@ func (m *Model) fetchPerspectiveData() tea.Cmd {
 		var aggs []perspectives.PerspectiveAgg
 		var err error
 
-		switch m.currentPerspective {
+		switch m.Perspective.Current {
 		case PerspectiveServices:
-			aggs, err = m.client.GetServices(ctx, m.lookback.ESRange())
+			aggs, err = m.client.GetServices(ctx, m.Filters.Lookback.ESRange())
 		case PerspectiveResources:
-			aggs, err = m.client.GetResources(ctx, m.lookback.ESRange())
+			aggs, err = m.client.GetResources(ctx, m.Filters.Lookback.ESRange())
 		}
 
 		if err != nil {
@@ -275,7 +275,7 @@ func (m *Model) autoDetectLookback() tea.Cmd {
 
 		// For traces, filter to only count transactions
 		processorEvent := ""
-		if m.signalType == signalTraces {
+		if m.Filters.Signal == signalTraces {
 			processorEvent = "transaction"
 		}
 

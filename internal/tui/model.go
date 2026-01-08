@@ -11,25 +11,26 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/elastic/elasticat/internal/config"
 	"github.com/elastic/elasticat/internal/es"
-	"github.com/elastic/elasticat/internal/es/metrics"
-	"github.com/elastic/elasticat/internal/es/traces"
 )
 
 // Model is the main TUI model containing all application state.
 //
-// The fields are organized into logical groups (see state.go for corresponding
-// types that document this structure):
-//   - Core: client, ctx, requests
+// State is organized into embedded structs for better organization:
+//   - Core: client, ctx, requests (remain flat - used everywhere)
+//   - Filters: service, resource, level, search query, signal type
 //   - UI: mode, dimensions, loading, error state
-//   - Filters: service, resource, level, search query
+//   - Query: last query display state
 //   - Logs: log entries and selection
+//   - Fields: field selection state
 //   - Metrics: dashboard and detail state
 //   - Traces: navigation hierarchy state
 //   - Perspective: filtering by service/resource
-//   - Fields: field selection state
+//   - Chat: AI chat state
+//   - Creds: credentials modal state
+//   - Otel: OTel config modal state
 //   - Components: text inputs and viewports
 type Model struct {
-	// === Core ===
+	// === Core (flat - used everywhere) ===
 	client      DataSource       // Data source (interface for testability)
 	ctx         context.Context  // Parent context (canceled when app exits)
 	requests    *requestManager  // In-flight request management
@@ -40,190 +41,30 @@ type Model struct {
 	esUsername  string           // ES/Kibana username for Agent Builder auth
 	esPassword  string           // ES/Kibana password for Agent Builder auth
 
-	// === UI State ===
-	mode            viewMode
-	viewStack       []ViewContext   // Navigation history for back navigation
-	err             error           // Current error
-	loading         bool            // General loading indicator
-	width           int             // Terminal width
-	height          int             // Terminal height
-	autoRefresh     bool            // Auto-refresh enabled
-	timeDisplayMode TimeDisplayMode // How timestamps display
-	sortAscending   bool            // Sort order
-	statusMessage   string          // Temporary status
-	statusTime      time.Time       // When status was set
-	lastRefresh     time.Time       // Last data refresh
-
-	// === Filters ===
-	levelFilter    string
-	searchQuery    string
-	filterService  string // Service filter
-	negateService  bool   // Exclude service
-	filterResource string // Resource filter
-	negateResource bool   // Exclude resource
-	signalType     SignalType
-	lookback       LookbackDuration
-
-	// === Query Display ===
-	lastQueryJSON  string      // Last ES query body
-	lastQueryIndex string      // Index pattern used
-	queryFormat    queryFormat // Kibana or curl
-
-	// === Logs State ===
-	logs            []es.LogEntry
-	selectedIndex   int
-	userHasScrolled bool
-	total           int64
-
-	// === Fields State ===
-	displayFields    []DisplayField
-	availableFields  []es.FieldInfo
-	fieldsCursor     int
-	fieldsLoading    bool
-	fieldsSearchMode bool
-	fieldsSearch     string
-
-	// === Metrics State ===
-	metricsViewMode         MetricsViewMode
-	aggregatedMetrics       *metrics.MetricsAggResult
-	metricsLoading          bool
-	metricsCursor           int
-	metricDetailDocs        []es.LogEntry
-	metricDetailDocCursor   int
-	metricDetailDocsLoading bool
-
-	// === Traces State ===
-	traceViewLevel     TraceViewLevel
-	transactionNames   []traces.TransactionNameAgg
-	traceNamesCursor   int
-	selectedTxName     string
-	selectedTraceID    string
-	tracesLoading      bool
-	spans              []es.LogEntry
-	spansLoading       bool
-	lastFetchedTraceID string
-
-	// === Perspective State ===
-	currentPerspective PerspectiveType
-	perspectiveItems   []PerspectiveItem
-	perspectiveCursor  int
-	perspectiveLoading bool
-
-	// === Chat State ===
-	chatMessages        []ChatMessage   // Conversation history
-	chatLoading         bool            // Waiting for AI response
-	chatConversationID  string          // Agent Builder conversation ID
-	chatInput           textinput.Model // Chat message input
-	chatViewport        viewport.Model  // Chat message history viewport
-	chatInsertMode      bool            // Vim-style insert mode for chat input (false = normal mode)
-	chatAnalysisContext string          // What's being analyzed (e.g., "log", "metric", "trace") - empty for normal chat
-	chatRequestStart    time.Time       // When the current chat request started (for elapsed timer)
-
-	// === Credentials Modal State ===
-	hideCredsModal bool   // Don't show creds modal after Kibana open (session preference)
-	lastKibanaURL  string // The Kibana URL that was just opened (for display in modal)
-
-	// === OTel Config Modal State ===
-	otelConfigPath       string    // Path to the OTel config file being watched
-	otelLastReload       time.Time // Time of last successful reload
-	otelReloadCount      int       // Number of successful reloads this session
-	otelWatchingConfig   bool      // Whether we're actively watching for changes
-	otelReloadError      error     // Last reload error (nil if successful)
-	otelValidationStatus string    // Last validation status message
-	otelValidationValid  bool      // Whether last validation passed
-
-	// === UI Components ===
-	searchInput   textinput.Model
-	indexInput    textinput.Model
-	viewport      viewport.Model
-	errorViewport viewport.Model
-	helpViewport  viewport.Model
+	// === Embedded State ===
+	Filters     FilterState
+	UI          UIState
+	Query       QueryState
+	Logs        LogsState
+	Fields      FieldsState
+	Metrics     MetricsState
+	Traces      TracesState
+	Perspective PerspectiveState
+	Chat        ChatState
+	Creds       CredsState
+	Otel        OtelState
+	Components  UIComponents
 }
 
 // Highlighter returns a Highlighter configured with the current search query
 func (m Model) Highlighter() *Highlighter {
-	return NewHighlighter(m.searchQuery)
-}
-
-// === State accessor methods ===
-// These methods provide a cleaner interface for accessing grouped state,
-// and will enable future refactoring to embedded structs.
-
-// Filters returns the current filter state as a struct.
-func (m Model) Filters() FilterState {
-	return FilterState{
-		LevelFilter:    m.levelFilter,
-		SearchQuery:    m.searchQuery,
-		FilterService:  m.filterService,
-		NegateService:  m.negateService,
-		FilterResource: m.filterResource,
-		NegateResource: m.negateResource,
-	}
-}
-
-// Logs returns the current logs state as a struct.
-func (m Model) Logs() LogsState {
-	return LogsState{
-		Logs:            m.logs,
-		SelectedIndex:   m.selectedIndex,
-		UserHasScrolled: m.userHasScrolled,
-		Total:           m.total,
-	}
-}
-
-// Metrics returns the current metrics state as a struct.
-func (m Model) Metrics() MetricsState {
-	return MetricsState{
-		ViewMode:          m.metricsViewMode,
-		AggregatedMetrics: m.aggregatedMetrics,
-		Loading:           m.metricsLoading,
-		Cursor:            m.metricsCursor,
-		DetailDocs:        m.metricDetailDocs,
-		DetailDocCursor:   m.metricDetailDocCursor,
-		DetailDocsLoading: m.metricDetailDocsLoading,
-	}
-}
-
-// Traces returns the current traces state as a struct.
-func (m Model) Traces() TracesState {
-	return TracesState{
-		ViewLevel:          m.traceViewLevel,
-		TransactionNames:   m.transactionNames,
-		NamesCursor:        m.traceNamesCursor,
-		SelectedTxName:     m.selectedTxName,
-		SelectedTraceID:    m.selectedTraceID,
-		Loading:            m.tracesLoading,
-		Spans:              m.spans,
-		SpansLoading:       m.spansLoading,
-		LastFetchedTraceID: m.lastFetchedTraceID,
-	}
-}
-
-// Perspective returns the current perspective state as a struct.
-func (m Model) Perspective() PerspectiveState {
-	return PerspectiveState{
-		Current: m.currentPerspective,
-		Items:   m.perspectiveItems,
-		Cursor:  m.perspectiveCursor,
-		Loading: m.perspectiveLoading,
-	}
-}
-
-// Chat returns the current chat state as a struct.
-func (m Model) Chat() ChatState {
-	return ChatState{
-		Messages:       m.chatMessages,
-		Loading:        m.chatLoading,
-		ConversationID: m.chatConversationID,
-		Input:          m.chatInput,
-		Viewport:       m.chatViewport,
-	}
+	return NewHighlighter(m.Filters.Query)
 }
 
 // setViewportContent wraps content to the viewport width before rendering.
 func (m *Model) setViewportContent(content string) {
-	wrapped := WrapText(content, m.viewport.Width)
-	m.viewport.SetContent(wrapped)
+	wrapped := WrapText(content, m.Components.Viewport.Width)
+	m.Components.Viewport.SetContent(wrapped)
 }
 
 // NewModel creates a new TUI model.
@@ -290,43 +131,60 @@ func NewModelWithOpts(ctx context.Context, client DataSource, signal SignalType,
 	}
 
 	m := Model{
-		ctx:             ctx,
-		client:          client,
-		tuiConfig:       tuiCfg,
-		kibanaURL:       kibanaURL,
-		kibanaSpace:     kibanaSpace,
-		esAPIKey:        opts.ESAPIKey,
-		esUsername:      opts.ESUsername,
-		esPassword:      opts.ESPassword,
-		logs:            []es.LogEntry{},
-		mode:            initialMode,
-		autoRefresh:     true,
-		signalType:      signal,
-		lookback:        lookback24h,
-		timeDisplayMode: timeDisplayRelative,
-		displayFields:   DefaultFields(signal),
-		searchInput:     ti,
-		indexInput:      ii,
-		chatInput:       ci,
-		viewport:        vp,
-		errorViewport:   errorVp,
-		helpViewport:    helpVp,
-		chatViewport:    chatVp,
-		chatMessages:    []ChatMessage{},
-		width:           80,
-		height:          24,
-		traceViewLevel:  traceViewNames,        // Start at transaction names for traces
-		metricsViewMode: metricsViewAggregated, // Start at aggregated view for metrics
-		requests:        newRequestManager(),
+		ctx:         ctx,
+		client:      client,
+		tuiConfig:   tuiCfg,
+		kibanaURL:   kibanaURL,
+		kibanaSpace: kibanaSpace,
+		esAPIKey:    opts.ESAPIKey,
+		esUsername:  opts.ESUsername,
+		esPassword:  opts.ESPassword,
+		requests:    newRequestManager(),
+
+		Filters: FilterState{
+			Signal:   signal,
+			Lookback: lookback24h,
+		},
+		UI: UIState{
+			Mode:            initialMode,
+			AutoRefresh:     true,
+			TimeDisplayMode: timeDisplayRelative,
+			Width:           80,
+			Height:          24,
+		},
+		Logs: LogsState{
+			Entries: []es.LogEntry{},
+		},
+		Fields: FieldsState{
+			Display: DefaultFields(signal),
+		},
+		Metrics: MetricsState{
+			ViewMode: metricsViewAggregated,
+		},
+		Traces: TracesState{
+			ViewLevel: traceViewNames,
+		},
+		Chat: ChatState{
+			Messages: []ChatMessage{},
+			Input:    ci,
+			Viewport: chatVp,
+		},
+		Components: UIComponents{
+			SearchInput:   ti,
+			IndexInput:    ii,
+			Viewport:      vp,
+			ErrorViewport: errorVp,
+			HelpViewport:  helpVp,
+		},
 	}
 
 	// If we start in chat view, initialize chat state like enterChatView would.
 	if initialMode == viewChat {
-		m.chatInsertMode = false
-		m.chatInput.Blur()
-		m.chatLoading = false
-		if len(m.chatMessages) == 0 {
-			m.chatMessages = append(m.chatMessages, ChatMessage{
+		m.Chat.InsertMode = false
+		m.Chat.Input.Blur()
+		m.Chat.Loading = false
+		if len(m.Chat.Messages) == 0 {
+			m.Chat.Messages = append(m.Chat.Messages, ChatMessage{
 				Role:      "assistant",
 				Content:   "Hello! I'm your AI assistant powered by Elastic Agent Builder. Ask me anything about your observability data - logs, traces, or metrics. I have context about your current filters and selections.",
 				Timestamp: time.Now(),

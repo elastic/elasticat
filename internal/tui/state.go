@@ -15,18 +15,20 @@ import (
 
 // FilterState holds all active filters.
 type FilterState struct {
-	LevelFilter    string // Level/severity filter
-	SearchQuery    string // Free-text search query
-	FilterService  string // Active service filter
-	NegateService  bool   // If true, exclude FilterService
-	FilterResource string // Active resource filter
-	NegateResource bool   // If true, exclude FilterResource
+	Level          string // Level/severity filter
+	Query          string // Free-text search query
+	Service        string // Active service filter
+	NegateService  bool   // If true, exclude Service
+	Resource       string // Active resource filter
+	NegateResource bool   // If true, exclude Resource
+	Signal         SignalType
+	Lookback       LookbackDuration
 }
 
 // UIState holds general UI state shared across views.
 type UIState struct {
 	Mode            viewMode        // Current view mode
-	PreviousMode    viewMode        // Previous mode (for modal returns)
+	ViewStack       []ViewContext   // Navigation history for back navigation
 	Err             error           // Current error (if any)
 	Loading         bool            // General loading indicator
 	Width           int             // Terminal width
@@ -41,14 +43,14 @@ type UIState struct {
 
 // QueryState holds query display state.
 type QueryState struct {
-	LastQueryJSON  string      // Last query body as JSON
-	LastQueryIndex string      // Index pattern used
-	QueryFormat    queryFormat // Kibana or curl format
+	LastJSON  string      // Last query body as JSON
+	LastIndex string      // Index pattern used
+	Format    queryFormat // Kibana or curl format
 }
 
 // LogsState holds log list state.
 type LogsState struct {
-	Logs            []es.LogEntry // Current log entries
+	Entries         []es.LogEntry // Current log entries
 	SelectedIndex   int           // Selected log index
 	UserHasScrolled bool          // User manually scrolled
 	Total           int64         // Total matching documents
@@ -56,18 +58,18 @@ type LogsState struct {
 
 // FieldsState holds field selection state.
 type FieldsState struct {
-	DisplayFields    []DisplayField // Configured display fields
-	AvailableFields  []es.FieldInfo // Available fields from ES
-	FieldsCursor     int            // Cursor in field selector
-	FieldsLoading    bool           // Loading field caps
-	FieldsSearchMode bool           // In search mode within fields
-	FieldsSearch     string         // Search filter for fields
+	Display    []DisplayField // Configured display fields
+	Available  []es.FieldInfo // Available fields from ES
+	Cursor     int            // Cursor in field selector
+	Loading    bool           // Loading field caps
+	SearchMode bool           // In search mode within fields
+	Search     string         // Search filter for fields
 }
 
 // MetricsState holds metrics dashboard state.
 type MetricsState struct {
 	ViewMode          MetricsViewMode           // Aggregated vs documents view
-	AggregatedMetrics *metrics.MetricsAggResult // Aggregation results
+	Aggregated        *metrics.MetricsAggResult // Aggregation results
 	Loading           bool                      // Loading metrics
 	Cursor            int                       // Selected metric
 	DetailDocs        []es.LogEntry             // Detail view documents
@@ -98,20 +100,38 @@ type PerspectiveState struct {
 
 // ChatState holds AI chat state.
 type ChatState struct {
-	Messages       []ChatMessage   // Conversation history
-	Loading        bool            // Waiting for AI response
-	ConversationID string          // Agent Builder conversation ID
-	Input          textinput.Model // Chat message input
-	Viewport       viewport.Model  // Chat message history viewport
+	Messages        []ChatMessage   // Conversation history
+	Loading         bool            // Waiting for AI response
+	ConversationID  string          // Agent Builder conversation ID
+	Input           textinput.Model // Chat message input
+	Viewport        viewport.Model  // Chat message history viewport
+	InsertMode      bool            // Vim-style insert mode for chat input
+	AnalysisContext string          // What's being analyzed
+	RequestStart    time.Time       // When the current chat request started
+}
+
+// CredsState holds credentials modal state.
+type CredsState struct {
+	HideModal     bool   // Don't show creds modal after Kibana open
+	LastKibanaURL string // The Kibana URL that was just opened
+}
+
+// OtelState holds OTel config modal state.
+type OtelState struct {
+	ConfigPath       string    // Path to the OTel config file
+	LastReload       time.Time // Time of last successful reload
+	ReloadCount      int       // Number of successful reloads
+	WatchingConfig   bool      // Whether watching for changes
+	ReloadError      error     // Last reload error
+	ValidationStatus string    // Last validation status message
+	ValidationValid  bool      // Whether last validation passed
 }
 
 // UIComponents holds UI component instances.
 type UIComponents struct {
 	SearchInput   textinput.Model // Search text input
 	IndexInput    textinput.Model // Index pattern input
-	ChatInput     textinput.Model // Chat message input
 	Viewport      viewport.Model  // Main content viewport
 	ErrorViewport viewport.Model  // Error modal viewport
 	HelpViewport  viewport.Model  // Help overlay viewport
-	ChatViewport  viewport.Model  // Chat message history viewport
 }
