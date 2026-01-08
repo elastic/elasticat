@@ -120,6 +120,15 @@ type Model struct {
 	hideCredsModal bool   // Don't show creds modal after Kibana open (session preference)
 	lastKibanaURL  string // The Kibana URL that was just opened (for display in modal)
 
+	// === OTel Config Modal State ===
+	otelConfigPath       string    // Path to the OTel config file being watched
+	otelLastReload       time.Time // Time of last successful reload
+	otelReloadCount      int       // Number of successful reloads this session
+	otelWatchingConfig   bool      // Whether we're actively watching for changes
+	otelReloadError      error     // Last reload error (nil if successful)
+	otelValidationStatus string    // Last validation status message
+	otelValidationValid  bool      // Whether last validation passed
+
 	// === UI Components ===
 	searchInput   textinput.Model
 	indexInput    textinput.Model
@@ -291,7 +300,7 @@ func NewModelWithOpts(ctx context.Context, client DataSource, signal SignalType,
 		autoRefresh:     true,
 		signalType:      signal,
 		lookback:        lookback24h,
-		timeDisplayMode: timeDisplayClock,
+		timeDisplayMode: timeDisplayRelative,
 		displayFields:   DefaultFields(signal),
 		searchInput:     ti,
 		indexInput:      ii,

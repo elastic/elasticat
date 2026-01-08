@@ -8,7 +8,11 @@ import (
 	"fmt"
 	"os"
 	osSignal "os/signal"
+	"path/filepath"
+	"runtime/debug"
+	"strings"
 	"syscall"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/elastic/elasticat/internal/config"
@@ -49,7 +53,16 @@ func init() {
 	rootCmd.AddCommand(uiCmd)
 }
 
-func runTUI(parentCtx context.Context, sig tui.SignalType) error {
+func runTUI(parentCtx context.Context, sig tui.SignalType) (returnErr error) {
+	// Top-level panic handler - logs to file for debugging
+	defer func() {
+		if r := recover(); r != nil {
+			stack := debug.Stack()
+			logPanic(r, stack)
+			returnErr = fmt.Errorf("TUI crashed: %v (see ~/.elasticat/crash.log for details)", r)
+		}
+	}()
+
 	cfg, ok := config.FromContext(parentCtx)
 	if !ok {
 		return fmt.Errorf("configuration not loaded")
@@ -81,8 +94,46 @@ func runTUI(parentCtx context.Context, sig tui.SignalType) error {
 	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithContext(notifyCtx))
 
 	if _, err := p.Run(); err != nil {
+		// Check if this was a panic caught by bubbletea
+		errStr := err.Error()
+		if strings.Contains(errStr, "panic") || strings.Contains(errStr, "killed") {
+			// Log the panic details to crash log
+			logPanic(errStr, debug.Stack())
+			return fmt.Errorf("error running TUI: %w (see ~/.elasticat/crash.log for details)", err)
+		}
 		return fmt.Errorf("error running TUI: %w", err)
 	}
 
 	return nil
+}
+
+// logPanic writes panic information to a crash log file for debugging.
+func logPanic(r interface{}, stack []byte) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Panic: %v\n%s\n", r, stack)
+		return
+	}
+
+	logDir := filepath.Join(home, ".elasticat")
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "Panic: %v\n%s\n", r, stack)
+		return
+	}
+
+	logPath := filepath.Join(logDir, "crash.log")
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Panic: %v\n%s\n", r, stack)
+		return
+	}
+	defer f.Close()
+
+	timestamp := time.Now().Format(time.RFC3339)
+	fmt.Fprintf(f, "\n=== CRASH at %s ===\n", timestamp)
+	fmt.Fprintf(f, "Panic: %v\n\n", r)
+	fmt.Fprintf(f, "Stack trace:\n%s\n", stack)
+
+	// Also print a brief message to stderr
+	fmt.Fprintf(os.Stderr, "\nCrash logged to %s\n", logPath)
 }

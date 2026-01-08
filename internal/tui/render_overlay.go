@@ -186,6 +186,215 @@ func (m Model) renderQuitConfirmModal() string {
 	return modalStyle.Render(content)
 }
 
+func (m Model) renderOtelConfigExplainModal() string {
+	// Modal dimensions
+	modalWidth := min(m.width-8, 65)
+
+	// Modal box style - use cyan border
+	modalStyle := lipgloss.NewStyle().
+		Width(modalWidth).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("45")). // Cyan border
+		Padding(1, 2).
+		Align(lipgloss.Left)
+
+	// Title
+	title := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("45")).
+		Render("⚙ Open OTel Collector Config")
+
+	var b strings.Builder
+
+	// Explanation text
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	highlightStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Bold(true)
+	yellowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("226"))
+
+	b.WriteString(dimStyle.Render("This will open the OpenTelemetry Collector configuration"))
+	b.WriteString("\n")
+	b.WriteString(dimStyle.Render("file in your default editor."))
+	b.WriteString("\n\n")
+
+	b.WriteString(highlightStyle.Render("What happens:"))
+	b.WriteString("\n")
+	b.WriteString(dimStyle.Render("  • The config file will open in your editor"))
+	b.WriteString("\n")
+	b.WriteString(dimStyle.Render("  • Elasticat will watch the file for changes"))
+	b.WriteString("\n")
+	b.WriteString(dimStyle.Render("  • "))
+	b.WriteString(yellowStyle.Render("Saving validates & hot-reloads the collector"))
+	b.WriteString("\n")
+	b.WriteString(dimStyle.Render("  • Invalid configs will show errors, not reload"))
+	b.WriteString("\n\n")
+
+	b.WriteString(dimStyle.Render("You can modify processors, exporters, and pipelines"))
+	b.WriteString("\n")
+	b.WriteString(dimStyle.Render("to customize how telemetry is processed."))
+
+	// Actions
+	actions := lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true).Render(keysHint("open editor", "enter", "o")),
+		"  ",
+		lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(keysHint("cancel", "esc")),
+	)
+
+	content := lipgloss.JoinVertical(
+		lipgloss.Left,
+		title,
+		"",
+		b.String(),
+		"",
+		actions,
+	)
+
+	return modalStyle.Render(content)
+}
+
+func (m Model) renderOtelConfigModal() string {
+	// Modal dimensions
+	modalWidth := min(m.width-8, 70)
+
+	// Modal box style - use a nice cyan border for config
+	modalStyle := lipgloss.NewStyle().
+		Width(modalWidth).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("45")). // Cyan border
+		Padding(1, 2).
+		Align(lipgloss.Left)
+
+	// Title
+	title := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("45")).
+		Render("⚙ OTel Collector Config")
+
+	var b strings.Builder
+
+	// Label/value styles
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	valueStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Bold(true)
+	successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true) // Green
+	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)  // Red
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+
+	// Show config path (never truncate - user needs to copy it)
+	b.WriteString(labelStyle.Render("Config file:"))
+	b.WriteString("\n")
+	b.WriteString(valueStyle.Render("  " + m.otelConfigPath))
+	b.WriteString("\n\n")
+
+	// Watching status
+	b.WriteString(labelStyle.Render("Status:"))
+	b.WriteString("\n")
+	if m.otelWatchingConfig {
+		b.WriteString(successStyle.Render("  ● Watching for changes"))
+	} else {
+		b.WriteString(dimStyle.Render("  ○ Not watching"))
+	}
+	b.WriteString("\n\n")
+
+	// Validation status (if any)
+	if m.otelValidationStatus != "" {
+		b.WriteString(labelStyle.Render("Validation:"))
+		b.WriteString("\n")
+		if m.otelValidationValid {
+			if m.otelValidationStatus == "Validating config..." {
+				b.WriteString(dimStyle.Render("  ⏳ " + m.otelValidationStatus))
+			} else {
+				b.WriteString(successStyle.Render("  ✓ Config is valid"))
+			}
+		} else {
+			// Show error with wrapped text
+			b.WriteString(errorStyle.Render("  ✗ Invalid config:"))
+			b.WriteString("\n")
+			// Wrap long error messages
+			errMsg := m.otelValidationStatus
+			if len(errMsg) > modalWidth-8 {
+				// Split into multiple lines
+				for len(errMsg) > 0 {
+					lineLen := min(modalWidth-10, len(errMsg))
+					b.WriteString(errorStyle.Render("    " + errMsg[:lineLen]))
+					errMsg = errMsg[lineLen:]
+					if len(errMsg) > 0 {
+						b.WriteString("\n")
+					}
+				}
+			} else {
+				b.WriteString(errorStyle.Render("    " + errMsg))
+			}
+		}
+		b.WriteString("\n\n")
+	}
+
+	// Last reload info
+	b.WriteString(labelStyle.Render("Last reload:"))
+	b.WriteString("\n")
+	if m.otelReloadError != nil {
+		b.WriteString(errorStyle.Render("  ✗ Error: " + m.otelReloadError.Error()))
+	} else if !m.otelLastReload.IsZero() {
+		reloadTime := m.otelLastReload.Format("15:04:05")
+		b.WriteString(successStyle.Render(fmt.Sprintf("  ✓ Reloaded at %s", reloadTime)))
+		if m.otelReloadCount > 1 {
+			b.WriteString(dimStyle.Render(fmt.Sprintf(" (%d times)", m.otelReloadCount)))
+		}
+	} else {
+		b.WriteString(dimStyle.Render("  (none yet)"))
+	}
+	b.WriteString("\n\n")
+
+	// Instructions
+	instructionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("226")) // Yellow
+	if m.otelWatchingConfig {
+		b.WriteString(instructionStyle.Render("Save to validate & hot-reload. Invalid configs won't reload."))
+	} else {
+		b.WriteString(instructionStyle.Render("Run 'elasticat down && up' to apply extracted config."))
+	}
+
+	// Check if we just copied
+	justCopiedPath := m.statusMessage == "Path copied to clipboard!" &&
+		time.Since(m.statusTime) < 2*time.Second
+	justCopiedError := m.statusMessage == "Error copied to clipboard!" &&
+		time.Since(m.statusTime) < 2*time.Second
+
+	// Build action hints
+	var actionParts []string
+
+	// Copy path hint
+	if justCopiedPath {
+		actionParts = append(actionParts, lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true).Render(keysHint("path ✓", "y")))
+	} else {
+		actionParts = append(actionParts, lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true).Render(keysHint("copy path", "y")))
+	}
+
+	// Copy error hint (only if there's an error)
+	hasError := (!m.otelValidationValid && m.otelValidationStatus != "" && m.otelValidationStatus != "Validating config...") || m.otelReloadError != nil
+	if hasError {
+		if justCopiedError {
+			actionParts = append(actionParts, lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true).Render(keysHint("error ✓", "Y")))
+		} else {
+			actionParts = append(actionParts, lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true).Render(keysHint("copy error", "Y")))
+		}
+	}
+
+	// Dismiss hint
+	actionParts = append(actionParts, lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(keysHint("dismiss", "esc")))
+
+	actions := lipgloss.JoinHorizontal(lipgloss.Left, strings.Join(actionParts, "  "))
+
+	content := lipgloss.JoinVertical(
+		lipgloss.Left,
+		title,
+		"",
+		b.String(),
+		"",
+		actions,
+	)
+
+	return modalStyle.Render(content)
+}
+
 func (m Model) renderCredsModal() string {
 	// Modal dimensions
 	modalWidth := min(m.width-8, 70)

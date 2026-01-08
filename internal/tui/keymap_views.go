@@ -56,6 +56,7 @@ func (m Model) keymapLogs() []KeyBinding {
 		ActionBinding(ActionRefresh, KeyKindFull, "View"),
 		ActionBinding(ActionAutoRefresh, KeyKindFull, "View"),
 		ActionBinding(ActionCreds, KeyKindFull, "View"),
+		ActionBinding(ActionOtelConfig, KeyKindFull, "System"),
 		CombinedBinding([]string{"0-4"}, "level filters", KeyKindFull, "Filter"),
 		ActionBinding(ActionQuit, KeyKindFull, "System"),
 	}
@@ -79,8 +80,7 @@ func (m Model) keymapDetail() []KeyBinding {
 		ActionBinding(ActionKibana, KeyKindQuick, "View"),
 		ActionBindingWithLabel(ActionBack, "close", KeyKindQuick, "Navigation"),
 	}
-	// Full list only adds items not in quick
-	full := []KeyBinding{}
+	full := DetailGlobalBindings()
 	if m.signalType == signalTraces {
 		full = append(full, ActionBinding(ActionSpans, KeyKindFull, "View"))
 	}
@@ -88,14 +88,14 @@ func (m Model) keymapDetail() []KeyBinding {
 }
 
 func (m Model) keymapDetailJSON() []KeyBinding {
-	// Small view: no help overlay, quick only.
-	return []KeyBinding{
+	quick := []KeyBinding{
 		ScrollBinding(KeyKindQuick),
 		PrevNextBinding("prev/next", KeyKindQuick),
 		ActionBindingWithLabel(ActionJSON, "details", KeyKindQuick, "View"),
 		ActionBinding(ActionCopy, KeyKindQuick, "Clipboard"),
 		ActionBindingWithLabel(ActionBack, "close", KeyKindQuick, "Navigation"),
 	}
+	return append(quick, DetailGlobalBindings()...)
 }
 
 func (m Model) keymapMetricsDashboard() []KeyBinding {
@@ -112,6 +112,7 @@ func (m Model) keymapMetricsDashboard() []KeyBinding {
 		ActionBinding(ActionCycleSignal, KeyKindFull, "View"),
 		ActionBinding(ActionRefresh, KeyKindFull, "View"),
 		ActionBinding(ActionCreds, KeyKindFull, "View"),
+		ActionBinding(ActionOtelConfig, KeyKindFull, "System"),
 		CombinedBinding([]string{"d"}, "documents", KeyKindFull, "View"),
 		ActionBinding(ActionSearch, KeyKindFull, "Filter"),
 		ActionBinding(ActionQuit, KeyKindFull, "System"),
@@ -129,9 +130,7 @@ func (m Model) keymapMetricDetail() []KeyBinding {
 		ActionBinding(ActionKibana, KeyKindQuick, "View"),
 		ActionBinding(ActionBack, KeyKindQuick, "Navigation"),
 	}
-	full := []KeyBinding{
-		ActionBinding(ActionRefresh, KeyKindFull, "View"),
-	}
+	full := append([]KeyBinding{ActionBinding(ActionRefresh, KeyKindFull, "View")}, GlobalBindings()...)
 	return append(quick, full...)
 }
 
@@ -143,12 +142,12 @@ func (m Model) keymapTraceNames() []KeyBinding {
 		ActionBinding(ActionPerspective, KeyKindQuick, "View"),
 		ActionBinding(ActionChat, KeyKindQuick, "AI"),
 	}
-	// Full list only adds items not in quick
 	full := []KeyBinding{
 		ActionBinding(ActionCycleSignal, KeyKindFull, "View"),
 		ActionBinding(ActionSearch, KeyKindFull, "Filter"),
 		ActionBinding(ActionRefresh, KeyKindFull, "View"),
-		ActionBinding(ActionCreds, KeyKindFull, "View"),
+		ActionBinding(ActionCreds, KeyKindFull, "System"),
+		ActionBinding(ActionOtelConfig, KeyKindFull, "System"),
 		ActionBinding(ActionQuit, KeyKindFull, "System"),
 	}
 	return append(quick, full...)
@@ -162,17 +161,15 @@ func (m Model) keymapPerspectiveList() []KeyBinding {
 		ActionBinding(ActionCycleLookback, KeyKindQuick, "Filter"),
 		ActionBinding(ActionBack, KeyKindQuick, "Navigation"),
 	}
-	// Full list only adds items not in quick
 	full := []KeyBinding{
 		ActionBinding(ActionSearch, KeyKindFull, "Filter"),
 		ActionBinding(ActionRefresh, KeyKindFull, "View"),
-		ActionBinding(ActionQuit, KeyKindFull, "System"),
 	}
+	full = append(full, GlobalBindingsWithQuit()...)
 	return append(quick, full...)
 }
 
 func (m Model) keymapFields() []KeyBinding {
-	// All bindings fit in quick, no additional full-only bindings
 	quick := []KeyBinding{
 		ScrollBinding(KeyKindQuick),
 		CombinedBinding([]string{"space", "enter"}, "toggle", KeyKindQuick, "View"),
@@ -180,7 +177,7 @@ func (m Model) keymapFields() []KeyBinding {
 		ActionBinding(ActionReset, KeyKindQuick, "View"),
 		ActionBindingWithLabel(ActionBack, "close", KeyKindQuick, "Navigation"),
 	}
-	return quick
+	return append(quick, GlobalBindings()...)
 }
 
 func (m Model) keymapErrorModal() []KeyBinding {
@@ -203,7 +200,7 @@ func (m Model) keymapChat() []KeyBinding {
 	full := []KeyBinding{
 		CombinedBinding([]string{"pgup", "pgdn"}, "page", KeyKindFull, "Navigation"),
 		CombinedBinding([]string{"g", "G"}, "top/bottom", KeyKindFull, "Navigation"),
-		ActionBinding(ActionQuit, KeyKindFull, "System"),
 	}
+	full = append(full, SystemBindings()...)
 	return append(quick, full...)
 }

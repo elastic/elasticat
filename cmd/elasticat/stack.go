@@ -213,6 +213,19 @@ func runUp() error {
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to install stack: %w", err)
 		}
+
+		// Extract OTel config to file and configure volume mount
+		// This enables easy config editing via the "O" hotkey
+		fmt.Println()
+		fmt.Println("Configuring OTel collector for easy config editing...")
+		if err := config.ExtractOtelConfig(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not extract OTel config: %v\n", err)
+		} else {
+			// Recreate collector to pick up the file mount
+			if err := config.RecreateCollector(); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: could not restart collector: %v\n", err)
+			}
+		}
 	}
 
 	// Ensure profile exists and is set as current

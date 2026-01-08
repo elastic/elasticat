@@ -87,6 +87,65 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case chatResponseMsg:
 		return m.handleChatResponseMsg(msg)
 
+	case OtelConfigOpenedMsg:
+		if msg.Err != nil {
+			m.err = msg.Err
+			m.pushView(viewErrorModal)
+			modalWidth := min(m.width-8, 80)
+			m.errorViewport.Width = modalWidth - 8
+			m.errorViewport.Height = min(m.height-15, 20)
+			m.errorViewport.SetContent(msg.Err.Error())
+			m.errorViewport.GotoTop()
+			return m, nil
+		}
+		// Show the OTel config modal and start watching
+		m.otelConfigPath = msg.ConfigPath
+		m.otelWatchingConfig = true
+		m.otelReloadError = nil
+		m.pushView(viewOtelConfigModal)
+
+		// If extracted, we need a restart - don't hot reload
+		if msg.Extracted {
+			m.otelWatchingConfig = false
+			m.statusMessage = "Config extracted. Restart stack to use file mount."
+			m.statusTime = time.Now()
+			return m, nil
+		}
+
+		// Start watching for file changes
+		return m, watchOtelConfig(msg.ConfigPath)
+
+	case otelFileChangedMsg:
+		// File changed - validate first, then reload if valid
+		m.otelValidationStatus = "Validating config..."
+		m.otelValidationValid = true // Clear any previous error styling
+		return m, m.handleOtelFileChanged()
+
+	case otelValidatedMsg:
+		// Validation complete - update status and proceed if valid
+		return m, m.handleOtelValidated(msg.Valid, msg.Message)
+
+	case otelReloadedMsg:
+		if msg.Err != nil {
+			m.otelReloadError = msg.Err
+		} else {
+			m.otelLastReload = msg.Time
+			m.otelReloadCount++
+			m.otelReloadError = nil
+			// Clear validation status on successful reload
+			m.otelValidationStatus = ""
+		}
+		// Continue watching if still in the modal
+		if m.mode == viewOtelConfigModal && m.otelWatchingConfig {
+			return m, watchOtelConfig(m.otelConfigPath)
+		}
+		return m, nil
+
+	case otelWatcherErrorMsg:
+		m.otelReloadError = msg.Err
+		m.otelWatchingConfig = false
+		return m, nil
+
 	case errMsg:
 		return m.handleErrMsg(msg)
 	}

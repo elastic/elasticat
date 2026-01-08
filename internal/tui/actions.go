@@ -45,6 +45,8 @@ const (
 	ActionPrevDoc       // N - prev document (in metric detail)
 	ActionChat          // c - open AI chat
 	ActionCreds         // C - show credentials modal
+	ActionOtelConfig    // O - open OTel collector config
+	ActionCopyOriginal  // Y - copy log.record.original to clipboard
 )
 
 // DefaultKeyBindings maps keys to their primary action.
@@ -84,12 +86,14 @@ var DefaultKeyBindings = map[string]Action{
 	"s":         ActionSort,
 
 	// Uppercase keys for specific view actions
-	"J": ActionJSON,    // JSON view in detail views
-	"S": ActionSpans,   // Spans view in trace detail
-	"n": ActionNextDoc, // Next document in metric detail
-	"N": ActionPrevDoc, // Prev document in metric detail
-	"c": ActionChat,    // Open AI chat
-	"C": ActionCreds,   // Show credentials modal
+	"J": ActionJSON,         // JSON view in detail views
+	"S": ActionSpans,        // Spans view in trace detail
+	"n": ActionNextDoc,      // Next document in metric detail
+	"N": ActionPrevDoc,      // Prev document in metric detail
+	"c": ActionChat,         // Open AI chat
+	"C": ActionCreds,        // Show credentials modal
+	"O": ActionOtelConfig,   // Open OTel collector config
+	"Y": ActionCopyOriginal, // Copy log.record.original in detail view
 
 	// Context-dependent keys (handled specially in some views)
 	// "d" - dashboard/documents toggle (not in default map)
@@ -153,6 +157,8 @@ var ActionDisplay = map[Action]ActionInfo{
 	ActionPrevDoc:       {DisplayKeys: []string{"N"}, Label: "prev doc"},
 	ActionChat:          {DisplayKeys: []string{"c"}, Label: "chat"},
 	ActionCreds:         {DisplayKeys: []string{"C"}, Label: "creds"},
+	ActionOtelConfig:    {DisplayKeys: []string{"O"}, Label: "edit otel collector config"},
+	ActionCopyOriginal:  {DisplayKeys: []string{"Y"}, Label: "copy 'log.original'"},
 }
 
 // ScrollDisplayKeys returns the combined display for scroll up/down

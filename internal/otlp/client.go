@@ -6,6 +6,7 @@ package otlp
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -97,6 +98,8 @@ func (c *Client) SendLog(ctx context.Context, parsed watch.ParsedLog) {
 		log.String("service.name", parsed.Service),
 		log.String("log.source", parsed.Source),
 		log.Bool("log.is_json", parsed.IsJSON),
+		log.String("log.file.path_resolved", toAbsPath(parsed.Source)),
+		log.String("log.record.original", parsed.RawLine),
 	)
 
 	// Add parsed attributes from JSON logs
@@ -141,4 +144,16 @@ func levelToSeverity(level watch.LogLevel) log.Severity {
 	default:
 		return log.SeverityInfo
 	}
+}
+
+// toAbsPath converts a path to an absolute path, returning the original if conversion fails
+func toAbsPath(path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return path
+	}
+	return abs
 }

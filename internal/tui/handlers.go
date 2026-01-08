@@ -34,6 +34,17 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.err = nil // Clear error
 			return m, nil
 		}
+		// Close OTel config explain modal
+		if m.mode == viewOtelConfigExplain {
+			m.popView()
+			return m, nil
+		}
+		// Close OTel config modal and stop watching
+		if m.mode == viewOtelConfigModal {
+			m.popView()
+			m.otelWatchingConfig = false
+			return m, nil
+		}
 		// Let metric and trace views handle their own escape
 		if m.mode == viewMetricDetail || m.mode == viewMetricsDashboard || m.mode == viewTraceNames || m.mode == viewQuitConfirm {
 			break // Fall through to mode-specific handler
@@ -64,6 +75,12 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if !m.isTextInputActive() && m.mode != viewCredsModal {
 			m.lastKibanaURL = "" // Clear any previous URL since this is direct access
 			m.pushView(viewCredsModal)
+			return m, nil
+		}
+	case ActionOtelConfig:
+		// Show OTel config explanation modal from any view (except during text input)
+		if !m.isTextInputActive() && m.mode != viewOtelConfigExplain && m.mode != viewOtelConfigModal {
+			m.pushView(viewOtelConfigExplain)
 			return m, nil
 		}
 	}
@@ -100,6 +117,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleChatKey(msg)
 	case viewCredsModal:
 		return m.handleCredsModalKey(msg)
+	case viewOtelConfigExplain:
+		return m.handleOtelConfigExplainKey(msg)
+	case viewOtelConfigModal:
+		return m.handleOtelConfigModalKey(msg)
 	}
 
 	return m, nil

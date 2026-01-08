@@ -4,6 +4,7 @@
 package tui
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -483,26 +484,151 @@ func (m Model) renderLogDetail(log es.LogEntry) string {
 		b.WriteString("\n\n")
 	}
 
-	// Attributes (common to all signal types)
-	if len(log.Attributes) > 0 {
-		b.WriteString(DetailKeyStyle.Render("Attributes:"))
-		b.WriteString("\n")
-		for k, v := range log.Attributes {
-			valStr := fmt.Sprintf("%v", v)
-			b.WriteString(fmt.Sprintf("  %s: %s\n", k, hl.ApplyToField(valStr, DetailValueStyle)))
-		}
-		b.WriteString("\n")
-	}
+	// Render all top-level fields from the raw document (not just Attributes/Resource)
+	// This shows the full OTEL mapping output including container, http, log, etc.
+	if log.RawJSON != "" {
+		var rawDoc map[string]interface{}
+		if err := json.Unmarshal([]byte(log.RawJSON), &rawDoc); err == nil {
+			// Fields to skip (already shown above or not useful in detail view)
+			skipFields := map[string]bool{
+				"@timestamp":               true,
+				"body":                     true,
+				"message":                  true,
+				"severity_text":            true,
+				"severity_number":          true,
+				"observed_timestamp":       true,
+				"event_name":               true,
+				"dropped_attributes_count": true,
+			}
 
-	// Resource (common to all signal types)
-	if len(log.Resource) > 0 {
-		b.WriteString(DetailKeyStyle.Render("Resource:"))
-		b.WriteString("\n")
-		for k, v := range log.Resource {
-			valStr := fmt.Sprintf("%v", v)
-			b.WriteString(fmt.Sprintf("  %s: %s\n", k, hl.ApplyToField(valStr, DetailValueStyle)))
+			// Sort keys for consistent output
+			keys := make([]string, 0, len(rawDoc))
+			for k := range rawDoc {
+				if !skipFields[k] {
+					keys = append(keys, k)
+				}
+			}
+			sortStrings(keys)
+
+			// Render each top-level field that's not effectively nil
+			for _, k := range keys {
+				v := rawDoc[k]
+				if isEffectivelyNil(v) {
+					continue
+				}
+
+				// Render the section header
+				b.WriteString(DetailKeyStyle.Render(k + ":"))
+				b.WriteString("\n")
+
+				// If it's a map, render recursively
+				if nested, ok := v.(map[string]interface{}); ok {
+					renderMapRecursive(&b, nested, 1, hl)
+				} else {
+					// Simple value
+					b.WriteString(fmt.Sprintf("  %s\n", hl.ApplyToField(fmt.Sprintf("%v", v), DetailValueStyle)))
+				}
+				b.WriteString("\n")
+			}
+		}
+	} else {
+		// Fallback to old behavior if RawJSON is not available
+		if len(log.Attributes) > 0 {
+			b.WriteString(DetailKeyStyle.Render("Attributes:"))
+			b.WriteString("\n")
+			renderMapRecursive(&b, log.Attributes, 1, hl)
+			b.WriteString("\n")
+		}
+
+		if len(log.Resource) > 0 {
+			b.WriteString(DetailKeyStyle.Render("Resource:"))
+			b.WriteString("\n")
+			renderMapRecursive(&b, log.Resource, 1, hl)
 		}
 	}
 
 	return b.String()
+}
+
+// LogOriginalStyle is a mellow blue for highlighting log.record.original
+var LogOriginalStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("111")) // Mellow blue
+
+// isEffectivelyNil checks if a value is nil or a map containing only nil values (recursively).
+// This is used to hide empty nested structures in the detail view.
+func isEffectivelyNil(v interface{}) bool {
+	// Direct nil check
+	if v == nil {
+		return true
+	}
+
+	// Check for typed nil (e.g., *string(nil) in interface{})
+	if fmt.Sprintf("%v", v) == "<nil>" {
+		return true
+	}
+
+	// Check for nested map - only effectively nil if ALL values are effectively nil
+	if nested, ok := v.(map[string]interface{}); ok {
+		if len(nested) == 0 {
+			return true
+		}
+		for _, nestedVal := range nested {
+			if !isEffectivelyNil(nestedVal) {
+				return false
+			}
+		}
+		return true
+	}
+
+	return false
+}
+
+// renderMapRecursive renders a map with nested maps indented recursively.
+// It highlights special semconv fields like log.record.original.
+// Nil values are hidden by default (they remain visible in the JSON view).
+func renderMapRecursive(b *strings.Builder, m map[string]interface{}, indent int, hl *Highlighter) {
+	// Sort keys for consistent output
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sortStrings(keys)
+
+	indentStr := strings.Repeat("  ", indent)
+
+	for _, k := range keys {
+		v := m[k]
+
+		// Skip nil values and maps containing only nils - they remain visible in JSON view
+		if isEffectivelyNil(v) {
+			continue
+		}
+
+		// Check for nested map
+		if nested, ok := v.(map[string]interface{}); ok {
+			b.WriteString(fmt.Sprintf("%s%s:\n", indentStr, k))
+			renderMapRecursive(b, nested, indent+1, hl)
+			continue
+		}
+
+		// Format value
+		valStr := fmt.Sprintf("%v", v)
+
+		// Special highlighting for log.record.original
+		if k == "log.record.original" || k == "original" {
+			b.WriteString(fmt.Sprintf("%s%s: %s\n", indentStr, k, LogOriginalStyle.Render(valStr)))
+		} else {
+			b.WriteString(fmt.Sprintf("%s%s: %s\n", indentStr, k, hl.ApplyToField(valStr, DetailValueStyle)))
+		}
+	}
+}
+
+// sortStrings sorts a slice of strings in place
+func sortStrings(s []string) {
+	for i := 0; i < len(s)-1; i++ {
+		for j := i + 1; j < len(s); j++ {
+			if s[i] > s[j] {
+				s[i], s[j] = s[j], s[i]
+			}
+		}
+	}
 }

@@ -58,3 +58,47 @@ func filterByKind(bindings []KeyBinding, kind KeyKind) []KeyBinding {
 	}
 	return out
 }
+
+// === Common Binding Sets ===
+// These helpers reduce duplication across view keymaps.
+
+// GlobalBindings returns the standard global action bindings (Chat, Creds, OtelConfig).
+// Use this for views where these actions work but aren't in the quick bar.
+func GlobalBindings() []KeyBinding {
+	return []KeyBinding{
+		ActionBinding(ActionChat, KeyKindFull, "AI"),
+		ActionBinding(ActionCreds, KeyKindFull, "System"),
+		ActionBinding(ActionOtelConfig, KeyKindFull, "System"),
+	}
+}
+
+// GlobalBindingsWithQuit returns global bindings plus Quit.
+// Use this for main views that should show the quit option.
+func GlobalBindingsWithQuit() []KeyBinding {
+	return []KeyBinding{
+		ActionBinding(ActionChat, KeyKindFull, "AI"),
+		ActionBinding(ActionCreds, KeyKindFull, "System"),
+		ActionBinding(ActionOtelConfig, KeyKindFull, "System"),
+		ActionBinding(ActionQuit, KeyKindFull, "System"),
+	}
+}
+
+// SystemBindings returns just OtelConfig and Quit bindings.
+// Use this when Chat/Creds are already in quick bindings or not applicable.
+func SystemBindings() []KeyBinding {
+	return []KeyBinding{
+		ActionBinding(ActionCreds, KeyKindFull, "System"),
+		ActionBinding(ActionOtelConfig, KeyKindFull, "System"),
+		ActionBinding(ActionQuit, KeyKindFull, "System"),
+	}
+}
+
+// DetailGlobalBindings returns globals plus CopyOriginal for log detail views.
+func DetailGlobalBindings() []KeyBinding {
+	return []KeyBinding{
+		ActionBinding(ActionCopyOriginal, KeyKindFull, "Clipboard"),
+		ActionBinding(ActionChat, KeyKindFull, "AI"),
+		ActionBinding(ActionCreds, KeyKindFull, "System"),
+		ActionBinding(ActionOtelConfig, KeyKindFull, "System"),
+	}
+}

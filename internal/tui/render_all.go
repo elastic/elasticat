@@ -149,6 +149,24 @@ func (m Model) View() string {
 			m.renderCredsModal(),
 		)
 		return overlayCenter(base, modal, m.width, m.height)
+	case viewOtelConfigExplain:
+		// Render previous mode as background, then overlay explanation modal
+		base := m.renderBase(m.peekViewStack())
+		modal := lipgloss.Place(
+			m.width, m.height,
+			lipgloss.Center, lipgloss.Center,
+			m.renderOtelConfigExplainModal(),
+		)
+		return overlayCenter(base, modal, m.width, m.height)
+	case viewOtelConfigModal:
+		// Render previous mode as background, then overlay OTel config modal
+		base := m.renderBase(m.peekViewStack())
+		modal := lipgloss.Place(
+			m.width, m.height,
+			lipgloss.Center, lipgloss.Center,
+			m.renderOtelConfigModal(),
+		)
+		return overlayCenter(base, modal, m.width, m.height)
 	}
 	return m.renderBase(m.mode)
 }

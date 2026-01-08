@@ -246,6 +246,23 @@ func (l *LogEntry) GetLevel() string {
 	return "INFO"
 }
 
+// GetOriginal returns the log.record.original attribute if present
+func (l *LogEntry) GetOriginal() string {
+	// Check for log.record.original in attributes
+	if val, ok := l.Attributes["log.record.original"].(string); ok {
+		return val
+	}
+	// Also check for just "original" in case of nested log object
+	if logAttr, ok := l.Attributes["log"].(map[string]interface{}); ok {
+		if val, ok := logAttr["record"].(map[string]interface{}); ok {
+			if original, ok := val["original"].(string); ok {
+				return original
+			}
+		}
+	}
+	return ""
+}
+
 // GetResource returns a displayable resource identifier
 // Prioritizes: service.namespace > deployment.environment > host.name > first available attribute
 func (l *LogEntry) GetResource() string {

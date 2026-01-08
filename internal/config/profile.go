@@ -113,6 +113,38 @@ func GetStartLocalEnvPath() (string, error) {
 	return filepath.Join(dir, StartLocalEnvFile), nil
 }
 
+// OtelConfigFileName is the name of the extracted OTel collector config file.
+const OtelConfigFileName = "otel-config.yaml"
+
+// GetOtelConfigPath returns the path to the OTel collector config file.
+// Returns ~/.elasticat/elastic-start-local/config/otel-config.yaml
+func GetOtelConfigPath() (string, error) {
+	dir, err := GetStartLocalDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "config", OtelConfigFileName), nil
+}
+
+// GetDockerComposePath returns the path to the start-local docker-compose.yml file.
+func GetDockerComposePath() (string, error) {
+	dir, err := GetStartLocalDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "docker-compose.yml"), nil
+}
+
+// IsOtelConfigExtracted returns true if the OTel config has been extracted to a separate file.
+func IsOtelConfigExtracted() bool {
+	path, err := GetOtelConfigPath()
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(path)
+	return err == nil
+}
+
 // IsStartLocalInstalled returns true if the start-local stack has been installed.
 func IsStartLocalInstalled() bool {
 	path, err := GetStartLocalEnvPath()

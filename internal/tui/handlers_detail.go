@@ -4,6 +4,8 @@
 package tui
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/elastic/elasticat/internal/es"
@@ -61,6 +63,18 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Copy raw JSON to clipboard
 		if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
 			m.copyToClipboard(es.PrettyJSON(m.logs[m.selectedIndex].RawJSON), "Copied JSON to clipboard!")
+		}
+		return m, nil
+	case ActionCopyOriginal:
+		// Copy log.record.original to clipboard (Y key)
+		if len(m.logs) > 0 && m.selectedIndex < len(m.logs) {
+			log := m.logs[m.selectedIndex]
+			if original := log.GetOriginal(); original != "" {
+				m.copyToClipboard(original, "Copied original log to clipboard!")
+			} else {
+				m.statusMessage = "No log.record.original found"
+				m.statusTime = time.Now()
+			}
 		}
 		return m, nil
 	case ActionKibana:
