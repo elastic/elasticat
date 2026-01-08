@@ -31,7 +31,8 @@ func (m Model) renderQueryOverlay() string {
 	b.WriteString(QueryHeaderStyle.Render(header))
 
 	// Show status message if recent (within 2 seconds)
-	if m.UI.StatusMessage != "" && time.Since(m.UI.StatusTime) < 2*time.Second {
+	justCopied := m.UI.StatusMessage == "Copied to clipboard!" && time.Since(m.UI.StatusTime) < 2*time.Second
+	if justCopied {
 		b.WriteString("  ")
 		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")).Bold(true).Render(m.UI.StatusMessage))
 	}
@@ -57,6 +58,31 @@ func (m Model) renderQueryOverlay() string {
 		}
 		b.WriteString(QueryBodyStyle.Render("'"))
 	}
+
+	b.WriteString("\n\n")
+
+	// Key hints
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	highlightStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true)
+
+	var copyHint string
+	if justCopied {
+		copyHint = highlightStyle.Render(keysHint("copied ✓", "y"))
+	} else {
+		copyHint = highlightStyle.Render(keysHint("copy", "y"))
+	}
+
+	hints := lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		copyHint,
+		"  ",
+		dimStyle.Render(keysHint("kibana", "k")),
+		"  ",
+		dimStyle.Render(keysHint("curl", "c")),
+		"  ",
+		dimStyle.Render(keysHint("close", "esc", "q")),
+	)
+	b.WriteString(hints)
 
 	// Calculate height - use full screen height since this replaces the log list
 	height := m.getFullScreenHeight()

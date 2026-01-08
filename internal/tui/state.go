@@ -68,13 +68,15 @@ type FieldsState struct {
 
 // MetricsState holds metrics dashboard state.
 type MetricsState struct {
-	ViewMode          MetricsViewMode           // Aggregated vs documents view
-	Aggregated        *metrics.MetricsAggResult // Aggregation results
-	Loading           bool                      // Loading metrics
-	Cursor            int                       // Selected metric
-	DetailDocs        []es.LogEntry             // Detail view documents
-	DetailDocCursor   int                       // Current detail doc index
-	DetailDocsLoading bool                      // Loading detail docs
+	ViewMode           MetricsViewMode           // Aggregated vs documents view
+	Aggregated         *metrics.MetricsAggResult // Aggregation results
+	Loading            bool                      // Loading metrics
+	Cursor             int                       // Selected metric in filtered list
+	DetailDocs         []es.LogEntry             // Detail view documents
+	DetailDocCursor    int                       // Current detail doc index
+	DetailDocsLoading  bool                      // Loading detail docs
+	NameFilter         string                    // Filter metrics by name (local filter)
+	SelectedMetricName string                    // Name of selected metric (for detail view)
 }
 
 // TracesState holds traces navigation state.
@@ -88,6 +90,7 @@ type TracesState struct {
 	Spans              []es.LogEntry               // Child spans
 	SpansLoading       bool                        // Loading spans
 	LastFetchedTraceID string                      // De-dupe span fetches
+	NameFilter         string                      // Filter transaction names (local filter)
 }
 
 // PerspectiveState holds perspective filtering state.

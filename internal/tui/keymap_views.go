@@ -102,6 +102,7 @@ func (m Model) keymapMetricsDashboard() []KeyBinding {
 	quick := []KeyBinding{
 		ScrollBinding(KeyKindQuick),
 		ActionBindingWithLabel(ActionSelect, "detail", KeyKindQuick, "View"),
+		ActionBinding(ActionSearch, KeyKindQuick, "Filter"),
 		ActionBinding(ActionCycleLookback, KeyKindQuick, "Filter"),
 		ActionBinding(ActionPerspective, KeyKindQuick, "View"),
 		ActionBinding(ActionKibana, KeyKindQuick, "View"),
@@ -109,12 +110,12 @@ func (m Model) keymapMetricsDashboard() []KeyBinding {
 	}
 	// Full list only adds items not in quick
 	full := []KeyBinding{
+		ActionBinding(ActionQuery, KeyKindFull, "View"),
 		ActionBinding(ActionRefresh, KeyKindFull, "View"),
 		ActionBinding(ActionSendToChat, KeyKindFull, "AI"),
 		ActionBinding(ActionCreds, KeyKindFull, "System"),
 		ActionBinding(ActionOtelConfig, KeyKindFull, "System"),
 		CombinedBinding([]string{"d"}, "documents", KeyKindFull, "View"),
-		ActionBinding(ActionSearch, KeyKindFull, "Filter"),
 		ActionBinding(ActionQuit, KeyKindFull, "System"),
 	}
 	return append(quick, full...)
@@ -138,13 +139,14 @@ func (m Model) keymapTraceNames() []KeyBinding {
 	quick := []KeyBinding{
 		ScrollBinding(KeyKindQuick),
 		ActionBindingWithLabel(ActionSelect, "select", KeyKindQuick, "View"),
+		ActionBinding(ActionSearch, KeyKindQuick, "Filter"),
 		ActionBinding(ActionCycleLookback, KeyKindQuick, "Filter"),
 		ActionBinding(ActionPerspective, KeyKindQuick, "View"),
+		ActionBinding(ActionKibana, KeyKindQuick, "View"),
 		ActionBinding(ActionChat, KeyKindQuick, "AI"),
 	}
 	full := []KeyBinding{
 		ActionBinding(ActionQuery, KeyKindFull, "View"),
-		ActionBinding(ActionSearch, KeyKindFull, "Filter"),
 		ActionBinding(ActionRefresh, KeyKindFull, "View"),
 		ActionBinding(ActionSendToChat, KeyKindFull, "AI"),
 		ActionBinding(ActionCreds, KeyKindFull, "System"),

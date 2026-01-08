@@ -6,6 +6,8 @@ package tui
 import (
 	"fmt"
 	"strings"
+
+	"github.com/elastic/elasticat/internal/es/metrics"
 )
 
 func (m Model) renderMetricsDashboard(listHeight int) string {
@@ -24,6 +26,15 @@ func (m Model) renderMetricsDashboard(listHeight int) string {
 			LoadingStyle.Render("No metrics found. " + keysHint("documents view", "d")))
 	}
 
+	// Filter metrics by name if filter is set
+	allMetrics := m.Metrics.Aggregated.Metrics
+	filteredMetrics := m.filterMetricsByName(allMetrics)
+
+	if len(filteredMetrics) == 0 {
+		return LogListStyle.Width(m.UI.Width - 4).Height(listHeight).Render(
+			LoadingStyle.Render(fmt.Sprintf("No metrics matching '%s'. Press / to search, Esc to clear.", m.Metrics.NameFilter)))
+	}
+
 	// Calculate column widths
 	// METRIC (flex) | SPARKLINE (20) | MIN (10) | MAX (10) | AVG (10) | LATEST (10) | LAST SEEN (10)
 	sparklineWidth := 20
@@ -35,9 +46,13 @@ func (m Model) renderMetricsDashboard(listHeight int) string {
 		metricWidth = 20
 	}
 
-	// Header
+	// Header (show filter if active)
+	headerText := "METRIC"
+	if m.Metrics.NameFilter != "" {
+		headerText = fmt.Sprintf("METRIC (filter: %s)", m.Metrics.NameFilter)
+	}
 	header := HeaderRowStyle.Render(
-		PadOrTruncate("METRIC", metricWidth) + " " +
+		PadOrTruncate(headerText, metricWidth) + " " +
 			PadOrTruncate("TREND", sparklineWidth) + " " +
 			PadOrTruncate("MIN", numWidth) + " " +
 			PadOrTruncate("MAX", numWidth) + " " +
@@ -45,15 +60,14 @@ func (m Model) renderMetricsDashboard(listHeight int) string {
 			PadOrTruncate("LATEST", numWidth) + " " +
 			PadOrTruncate("LAST SEEN", lastSeenWidth))
 
-	// Calculate visible range using common helper
-	metrics := m.Metrics.Aggregated.Metrics
-	startIdx, endIdx := calcVisibleRange(m.Metrics.Cursor, len(metrics), listHeight)
+	// Calculate visible range using common helper (use filtered list)
+	startIdx, endIdx := calcVisibleRange(m.Metrics.Cursor, len(filteredMetrics), listHeight)
 
 	var lines []string
 	lines = append(lines, header)
 
 	for i := startIdx; i < endIdx; i++ {
-		metric := metrics[i]
+		metric := filteredMetrics[i]
 		selected := i == m.Metrics.Cursor
 
 		// Generate sparkline
@@ -92,17 +106,18 @@ func (m Model) renderMetricsDashboard(listHeight int) string {
 }
 
 func (m Model) renderMetricsCompactDetail() string {
-	if m.Metrics.Aggregated == nil || len(m.Metrics.Aggregated.Metrics) == 0 {
+	filteredMetrics := m.getFilteredMetrics()
+	if len(filteredMetrics) == 0 {
 		return CompactDetailStyle.Width(m.UI.Width - 4).Height(compactDetailHeight).Render(
 			DetailMutedStyle.Render("No metric selected"))
 	}
 
-	if m.Metrics.Cursor >= len(m.Metrics.Aggregated.Metrics) {
+	if m.Metrics.Cursor >= len(filteredMetrics) {
 		return CompactDetailStyle.Width(m.UI.Width - 4).Height(compactDetailHeight).Render(
 			DetailMutedStyle.Render("No metric selected"))
 	}
 
-	metric := m.Metrics.Aggregated.Metrics[m.Metrics.Cursor]
+	metric := filteredMetrics[m.Metrics.Cursor]
 
 	var b strings.Builder
 
@@ -213,6 +228,31 @@ func (m Model) renderMetricDetailContent() string {
 	b.WriteString(m.renderMetricDetailDocs())
 
 	return b.String()
+}
+
+// filterMetricsByName returns metrics that match the name filter (case-insensitive substring)
+func (m Model) filterMetricsByName(allMetrics []metrics.AggregatedMetric) []metrics.AggregatedMetric {
+	if m.Metrics.NameFilter == "" {
+		return allMetrics
+	}
+
+	filter := strings.ToLower(m.Metrics.NameFilter)
+	var filtered []metrics.AggregatedMetric
+	for _, metric := range allMetrics {
+		if strings.Contains(strings.ToLower(metric.Name), filter) ||
+			strings.Contains(strings.ToLower(metric.ShortName), filter) {
+			filtered = append(filtered, metric)
+		}
+	}
+	return filtered
+}
+
+// getFilteredMetrics returns the filtered metrics list for navigation
+func (m Model) getFilteredMetrics() []metrics.AggregatedMetric {
+	if m.Metrics.Aggregated == nil {
+		return nil
+	}
+	return m.filterMetricsByName(m.Metrics.Aggregated.Metrics)
 }
 
 // renderMetricDetailDocs renders the document browser section in the metric detail view

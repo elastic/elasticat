@@ -49,12 +49,29 @@ func (m Model) getQueryText() string {
 func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
-		m.Filters.Query = m.Components.SearchInput.Value()
-		m.Logs.UserHasScrolled = false // Reset for tail -f behavior
+		query := m.Components.SearchInput.Value()
 		m.popView()
 		m.Components.SearchInput.Blur()
-		m.UI.Loading = true
-		return m, m.fetchLogs()
+
+		// Dispatch based on underlying view after popView
+		switch m.UI.Mode {
+		case viewMetricsDashboard:
+			// Local filter on metrics names
+			m.Metrics.NameFilter = query
+			m.Metrics.Cursor = 0 // Reset cursor when filter changes
+			return m, nil
+		case viewTraceNames:
+			// Local filter on transaction names
+			m.Traces.NameFilter = query
+			m.Traces.NamesCursor = 0 // Reset cursor when filter changes
+			return m, nil
+		default:
+			// Logs (and trace transactions list) use ES|QL search
+			m.Filters.Query = query
+			m.Logs.UserHasScrolled = false // Reset for tail -f behavior
+			m.UI.Loading = true
+			return m, m.fetchLogs()
+		}
 	case "esc":
 		m.popView()
 		m.Components.SearchInput.Blur()

@@ -6,6 +6,8 @@ package tui
 import (
 	"fmt"
 	"strings"
+
+	"github.com/elastic/elasticat/internal/es/traces"
 )
 
 func (m Model) renderTransactionNames(listHeight int) string {
@@ -24,6 +26,14 @@ func (m Model) renderTransactionNames(listHeight int) string {
 			LoadingStyle.Render("No transactions found in the selected time range."))
 	}
 
+	// Filter transaction names by name if filter is set
+	filteredNames := m.filterTransactionNames(m.Traces.TransactionNames)
+
+	if len(filteredNames) == 0 {
+		return LogListStyle.Width(m.UI.Width - 4).Height(listHeight).Render(
+			LoadingStyle.Render(fmt.Sprintf("No transactions matching '%s'. Press / to search, Esc to clear.", m.Traces.NameFilter)))
+	}
+
 	// Calculate column widths
 	// TRANSACTION NAME (flex) | COUNT (8) | MIN(ms) (9) | AVG(ms) (9) | MAX(ms) (9) | TRACES (7) | SPANS (6) | ERR% (6) | LAST SEEN (10)
 	countWidth := 8
@@ -40,9 +50,13 @@ func (m Model) renderTransactionNames(listHeight int) string {
 		nameWidth = 20
 	}
 
-	// Header
+	// Header (show filter if active)
+	headerText := "TRANSACTION NAME"
+	if m.Traces.NameFilter != "" {
+		headerText = fmt.Sprintf("TRANSACTION NAME (filter: %s)", m.Traces.NameFilter)
+	}
 	header := HeaderRowStyle.Render(
-		PadOrTruncate("TRANSACTION NAME", nameWidth) + " " +
+		PadOrTruncate(headerText, nameWidth) + " " +
 			PadOrTruncate("COUNT", countWidth) + " " +
 			PadOrTruncate("MIN(ms)", minWidth) + " " +
 			PadOrTruncate("AVG(ms)", avgWidth) + " " +
@@ -52,14 +66,14 @@ func (m Model) renderTransactionNames(listHeight int) string {
 			PadOrTruncate("ERR%", errWidth) + " " +
 			PadOrTruncate("LAST SEEN", lastSeenWidth))
 
-	// Calculate visible range using common helper
-	startIdx, endIdx := calcVisibleRange(m.Traces.NamesCursor, len(m.Traces.TransactionNames), listHeight)
+	// Calculate visible range using common helper (use filtered list)
+	startIdx, endIdx := calcVisibleRange(m.Traces.NamesCursor, len(filteredNames), listHeight)
 
 	var lines []string
 	lines = append(lines, header)
 
 	for i := startIdx; i < endIdx; i++ {
-		tx := m.Traces.TransactionNames[i]
+		tx := filteredNames[i]
 		selected := i == m.Traces.NamesCursor
 
 		// Format values
@@ -96,4 +110,25 @@ func (m Model) renderTransactionNames(listHeight int) string {
 
 	content := strings.Join(lines, "\n")
 	return LogListStyle.Width(m.UI.Width - 4).Height(listHeight).Render(content)
+}
+
+// filterTransactionNames returns transaction names that match the name filter (case-insensitive substring)
+func (m Model) filterTransactionNames(allNames []traces.TransactionNameAgg) []traces.TransactionNameAgg {
+	if m.Traces.NameFilter == "" {
+		return allNames
+	}
+
+	filter := strings.ToLower(m.Traces.NameFilter)
+	var filtered []traces.TransactionNameAgg
+	for _, tx := range allNames {
+		if strings.Contains(strings.ToLower(tx.Name), filter) {
+			filtered = append(filtered, tx)
+		}
+	}
+	return filtered
+}
+
+// getFilteredTransactionNames returns the filtered transaction names for navigation
+func (m Model) getFilteredTransactionNames() []traces.TransactionNameAgg {
+	return m.filterTransactionNames(m.Traces.TransactionNames)
 }

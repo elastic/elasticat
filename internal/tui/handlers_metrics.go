@@ -18,11 +18,9 @@ func (m Model) handleMetricsDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return newM, cmd
 	}
 
-	// Calculate list length for navigation
-	listLen := 0
-	if m.Metrics.Aggregated != nil {
-		listLen = len(m.Metrics.Aggregated.Metrics)
-	}
+	// Calculate list length for navigation (use filtered list)
+	filteredMetrics := m.getFilteredMetrics()
+	listLen := len(filteredMetrics)
 
 	// Handle list navigation
 	if isNavKey(key) {
@@ -32,11 +30,18 @@ func (m Model) handleMetricsDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch action {
 	case ActionBack:
-		// Metrics dashboard is a base view - esc does nothing (user can press 'q' to quit)
+		// If filter is active, clear it; otherwise do nothing (base view)
+		if m.Metrics.NameFilter != "" {
+			m.Metrics.NameFilter = ""
+			m.Metrics.Cursor = 0
+			return m, nil
+		}
 		return m, nil
 	case ActionSelect:
-		// Enter detail view for the selected metric
-		if m.Metrics.Aggregated != nil && m.Metrics.Cursor < len(m.Metrics.Aggregated.Metrics) {
+		// Enter detail view for the selected metric (from filtered list)
+		if len(filteredMetrics) > 0 && m.Metrics.Cursor < len(filteredMetrics) {
+			// Store the actual metric for detail view
+			m.Metrics.SelectedMetricName = filteredMetrics[m.Metrics.Cursor].Name
 			m.pushView(viewMetricDetail)
 			m.Metrics.DetailDocCursor = 0
 			m.Metrics.DetailDocsLoading = true
@@ -45,11 +50,17 @@ func (m Model) handleMetricsDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case ActionRefresh:
 		m.Metrics.Loading = true
+		m.Metrics.NameFilter = "" // Clear filter on refresh
+		m.Metrics.Cursor = 0
 		return m, m.fetchAggregatedMetrics()
 	case ActionSearch:
 		m.pushView(viewSearch)
 		m.Components.SearchInput.Focus()
 		return m, textinput.Blink
+	case ActionQuery:
+		m.pushView(viewQuery)
+		m.Query.Format = formatKibana
+		return m, nil
 	case ActionQuit:
 		return m, tea.Quit
 		// NOTE: ActionCycleLookback, ActionCycleSignal, ActionPerspective, ActionKibana

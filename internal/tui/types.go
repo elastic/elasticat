@@ -248,7 +248,8 @@ func DefaultFields(signal SignalType) []DisplayField {
 	case signalTraces:
 		return []DisplayField{
 			{Name: "@timestamp", Label: "TIME", Width: 8, Selected: true, SearchFields: nil},
-			{Name: "service.name", Label: "SERVICE", Width: 15, Selected: true, SearchFields: []string{"resource.attributes.service.name", "service.name"}},
+			// traces-* uses resource.attributes.service.name, not attributes.service.name
+			{Name: "service.name", Label: "SERVICE", Width: 15, Selected: true, SearchFields: []string{"service.name"}},
 			{Name: "name", Label: "NAME", Width: 25, Selected: true, SearchFields: []string{"name"}},
 			{Name: "duration_ms", Label: "DUR(ms)", Width: 9, Selected: true, SearchFields: nil},
 			{Name: "status.code", Label: "STATUS", Width: 6, Selected: true, SearchFields: []string{"status.code"}},
@@ -258,7 +259,8 @@ func DefaultFields(signal SignalType) []DisplayField {
 	case signalMetrics:
 		return []DisplayField{
 			{Name: "@timestamp", Label: "TIME", Width: 8, Selected: true, SearchFields: nil},
-			{Name: "service.name", Label: "SERVICE", Width: 15, Selected: true, SearchFields: []string{"resource.attributes.service.name", "service.name", "attributes.service.name"}},
+			// metrics-* uses service.name directly
+			{Name: "service.name", Label: "SERVICE", Width: 15, Selected: true, SearchFields: []string{"service.name"}},
 			{Name: "scope.name", Label: "SCOPE", Width: 20, Selected: true, SearchFields: []string{"scope.name"}},
 			{Name: "attributes.span.name", Label: "SPAN", Width: 25, Selected: true, SearchFields: []string{"attributes.span.name"}},
 			{Name: "_metrics", Label: "METRICS", Width: 0, Selected: true, SearchFields: nil},
@@ -268,8 +270,10 @@ func DefaultFields(signal SignalType) []DisplayField {
 			{Name: "@timestamp", Label: "TIME", Width: 8, Selected: true, SearchFields: nil},
 			// Use only severity_text and log.level - "level" doesn't exist in OTel indices
 			{Name: "severity_text", Label: "LEVEL", Width: 7, Selected: true, SearchFields: []string{"severity_text", "log.level"}},
-			{Name: "_resource", Label: "RESOURCE", Width: 12, Selected: true, SearchFields: []string{"resource.attributes.service.namespace", "resource.attributes.deployment.environment"}},
-			{Name: "service.name", Label: "SERVICE", Width: 15, Selected: true, SearchFields: []string{"resource.attributes.service.name", "service.name"}},
+			// Use deployment.environment only - service.namespace is not a standard OTel field
+			{Name: "_resource", Label: "RESOURCE", Width: 12, Selected: true, SearchFields: []string{"resource.attributes.deployment.environment"}},
+			// logs-* uses attributes.service.name, not resource.attributes.service.name
+			{Name: "service.name", Label: "SERVICE", Width: 15, Selected: true, SearchFields: []string{"service.name"}},
 			// Use only body.text, message, event_name - "body" doesn't exist as a searchable field in OTel
 			{Name: "body.text", Label: "MESSAGE", Width: 0, Selected: true, SearchFields: []string{"body.text", "message", "event_name"}},
 		}

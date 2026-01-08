@@ -42,16 +42,10 @@ func (m Model) renderBase(mode viewMode) string {
 	}
 
 	switch mode {
-	case viewLogs, viewSearch, viewIndex, viewQuery:
+	case viewLogs, viewIndex, viewQuery:
 		compact := m.renderCompactDetail()
 		compactHeight := lipgloss.Height(compact)
 
-		search := ""
-		searchHeight := 0
-		if mode == viewSearch {
-			search = m.renderSearchInput()
-			searchHeight = lipgloss.Height(search)
-		}
 		index := ""
 		indexHeight := 0
 		if mode == viewIndex {
@@ -69,8 +63,8 @@ func (m Model) renderBase(mode viewMode) string {
 		// [log list]
 		// \n
 		// [compact detail]
-		// (\n [search/index/query])?
-		listHeight := remainingHeight - 1 - compactHeight - (boolToInt(mode == viewSearch || mode == viewIndex || mode == viewQuery) * 1) - searchHeight - indexHeight - queryHeight
+		// (\n [index/query])?
+		listHeight := remainingHeight - 1 - compactHeight - (boolToInt(mode == viewIndex || mode == viewQuery) * 1) - indexHeight - queryHeight
 		if listHeight < 3 {
 			listHeight = 3
 		}
@@ -78,10 +72,6 @@ func (m Model) renderBase(mode viewMode) string {
 		body.WriteString(m.renderLogListWithHeight(listHeight))
 		body.WriteString("\n")
 		body.WriteString(compact)
-		if mode == viewSearch {
-			body.WriteString("\n")
-			body.WriteString(search)
-		}
 		if mode == viewIndex {
 			body.WriteString("\n")
 			body.WriteString(index)
@@ -159,7 +149,11 @@ func (m Model) View() string {
 
 	// Main content based on mode
 	switch m.UI.Mode {
-	case viewLogs, viewSearch, viewIndex, viewQuery:
+	case viewSearch:
+		// Render previous mode as background, then overlay search bar at bottom
+		base := m.renderBase(m.peekViewStack())
+		return m.overlaySearchBar(base)
+	case viewLogs, viewIndex, viewQuery:
 		return m.renderBase(m.UI.Mode)
 	case viewDetail, viewDetailJSON:
 		return m.renderBase(m.UI.Mode)
@@ -252,6 +246,31 @@ func overlayCenter(base, top string, width, height int) string {
 		}
 		baseLines[y] = line
 	}
+
+	return strings.Join(baseLines, "\n")
+}
+
+// overlaySearchBar overlays the search input bar at the bottom of the base view.
+func (m Model) overlaySearchBar(base string) string {
+	baseLines := strings.Split(base, "\n")
+
+	// Render the search input
+	search := m.renderSearchInput()
+
+	// Find the position to insert the search bar (above the help bar, which is the last line)
+	// The help bar is always at the bottom, so we replace the line just above it
+	if len(baseLines) < 2 {
+		return base + "\n" + search
+	}
+
+	// Replace the second-to-last line with the search bar
+	// This positions it just above the help bar
+	insertPos := len(baseLines) - 2
+	if insertPos < 0 {
+		insertPos = 0
+	}
+
+	baseLines[insertPos] = search
 
 	return strings.Join(baseLines, "\n")
 }
