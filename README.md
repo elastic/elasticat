@@ -1,13 +1,9 @@
 # ElastiCat
 
 **Your companion for developing OTel enabled applications** 
-<<<<<<< HEAD
 
 > [!WARNING]
 > ElastiCat is experimental!
-=======
-*NOTE: ElastiCat is experimental!*
->>>>>>> origin
 
 [![CI (main)](https://github.com/elastic/elasticat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/elastic/elasticat/actions/workflows/ci.yml?query=branch%3Amain)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
