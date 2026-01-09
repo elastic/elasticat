@@ -49,7 +49,7 @@ No Go installation required if you download a pre-built binary.
 
 ## Quick Start
 
-**Note! ElastiCat is alpha quality software!**
+**NOTE: ElastiCat is currently in alpha and not production quality. Beware!**
 
 ### 1. Get `elasticat`
 
