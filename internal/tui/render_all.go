@@ -101,9 +101,15 @@ func (m Model) renderBase(mode viewMode) string {
 	case viewTraceNames:
 		body.WriteString(m.renderTransactionNames(remainingHeight))
 	case viewPerspectiveList:
-		body.WriteString(m.renderPerspectiveList(remainingHeight))
+		compact := m.renderCompactDetail()
+		compactHeight := lipgloss.Height(compact)
+		listHeight := remainingHeight - 1 - compactHeight
+		if listHeight < 3 {
+			listHeight = 3
+		}
+		body.WriteString(m.renderPerspectiveList(listHeight))
 		body.WriteString("\n")
-		body.WriteString(m.renderCompactDetail())
+		body.WriteString(compact)
 	case viewChat:
 		body.WriteString(m.renderChatView(remainingHeight))
 	}

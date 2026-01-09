@@ -1,7 +1,9 @@
 # Binaries
 bin/
 /telasticat
+/elasticat
 *.exe
+
 
 # IDE
 .idea/

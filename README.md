@@ -101,7 +101,6 @@ elasticat ui traces    # Traces
 
 ```bash
 elasticat status   # Is Elasticsearch reachable?
-elasticat clear    # Delete all telemetry data
 ```
 
 ## The TUI
@@ -358,15 +357,6 @@ For interactive exploration, use `elasticat ui metrics` or `elasticat ui traces`
 | `--json` | `false` | Output as NDJSON |
 | `--service`, `-s` | - | Filter by service |
 | `--level`, `-l` | - | Filter by log level |
-
-### Data Management
-
-```bash
-elasticat clear          # Delete all telemetry (prompts for confirmation)
-elasticat clear --force  # Delete without prompting
-```
-
-Deletes from: your configured index pattern, `metrics-*`, and `traces-*`.
 
 ## Configuration
 

@@ -499,47 +499,6 @@ func (c *Client) enrichFieldCounts(ctx context.Context, fields []FieldInfo) {
 
 // === Utility functions ===
 
-// Clear deletes all logs from the index
-func (c *Client) Clear(ctx context.Context) (int64, error) {
-	// Build match_all query
-	query := map[string]interface{}{
-		"query": map[string]interface{}{
-			"match_all": map[string]interface{}{},
-		},
-	}
-
-	queryJSON, err := json.Marshal(query)
-	if err != nil {
-		return 0, fmt.Errorf("failed to marshal query: %w", err)
-	}
-
-	res, err := c.es.DeleteByQuery(
-		[]string{c.index},
-		bytes.NewReader(queryJSON),
-		c.es.DeleteByQuery.WithContext(ctx),
-		c.es.DeleteByQuery.WithRefresh(true),
-	)
-	if err != nil {
-		return 0, fmt.Errorf("failed to delete logs: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.IsError() {
-		body, _ := io.ReadAll(res.Body)
-		return 0, fmt.Errorf("delete failed: %s - %s", res.Status(), string(body))
-	}
-
-	// Parse response to get deleted count
-	var response struct {
-		Deleted int64 `json:"deleted"`
-	}
-	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
-		return 0, fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	return response.Deleted, nil
-}
-
 // LookbackToBucketInterval returns an appropriate ES interval for date_histogram
 // based on the lookback duration
 func LookbackToBucketInterval(lookback string) string {
