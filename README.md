@@ -51,12 +51,20 @@ No Go installation required if you download a pre-built binary.
 
 ### 1. Get `elasticat`
 
-- Download the latest `main` build from GitHub Actions:
-  - Go to [CI workflow runs (main)](https://github.com/elastic/elasticat/actions/workflows/ci.yml?query=branch%3Amain)
-  - Open the most recent successful run
-  - Download the artifact for your platform and put it on your `PATH`
+**One-liner install (macOS / Linux):**
 
-If you prefer building locally, see [Building from Source](#building-from-source).
+```bash
+curl -fsSL https://raw.githubusercontent.com/elastic/elasticat/main/install.sh | bash -s -- --prerelease
+```
+
+This downloads the latest release and installs it to `/usr/local/bin` (or `~/.local/bin`).
+
+> **Note:** While elasticat is in alpha, use `--prerelease` to install. Once stable releases are available, you can omit this flag.
+
+**Alternatives:**
+- Download a pre-built binary from [GitHub Releases](https://github.com/elastic/elasticat/releases)
+- For the latest `main` build, download from [CI workflow runs](https://github.com/elastic/elasticat/actions/workflows/ci.yml?query=branch%3Amain)
+- [Build from source](#building-from-source)
 
 ### 2. Start the stack
 

@@ -49,8 +49,9 @@ type ESProfile struct {
 
 // OTLPProfile holds OTLP connection settings for a profile.
 type OTLPProfile struct {
-	Endpoint string `yaml:"endpoint,omitempty"`
-	Insecure *bool  `yaml:"insecure,omitempty"` // Pointer to distinguish unset from false
+	Endpoint string            `yaml:"endpoint,omitempty"`
+	Insecure *bool             `yaml:"insecure,omitempty"` // Pointer to distinguish unset from false
+	Headers  map[string]string `yaml:"headers,omitempty"`  // Custom headers (e.g., Authorization)
 }
 
 // KibanaProfile holds Kibana connection settings for a profile.
@@ -443,6 +444,22 @@ func (p Profile) Resolve() (Profile, error) {
 		resolved.Elasticsearch.Password = val
 	}
 
+	// Resolve OTLP headers
+	if len(p.OTLP.Headers) > 0 {
+		resolved.OTLP.Headers = make(map[string]string)
+		for k, v := range p.OTLP.Headers {
+			if IsEnvRef(v) {
+				val, ok := expandEnvVar(v)
+				if !ok {
+					return Profile{}, fmt.Errorf("undefined environment variable in otlp header %s: %s", k, v)
+				}
+				resolved.OTLP.Headers[k] = val
+			} else {
+				resolved.OTLP.Headers[k] = v
+			}
+		}
+	}
+
 	return resolved, nil
 }
 
@@ -472,6 +489,12 @@ func (p Profile) HasPlainTextCredentials() bool {
 	}
 	if p.Elasticsearch.Password != "" && !IsEnvRef(p.Elasticsearch.Password) {
 		return true
+	}
+	// Check OTLP headers for plain text values
+	for _, v := range p.OTLP.Headers {
+		if v != "" && !IsEnvRef(v) {
+			return true
+		}
 	}
 	return false
 }
@@ -512,6 +535,18 @@ func (p Profile) MaskCredentials() Profile {
 			masked.Elasticsearch.Password = p.Elasticsearch.Password
 		} else {
 			masked.Elasticsearch.Password = "****"
+		}
+	}
+
+	// Mask OTLP headers
+	if len(p.OTLP.Headers) > 0 {
+		masked.OTLP.Headers = make(map[string]string)
+		for k, v := range p.OTLP.Headers {
+			if IsEnvRef(v) {
+				masked.OTLP.Headers[k] = v
+			} else {
+				masked.OTLP.Headers[k] = "****"
+			}
 		}
 	}
 

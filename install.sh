@@ -3,9 +3,11 @@ set -e
 
 # ElastiCat Installer
 # Usage: curl -fsSL https://raw.githubusercontent.com/elastic/elasticat/main/install.sh | bash
+#        curl -fsSL https://raw.githubusercontent.com/elastic/elasticat/main/install.sh | bash -s -- --prerelease
 
 REPO="elastic/elasticat"
 BINARY_NAME="elasticat"
+INCLUDE_PRERELEASE=false
 
 # Colors for output
 RED='\033[0;31m'
@@ -70,9 +72,19 @@ detect_arch() {
 # Get the latest release tag from GitHub
 get_latest_version() {
     local version
-    version=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    if [ "$INCLUDE_PRERELEASE" = true ]; then
+        # Use /releases endpoint to include pre-releases, get the first (latest) one
+        version=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases" | grep -m1 '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    else
+        # Use /releases/latest for stable releases only
+        version=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    fi
     if [ -z "$version" ]; then
-        error "Failed to fetch latest version from GitHub"
+        if [ "$INCLUDE_PRERELEASE" = true ]; then
+            error "Failed to fetch latest version from GitHub"
+        else
+            error "No stable release found. Try with --prerelease flag: curl -fsSL ... | bash -s -- --prerelease"
+        fi
     fi
     echo "$version"
 }
@@ -125,6 +137,30 @@ find_doc_dir() {
 }
 
 main() {
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --prerelease)
+                INCLUDE_PRERELEASE=true
+                shift
+                ;;
+            --help|-h)
+                echo "ElastiCat Installer"
+                echo ""
+                echo "Usage: curl -fsSL https://raw.githubusercontent.com/elastic/elasticat/main/install.sh | bash"
+                echo "       curl -fsSL ... | bash -s -- --prerelease"
+                echo ""
+                echo "Options:"
+                echo "  --prerelease    Include pre-release versions"
+                echo "  --help, -h      Show this help message"
+                exit 0
+                ;;
+            *)
+                error "Unknown option: $1. Use --help for usage."
+                ;;
+        esac
+    done
+
     echo ""
     echo "  ╔═══════════════════════════════════════╗"
     echo "  ║         ElastiCat Installer           ║"

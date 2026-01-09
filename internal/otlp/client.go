@@ -28,9 +28,10 @@ type Client struct {
 
 // Config holds OTLP client configuration
 type Config struct {
-	Endpoint    string // OTLP HTTP endpoint (default: localhost:4318)
-	ServiceName string // Default service name
-	Insecure    bool   // Use HTTP instead of HTTPS
+	Endpoint    string            // OTLP HTTP endpoint (default: localhost:4318)
+	ServiceName string            // Default service name
+	Insecure    bool              // Use HTTP instead of HTTPS
+	Headers     map[string]string // Custom headers (e.g., Authorization)
 }
 
 // New creates a new OTLP client
@@ -48,6 +49,9 @@ func New(cfg Config) (*Client, error) {
 	}
 	if cfg.Insecure {
 		opts = append(opts, otlploghttp.WithInsecure())
+	}
+	if len(cfg.Headers) > 0 {
+		opts = append(opts, otlploghttp.WithHeaders(cfg.Headers))
 	}
 
 	exporter, err := otlploghttp.New(ctx, opts...)

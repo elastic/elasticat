@@ -91,6 +91,7 @@ func runWatch(cmd *cobra.Command, files []string) error {
 			Endpoint:    cfg.OTLP.Endpoint,
 			ServiceName: cfg.Watch.Service,
 			Insecure:    cfg.OTLP.Insecure,
+			Headers:     cfg.OTLP.Headers,
 		})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: Failed to create OTLP client: %v\n", err)

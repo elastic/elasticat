@@ -47,8 +47,9 @@ type KibanaConfig struct {
 
 // OTLPConfig holds OpenTelemetry Protocol settings.
 type OTLPConfig struct {
-	Endpoint string `mapstructure:"endpoint"` // OTLP HTTP endpoint
-	Insecure bool   `mapstructure:"insecure"` // Use insecure connection
+	Endpoint string            `mapstructure:"endpoint"` // OTLP HTTP endpoint
+	Insecure bool              `mapstructure:"insecure"` // Use insecure connection
+	Headers  map[string]string `mapstructure:"headers"`  // Custom headers (e.g., Authorization)
 }
 
 // WatchConfig holds file watching settings.
@@ -199,6 +200,11 @@ func applyProfile(v *viper.Viper) (string, error) {
 	setIfNotEnvBool("otlp.insecure", "ELASTICAT_OTLP_INSECURE", resolved.OTLP.Insecure)
 	setIfNotEnv("kibana.url", "ELASTICAT_KIBANA_URL", resolved.Kibana.URL)
 	setIfNotEnv("kibana.space", "ELASTICAT_KIBANA_SPACE", resolved.Kibana.Space)
+
+	// Apply OTLP headers from profile (no env var override for headers)
+	if len(resolved.OTLP.Headers) > 0 {
+		v.Set("otlp.headers", resolved.OTLP.Headers)
+	}
 
 	return name, nil
 }

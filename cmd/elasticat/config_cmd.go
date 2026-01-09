@@ -20,6 +20,7 @@ var (
 	setProfileESPassword  string
 	setProfileOTLP        string
 	setProfileOTLPInsec   bool
+	setProfileOTLPHeaders string
 	setProfileKibanaURL   string
 	setProfileKibanaSpace string
 )
@@ -116,6 +117,13 @@ Credentials can be stored as:
 		}
 		if cmd.Flags().Changed("otlp-insecure") {
 			profile.OTLP.Insecure = &setProfileOTLPInsec
+		}
+		if setProfileOTLPHeaders != "" {
+			headers, err := parseOTLPHeaders(setProfileOTLPHeaders)
+			if err != nil {
+				return fmt.Errorf("invalid otlp headers: %w", err)
+			}
+			profile.OTLP.Headers = headers
 		}
 		if setProfileKibanaURL != "" {
 			profile.Kibana.URL = setProfileKibanaURL
@@ -264,6 +272,7 @@ func init() {
 	setProfileCmd.Flags().StringVar(&setProfileESPassword, "es-password", "", "Elasticsearch password (supports ${ENV_VAR} syntax)")
 	setProfileCmd.Flags().StringVar(&setProfileOTLP, "otlp", "", "OTLP endpoint")
 	setProfileCmd.Flags().BoolVar(&setProfileOTLPInsec, "otlp-insecure", true, "Use insecure OTLP connection")
+	setProfileCmd.Flags().StringVar(&setProfileOTLPHeaders, "otlp-exporter-headers", "", "OTLP headers (format: key=value,key2=value2, supports ${ENV_VAR} syntax)")
 	setProfileCmd.Flags().StringVar(&setProfileKibanaURL, "kibana-url", "", "Kibana URL")
 	setProfileCmd.Flags().StringVar(&setProfileKibanaSpace, "kibana-space", "", "Kibana space (e.g., 'elasticat')")
 
@@ -299,4 +308,32 @@ func formatProfileSummary(p config.Profile) string {
 		return "(empty)"
 	}
 	return strings.Join(parts, ", ")
+}
+
+// parseOTLPHeaders parses a comma-separated key=value string into a map.
+// Format: "key1=value1,key2=value2"
+func parseOTLPHeaders(s string) (map[string]string, error) {
+	if s == "" {
+		return nil, nil
+	}
+
+	headers := make(map[string]string)
+	pairs := strings.Split(s, ",")
+	for _, pair := range pairs {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		idx := strings.Index(pair, "=")
+		if idx == -1 {
+			return nil, fmt.Errorf("invalid header format %q, expected key=value", pair)
+		}
+		key := strings.TrimSpace(pair[:idx])
+		value := strings.TrimSpace(pair[idx+1:])
+		if key == "" {
+			return nil, fmt.Errorf("empty header key in %q", pair)
+		}
+		headers[key] = value
+	}
+	return headers, nil
 }
