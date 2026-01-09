@@ -10,7 +10,7 @@ var metricsCmd = &cobra.Command{
 	Short: "Query and display metrics (CLI)",
 	Long: `Query metrics from Elasticsearch and display in the terminal.
 
-For the interactive TUI, use 'elasticat ui metrics'.`,
+For the interactive TUI, use 'catseye metrics'.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runSignalCommand(cmd, signalKindMetrics, args)
 	},

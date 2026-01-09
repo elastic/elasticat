@@ -6,7 +6,8 @@ set -e
 #        curl -fsSL https://raw.githubusercontent.com/elastic/elasticat/main/install.sh | bash -s -- --prerelease
 
 REPO="elastic/elasticat"
-BINARY_NAME="elasticat"
+ELASTICAT_NAME="elasticat"
+CATSEYE_NAME="catseye"
 INCLUDE_PRERELEASE=false
 
 # Colors for output
@@ -95,7 +96,7 @@ build_download_url() {
     local os="$2"
     local arch="$3"
     
-    local archive_name="${BINARY_NAME}-${version}-${os}-${arch}.tar.gz"
+    local archive_name="${ELASTICAT_NAME}-${version}-${os}-${arch}.tar.gz"
     echo "https://github.com/${REPO}/releases/download/${version}/${archive_name}"
 }
 
@@ -184,8 +185,9 @@ main() {
 
     # Find install directory
     local install_dir=$(find_install_dir)
-    local install_path="${install_dir}/${BINARY_NAME}"
-    info "Installing to: ${install_path}"
+    local elasticat_install_path="${install_dir}/${ELASTICAT_NAME}"
+    local catseye_install_path="${install_dir}/${CATSEYE_NAME}"
+    info "Installing to: ${install_dir}"
 
     # Download archive
     local tmp_dir=$(mktemp -d)
@@ -199,18 +201,24 @@ main() {
     info "Extracting archive..."
     tar -xzf "$archive_file" -C "$tmp_dir"
     
-    # Find the binary in the extracted directory
-    local binary_name="${BINARY_NAME}-${os}-${arch}"
-    local extracted_dir="${tmp_dir}/${binary_name}"
-    local binary_file="${extracted_dir}/${binary_name}"
+    # Find the binaries in the extracted directory
+    local extracted_dir="${tmp_dir}/${ELASTICAT_NAME}-${os}-${arch}"
+    local elasticat_binary="${extracted_dir}/${ELASTICAT_NAME}-${os}-${arch}"
+    local catseye_binary="${extracted_dir}/${CATSEYE_NAME}-${os}-${arch}"
     
-    if [ ! -f "$binary_file" ]; then
+    if [ ! -f "$elasticat_binary" ]; then
         rm -rf "$tmp_dir"
-        error "Binary not found in archive"
+        error "elasticat binary not found in archive"
+    fi
+    
+    if [ ! -f "$catseye_binary" ]; then
+        rm -rf "$tmp_dir"
+        error "catseye binary not found in archive"
     fi
 
-    # Make executable and move to install location
-    chmod +x "$binary_file"
+    # Make executables
+    chmod +x "$elasticat_binary"
+    chmod +x "$catseye_binary"
     
     # Determine if we need sudo
     local needs_sudo=false
@@ -219,11 +227,13 @@ main() {
         info "Requesting sudo access to install..."
     fi
     
-    # Install binary
+    # Install binaries
     if [ "$needs_sudo" = true ]; then
-        sudo mv "$binary_file" "$install_path"
+        sudo mv "$elasticat_binary" "$elasticat_install_path"
+        sudo mv "$catseye_binary" "$catseye_install_path"
     else
-        mv "$binary_file" "$install_path"
+        mv "$elasticat_binary" "$elasticat_install_path"
+        mv "$catseye_binary" "$catseye_install_path"
     fi
     
     # Install license files
@@ -255,10 +265,11 @@ main() {
     rm -rf "$tmp_dir"
 
     # Verify installation
-    if command -v "$BINARY_NAME" &> /dev/null; then
+    if command -v "$ELASTICAT_NAME" &> /dev/null; then
         success "ElastiCat installed successfully!"
         echo ""
-        echo "  Run 'elasticat --help' to get started"
+        echo "  Run 'elasticat --help' for CLI commands"
+        echo "  Run 'catseye' for the interactive TUI"
         echo ""
         echo "  License: Apache 2.0"
         echo "  License files installed to: ${doc_dir}"
@@ -267,7 +278,9 @@ main() {
         fi
         echo ""
     else
-        success "Binary installed to ${install_path}"
+        success "Binaries installed to ${install_dir}"
+        success "  - elasticat (CLI)"
+        success "  - catseye (TUI)"
         success "License files installed to ${doc_dir}"
         if [ -d "$compose_dst" ]; then
             success "Docker stack installed to ${compose_dst}"

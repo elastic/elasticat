@@ -243,7 +243,7 @@ func runUp() error {
 	}
 
 	fmt.Println()
-	fmt.Println("Run 'elasticat ui' to open the log viewer.")
+	fmt.Println("Run 'catseye' to open the log viewer.")
 
 	return nil
 }

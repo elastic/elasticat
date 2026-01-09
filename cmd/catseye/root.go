@@ -4,9 +4,11 @@
 package main
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/elastic/elasticat/internal/config"
+	"github.com/elastic/elasticat/internal/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -16,20 +18,19 @@ var (
 	esURL           string
 	esIndex         string
 	pingTimeoutFlag time.Duration
-	serviceFlag     string
-	levelFlag       string
 	profileFlag     string // Profile name override
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "elasticat",
-	Short: "AI-powered local development log viewer",
-	Long: `ElastiCat - View and search your local development logs with the power of Elasticsearch.
+	Use:   "catseye [signal]",
+	Short: "Interactive TUI for viewing logs, metrics, and traces",
+	Long: `CatsEye - Interactive terminal UI for viewing logs, metrics, traces, and AI chat.
 
-Start the stack with 'elasticat up', then view logs with 'catseye'.
-Your AI assistant can query logs via the Elasticsearch MCP server.
+Signal can be: logs (default), metrics, traces, or chat.
+Use 'chat' to start directly in AI chat mode powered by Elastic Agent Builder.
 
-For the interactive TUI, use the 'catseye' command.`,
+For CLI commands, use 'elasticat'.`,
+	Args: cobra.MaximumNArgs(1),
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Set profile flag before loading config
 		config.SetProfileFlag(profileFlag)
@@ -40,6 +41,24 @@ For the interactive TUI, use the 'catseye' command.`,
 		}
 		cmd.SetContext(config.WithContext(cmd.Context(), cfg))
 		return nil
+	},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		sig := tui.SignalLogs
+		if len(args) > 0 {
+			switch args[0] {
+			case "logs":
+				sig = tui.SignalLogs
+			case "metrics":
+				sig = tui.SignalMetrics
+			case "traces":
+				sig = tui.SignalTraces
+			case "chat":
+				sig = tui.SignalChat
+			default:
+				return fmt.Errorf("unknown signal %q (expected logs, metrics, traces, chat)", args[0])
+			}
+		}
+		return runTUI(cmd.Context(), sig)
 	},
 }
 

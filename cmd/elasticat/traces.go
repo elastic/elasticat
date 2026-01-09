@@ -10,7 +10,7 @@ var tracesCmd = &cobra.Command{
 	Short: "Query and display traces (CLI)",
 	Long: `Query traces from Elasticsearch and display in the terminal.
 
-For the interactive TUI, use 'elasticat ui traces'.`,
+For the interactive TUI, use 'catseye traces'.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runSignalCommand(cmd, signalKindTraces, args)
 	},
