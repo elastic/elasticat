@@ -77,7 +77,29 @@ func (m Model) handleChatKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Update text input in insert mode
+	// While loading, allow navigation hotkeys instead of capturing input
+	if m.Chat.Loading {
+		switch action {
+		case ActionCycleSignal:
+			return m, m.cycleSignalType()
+		case ActionScrollUp:
+			m.Chat.Viewport.ScrollUp(1)
+			return m, nil
+		case ActionScrollDown:
+			m.Chat.Viewport.ScrollDown(1)
+			return m, nil
+		case ActionPageUp:
+			m.Chat.Viewport.HalfPageUp()
+			return m, nil
+		case ActionPageDown:
+			m.Chat.Viewport.HalfPageDown()
+			return m, nil
+		}
+		// Ignore other keys while loading
+		return m, nil
+	}
+
+	// Update text input in insert mode (only when not loading)
 	var cmd tea.Cmd
 	m.Chat.Input, cmd = m.Chat.Input.Update(msg)
 	return m, cmd

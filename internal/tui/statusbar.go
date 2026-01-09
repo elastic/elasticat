@@ -51,6 +51,11 @@ func (m Model) renderStatusBar() string {
 		row1Parts = append(row1Parts, LoadingStyle.Render("loading..."))
 	}
 
+	// Background chat indicator (show when chat is thinking but user is in another view)
+	if m.UI.Mode != viewChat && m.requests != nil && m.requests.inFlight(requestChat) {
+		row1Parts = append(row1Parts, lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Italic(true).Render("💬 Chat thinking..."))
+	}
+
 	row1 := strings.Join(row1Parts, "  │  ")
 
 	// Row 2: Only ES status if there's an error
