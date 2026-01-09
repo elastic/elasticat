@@ -1,4 +1,4 @@
-.PHONY: build install clean logs test fmt fmt-check license-check license-add notice dist dist-platform dist-clean prep sloc release demo
+.PHONY: build install clean logs test fmt fmt-check license-check license-add notice dist dist-platform dist-clean prep sloc release changelog demo
 
 # Build the elasticat and catseye binaries
 build:
@@ -119,13 +119,24 @@ dist-clean:
 prep: fmt license-add notice
 	@echo "Code is ready for PR!"
 
+# Generate changelog for a release using git-cliff
+# Usage: make changelog VERSION=v1.0.0
+# Requires: cargo install git-cliff (or brew install git-cliff)
+changelog:
+	@if [ -z "$(VERSION)" ]; then echo "Usage: make changelog VERSION=v1.0.0"; exit 1; fi
+	@echo "Generating changelog for $(VERSION)..."
+	@mkdir -p release-notes
+	@git-cliff --tag $(VERSION) --unreleased --strip header -o release-notes/$(VERSION).md
+	@echo "Release notes written to release-notes/$(VERSION).md"
+	@echo "Review and edit if needed, then run: make release VERSION=$(VERSION)"
+
 # Create and push a release tag (runs validation first)
 # Usage: make release VERSION=v1.0.0
 release:
 	@if [ -z "$(VERSION)" ]; then echo "Usage: make release VERSION=v1.0.0"; exit 1; fi
 	@if [ ! -f "release-notes/$(VERSION).md" ]; then \
 		echo "ERROR: Missing release-notes/$(VERSION).md"; \
-		echo "Create this file with release notes before running make release"; \
+		echo "Run 'make changelog VERSION=$(VERSION)' to generate it"; \
 		exit 1; \
 	fi
 	@echo "Preparing release $(VERSION)..."

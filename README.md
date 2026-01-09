@@ -3,7 +3,7 @@
 **Your cozy companions for developing OTel enabled applications** 
 
 > [!WARNING]
-> ElastiCat is experimental!
+> ElastiCat and CatsEye are experimental!
 
 [![CI (main)](https://github.com/elastic/elasticat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/elastic/elasticat/actions/workflows/ci.yml?query=branch%3Amain)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
@@ -660,10 +660,34 @@ make build
 
 Contributions welcome! Please read the existing code style and run tests before submitting PRs.
 
+### PR Title Convention
+
+PR titles **must** follow [Conventional Commits](https://www.conventionalcommits.org/) format:
+
+```
+<type>: <description>
+```
+
+| Type | Description |
+|------|-------------|
+| `feat:` | New feature |
+| `fix:` | Bug fix |
+| `docs:` | Documentation |
+| `refactor:` | Code refactoring |
+| `test:` | Tests |
+| `chore:` | Maintenance |
+| `perf:` | Performance |
+
+For breaking changes, add `!` (e.g., `feat!: change API`).
+
+CI will validate your PR title before merge is allowed.
+
+### Development Commands
+
 ```bash
 make test      # Run tests
-make lint      # Run linter
-make release VERSION=v1.0.0  # Create a release
+make fmt       # Format code
+make prep      # Prepare for PR (format, licenses, etc.)
 ```
 
 ## License

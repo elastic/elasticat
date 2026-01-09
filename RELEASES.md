@@ -2,58 +2,75 @@
 
 This document describes how to create releases for elasticat.
 
+## PR Title Convention
+
+All PR titles **must** follow [Conventional Commits](https://www.conventionalcommits.org/) format:
+
+```
+<type>: <description>
+```
+
+**Types:**
+- `feat:` - New features (appears in "Features" section)
+- `fix:` - Bug fixes (appears in "Bug Fixes" section)
+- `docs:` - Documentation changes
+- `refactor:` - Code refactoring
+- `test:` - Adding/updating tests
+- `chore:` - Maintenance tasks
+- `perf:` - Performance improvements
+- `ci:` - CI/CD changes
+
+**Breaking changes:** Add `!` after the type (e.g., `feat!: breaking API change`)
+
+**Examples:**
+```
+feat: add catseye TUI binary
+fix: resolve panic on empty log entries
+feat!: change default keybinding for quit
+chore: update dependencies
+```
+
+PR titles are validated by CI and must pass before merging. When PRs are squash-merged, the PR title becomes the commit message, which feeds into automated changelog generation.
+
 ## Prerequisites
 
 - All changes committed to the main branch
 - Tests passing (`make test`)
 - Code formatted (`make fmt`)
 - License headers present (`make license-add`)
+- [git-cliff](https://git-cliff.org/) installed (`cargo install git-cliff` or `brew install git-cliff`)
 
 ## Creating a Release
 
-### 1. Create Release Notes
+### 1. Generate Changelog
 
-Create a release notes file in `release-notes/` following the naming convention `v<version>.md`:
-
-```bash
-# Example for version 0.0.5-alpha
-touch release-notes/v0.0.5-alpha.md
-```
-
-Use the template in `release-notes/TEMPLATE.md` as a starting point:
-
-```markdown
-## What's New
-
-- Feature description
-
-## Bug Fixes
-
-- Fix description
-
-## Breaking Changes
-
-- None
-```
-
-### 2. Commit and Push Your Changes
-
-Ensure all changes including release notes are committed and pushed:
+Use git-cliff to auto-generate release notes from conventional commits:
 
 ```bash
-git add .
-git commit -m "Prepare release v0.0.5-alpha"
+make changelog VERSION=v0.0.6-alpha
+```
+
+This creates `release-notes/v0.0.6-alpha.md` with all changes since the last tag, grouped by type (Features, Bug Fixes, etc.).
+
+### 2. Review and Edit Release Notes
+
+Review the generated file and make any edits:
+- Add context to important changes
+- Highlight breaking changes
+- Remove trivial entries if desired
+
+### 3. Commit and Push
+
+```bash
+git add release-notes/v0.0.6-alpha.md
+git commit -m "chore(release): prepare v0.0.6-alpha"
 git push origin main
 ```
 
-**Important:** You must push your commits before creating the release. The `make release` command only pushes the tag, not the commits themselves.
-
-### 3. Run the Release
-
-Use the `make release` command with the version (including the `v` prefix):
+### 4. Run the Release
 
 ```bash
-make release VERSION=v0.0.5-alpha
+make release VERSION=v0.0.6-alpha
 ```
 
 This command will:
@@ -64,7 +81,7 @@ This command will:
 5. Create an annotated git tag
 6. Push the tag to GitHub
 
-### 4. GitHub Actions
+### 5. GitHub Actions
 
 Once the tag is pushed, GitHub Actions automatically:
 - Builds binaries for all supported platforms (Linux, macOS, Windows)
@@ -82,9 +99,14 @@ We use semantic versioning with optional pre-release identifiers:
 ## Quick Reference
 
 ```bash
+# Generate changelog from conventional commits
+make changelog VERSION=v0.0.6-alpha
+
+# Review/edit release-notes/v0.0.6-alpha.md
+
 # Prepare code for release
 make prep
 
-# Create and push a release
-make release VERSION=v0.0.5-alpha
+# Create and push release
+make release VERSION=v0.0.6-alpha
 ```

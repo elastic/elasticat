@@ -1,0 +1,43 @@
+name: PR Title Check
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  check-title:
+    name: Validate PR Title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Require conventional commit format in PR titles
+          types: |
+            feat
+            fix
+            docs
+            refactor
+            test
+            chore
+            perf
+            ci
+          # Scopes are optional
+          requireScope: false
+          # Allow breaking change indicator (!)
+          # e.g., "feat!: breaking change" or "fix!: breaking fix"
+          subjectPattern: ^.+$
+          subjectPatternError: |
+            PR title must follow conventional commit format:
+            
+            <type>: <description>
+            
+            Examples:
+              feat: add new feature
+              fix: resolve bug in parser
+              docs: update README
+              chore: update dependencies
+              feat!: breaking change to API
+            
+            Valid types: feat, fix, docs, refactor, test, chore, perf, ci
