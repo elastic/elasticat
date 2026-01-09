@@ -306,9 +306,8 @@ func Aggregate(ctx context.Context, exec Executor, opts AggregateMetricsOptions)
 	return result, nil
 }
 
-// generateKibanaESQLQuery creates a simple ES|QL query for Kibana integration.
-// This is a simplified query that allows users to explore metrics in Kibana,
-// even though the actual data was fetched via Query DSL for full feature support.
+// generateKibanaESQLQuery creates an ES|QL query for Kibana integration.
+// Groups metrics by metricset.name to show which metric types are present and their volume.
 func generateKibanaESQLQuery(index string, opts AggregateMetricsOptions) string {
 	var sb strings.Builder
 
@@ -340,8 +339,9 @@ func generateKibanaESQLQuery(index string, opts AggregateMetricsOptions) string 
 		sb.WriteString("\n")
 	}
 
-	// Simple stats to show there's data
-	sb.WriteString("| STATS doc_count = COUNT(*)")
+	// Group by metricset.name to show breakdown of metric types
+	sb.WriteString("| STATS doc_count = COUNT(*) BY metricset.name\n")
+	sb.WriteString("| SORT doc_count DESC, metricset.name")
 
 	return sb.String()
 }
@@ -367,6 +367,12 @@ func parseAggResponse(body io.Reader, fields []MetricFieldInfo, bucketSize strin
 		aggName := fmt.Sprintf("m%d", i)
 		metricAgg, ok := aggs[aggName].(map[string]interface{})
 		if !ok {
+			continue
+		}
+
+		// Skip metrics with no data (doc_count == 0 means no documents have this field)
+		docCount, _ := metricAgg["doc_count"].(float64)
+		if docCount == 0 {
 			continue
 		}
 
@@ -625,7 +631,7 @@ func buildLatestValueQuery(index string, fields []MetricFieldInfo, opts Aggregat
 // parseESQLStatsResult parses the ES|QL stats result into MetricsAggResult
 func parseESQLStatsResult(result *shared.ESQLResult, fields []MetricFieldInfo, bucketSize string) *MetricsAggResult {
 	aggResult := &MetricsAggResult{
-		Metrics:    make([]AggregatedMetric, len(fields)),
+		Metrics:    make([]AggregatedMetric, 0, len(fields)),
 		BucketSize: bucketSize,
 	}
 
@@ -635,40 +641,53 @@ func parseESQLStatsResult(result *shared.ESQLResult, fields []MetricFieldInfo, b
 		colIndex[col.Name] = i
 	}
 
-	// Initialize metrics with field info
+	// Parse the single result row (STATS without BY returns one row)
+	if len(result.Values) == 0 {
+		return aggResult
+	}
+
+	row := result.Values[0]
+
 	for i, mf := range fields {
-		aggResult.Metrics[i] = AggregatedMetric{
+		minCol := fmt.Sprintf("m%d_min", i)
+		maxCol := fmt.Sprintf("m%d_max", i)
+		avgCol := fmt.Sprintf("m%d_avg", i)
+
+		var minVal, maxVal, avgVal float64
+		var hasData bool
+
+		if idx, ok := colIndex[minCol]; ok && idx < len(row) {
+			if v, ok := row[idx].(float64); ok {
+				minVal = v
+				hasData = true
+			}
+		}
+		if idx, ok := colIndex[maxCol]; ok && idx < len(row) {
+			if v, ok := row[idx].(float64); ok {
+				maxVal = v
+				hasData = true
+			}
+		}
+		if idx, ok := colIndex[avgCol]; ok && idx < len(row) {
+			if v, ok := row[idx].(float64); ok {
+				avgVal = v
+				hasData = true
+			}
+		}
+
+		// Skip metrics with no data (all stats are null)
+		if !hasData {
+			continue
+		}
+
+		aggResult.Metrics = append(aggResult.Metrics, AggregatedMetric{
 			Name:      mf.Name,
 			ShortName: mf.ShortName,
 			Type:      mf.TimeSeriesType,
-		}
-	}
-
-	// Parse the single result row (STATS without BY returns one row)
-	if len(result.Values) > 0 {
-		row := result.Values[0]
-
-		for i := range fields {
-			minCol := fmt.Sprintf("m%d_min", i)
-			maxCol := fmt.Sprintf("m%d_max", i)
-			avgCol := fmt.Sprintf("m%d_avg", i)
-
-			if idx, ok := colIndex[minCol]; ok && idx < len(row) {
-				if v, ok := row[idx].(float64); ok {
-					aggResult.Metrics[i].Min = v
-				}
-			}
-			if idx, ok := colIndex[maxCol]; ok && idx < len(row) {
-				if v, ok := row[idx].(float64); ok {
-					aggResult.Metrics[i].Max = v
-				}
-			}
-			if idx, ok := colIndex[avgCol]; ok && idx < len(row) {
-				if v, ok := row[idx].(float64); ok {
-					aggResult.Metrics[i].Avg = v
-				}
-			}
-		}
+			Min:       minVal,
+			Max:       maxVal,
+			Avg:       avgVal,
+		})
 	}
 
 	return aggResult
@@ -698,8 +717,10 @@ func enrichWithLatestValues(result *MetricsAggResult, latestResult *shared.ESQLR
 		}
 	}
 
-	for i, mf := range fields {
-		if idx, ok := colIndex[mf.Name]; ok && idx < len(row) {
+	// Match by metric name since indices may not align after filtering
+	for i := range result.Metrics {
+		metricName := result.Metrics[i].Name
+		if idx, ok := colIndex[metricName]; ok && idx < len(row) {
 			if v, ok := row[idx].(float64); ok {
 				result.Metrics[i].Latest = v
 			}

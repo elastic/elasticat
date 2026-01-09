@@ -201,13 +201,21 @@ func (m Model) handleWindowSize(msg tea.WindowSizeMsg) (Model, tea.Cmd) {
 	m.UI.Width = msg.Width
 	m.UI.Height = msg.Height
 	m.Components.Viewport.Width = msg.Width - 4
-	m.Components.Viewport.Height = msg.Height - 10
+	// DetailStyle has border (2) + padding (2) = 4 lines overhead inside the box
+	// getFullScreenHeight() returns the total height for the DetailStyle container
+	// So interior content area = getFullScreenHeight() - 4
+	m.Components.Viewport.Height = m.getFullScreenHeight() - 4
 	m.Chat.Viewport.Width = msg.Width - 4
 	m.Chat.Viewport.Height = msg.Height - 12 // Leave room for input and header
 
 	// Re-wrap detail content after resize so long fields wrap correctly.
 	if m.UI.Mode == viewDetail || m.UI.Mode == viewDetailJSON {
 		(&m).updateDetailContent()
+	}
+
+	// Re-wrap metric detail content after resize
+	if m.UI.Mode == viewMetricDetail {
+		(&m).updateMetricDetailViewport()
 	}
 
 	// Re-wrap chat content after resize
