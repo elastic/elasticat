@@ -1,7 +1,9 @@
 # ElastiCat
 
-** Your companion for developing OTel enabled applications ** 
-* NOTE: ElastiCat is experimental! *
+**Your companion for developing OTel enabled applications** 
+
+> [!WARNING]
+> ElastiCat is experimental!
 
 [![CI (main)](https://github.com/elastic/elasticat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/elastic/elasticat/actions/workflows/ci.yml?query=branch%3Amain)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
@@ -11,7 +13,7 @@
   <img src="docs/demo.gif" alt="ElastiCat TUI Demo" width="800">
 </p>
 
-## Quick start / feature tour
+## Feature tour
 
 - **Instant OpenTelemetry Stack - Powered by Elastic** - Run `elasticat up`, setup the OTel collector, Elasticsearch and Kibana instantly via [Elastic start-local](https://github.com/elastic/start-local)
 - **Your logs in OTel with two commands** - After `elasticat up` run `elasticat watch my-app*.log` and auto-ingest to Elasticsearch through the OTel Collector
@@ -89,7 +91,36 @@ elasticat watch ./logs/*.log ./other.log
 elasticat watch --no-send ./server.log
 ```
 
-### 4. Open the TUI
+### 4. Query your data from the CLI
+
+```bash
+# Tail logs in real-time (like tail -f, but for Elasticsearch)
+elasticat tail
+
+# Query logs as JSON (great for piping to jq)
+elasticat logs
+elasticat logs --query "error" --level ERROR --limit 50
+
+# Query traces as JSON
+elasticat traces
+elasticat traces --service my-app --limit 10
+
+# Query metrics as JSON
+elasticat metrics
+elasticat metrics --query "cpu"
+```
+
+### 5. Set up MCP for AI assistants
+
+```bash
+# Generate MCP config for Claude Desktop, Cursor, etc.
+elasticat mcp
+
+# Copy directly to clipboard (macOS)
+elasticat mcp | pbcopy
+```
+
+### 6. Open the TUI
 
 ```bash
 elasticat ui           # Logs (default)
@@ -97,7 +128,7 @@ elasticat ui metrics   # Metrics
 elasticat ui traces    # Traces
 ```
 
-### 5. Check status
+### 7. Check status
 
 ```bash
 elasticat status   # Is Elasticsearch reachable?
