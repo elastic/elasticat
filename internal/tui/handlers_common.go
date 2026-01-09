@@ -121,15 +121,16 @@ func (m *Model) clearViewStack() {
 
 // cycleSignalType switches to the next signal type and returns the appropriate command
 func (m *Model) cycleSignalType() tea.Cmd {
-	// Cycle: logs -> traces -> metrics -> chat -> logs
+	// Cycle: logs -> traces -> metrics -> logs
 	switch m.Filters.Signal {
 	case signalLogs:
 		m.Filters.Signal = signalTraces
 	case signalTraces:
 		m.Filters.Signal = signalMetrics
 	case signalMetrics:
-		m.Filters.Signal = signalChat
+		m.Filters.Signal = signalLogs
 	case signalChat:
+		// If somehow in chat (accessed via 'c'), pressing 'm' goes to logs
 		m.Filters.Signal = signalLogs
 	}
 
