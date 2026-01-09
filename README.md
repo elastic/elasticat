@@ -1,6 +1,7 @@
 # ElastiCat
 
-**An Experimental TUI for Development with OpenTelemetry powered by Elasticsearch**
+** Your companion for developing OTel enabled applications ** 
+* NOTE: ElastiCat is experimental! *
 
 [![CI (main)](https://github.com/elastic/elasticat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/elastic/elasticat/actions/workflows/ci.yml?query=branch%3Amain)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
@@ -10,17 +11,18 @@
   <img src="docs/demo.gif" alt="ElastiCat TUI Demo" width="800">
 </p>
 
-## Features
+## Quick start / feature tour
 
-- **Log File Watcher** - Tail files with `elasticat watch my-app*.log` and auto-ingest to Elasticsearch via OTLP
-- **Instantly OpenTelemetry Stack - Powered by Elastic** - Just run `elasticat up`, runs [Elastic start-local](https://github.com/elastic/start-local)
-- **Interactive TUI** - Browse logs, metrics, and traces with vim-style navigation with `elasticat ui`
-- **AI Chat Assistant** - Press `c` to chat with an AI about your observability data, powered by Elastic Agent Builder
-- **OTel Collector Config Editing** - Press `O` to edit the collector config in your editor with live reload
+- **Instant OpenTelemetry Stack - Powered by Elastic** - Run `elasticat up`, setup the OTel collector, Elasticsearch and Kibana instantly via [Elastic start-local](https://github.com/elastic/start-local)
+- **Your logs in OTel with two commands** - After `elasticat up` run `elasticat watch my-app*.log` and auto-ingest to Elasticsearch through the OTel Collector
+- **Ship traces and metrics with ease** - `elasticat up` exposes the collector on localhost:4317 (gRPC) / localhost:4318 (HTTP). Run `elasticat creds` to show more. 
+- **Tail those same logs with ease** - Run `elasticat tail` to output logs ingested by ES after OTel transformation
+- **Interactive TUI** - Browse logs, metrics, and traces with vim-style navigation with `elasticat ui`.
+- **AI Chat Assistant** - Press `c` to chat with an AI about your observability data, powered by Elastic Agent Builder. Press `C` to send the current item you're looking at to the chat window.
+- **OTel Collector Config Editing** - Want to fine tune your collector config? `O` to edit the collector config in your editor with live reload. Make edits and watch how they affect real data.
 - **CLI Commands** - Query and filter telemetry data in ES as JSON from scripts or pipelines with `elasticat {logs|metrics|traces}`
-- **Multi-Signal Support** - Unified interface for logs, metrics, and traces
-- **Perspectives** - Filter by service, host, or any dimension with a single keystroke
-- **Kibana Integration** - Open your browser with the current view in Kibana with `K`
+- **Perspectives** - The 'p' hotkey will let you filter by both service and resources
+- **Kibana Integration** - Open your browser with the current view in the more powerful Kibana browser UI with `K`
 
 ## Table of Contents
 
@@ -45,8 +47,6 @@
 | **Docker** or **Podman** | Required for `elasticat up` (local stack) |
 | **macOS / Linux / Windows (WSL)** | Pre-built binaries are available as CI artifacts from `main` |
 
-No Go installation required if you download a pre-built binary.
-
 ## Quick Start
 
 **NOTE: ElastiCat is currently an experimental project, not production software. Beware!**
@@ -65,7 +65,6 @@ This downloads the latest release and installs it to `/usr/local/bin` (or `~/.lo
 
 **Alternatives:**
 - Download a pre-built binary from [GitHub Releases](https://github.com/elastic/elasticat/releases)
-- For the latest `main` build, download from [CI workflow runs](https://github.com/elastic/elasticat/actions/workflows/ci.yml?query=branch%3Amain)
 - [Build from source](#building-from-source)
 
 ### 2. Start the stack
