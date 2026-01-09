@@ -18,11 +18,12 @@
 - **Ship traces and metrics with ease** - `elasticat up` exposes the collector on localhost:4317 (gRPC) / localhost:4318 (HTTP). Run `elasticat creds` to show more. 
 - **Tail those same logs with ease** - Run `elasticat tail` to output logs ingested by ES after OTel transformation
 - **Interactive TUI** - Browse logs, metrics, and traces with vim-style navigation with `elasticat ui`.
-- **AI Chat Assistant** - Press `c` to chat with an AI about your observability data, powered by Elastic Agent Builder. Press `C` to send the current item you're looking at to the chat window.
+- **Quick MCP Setup** - Run `elasticat mcp` to display an MCP configuration for integration into your LLM of choice.
 - **OTel Collector Config Editing** - Want to fine tune your collector config? `O` to edit the collector config in your editor with live reload. Make edits and watch how they affect real data.
 - **CLI Commands** - Query and filter telemetry data in ES as JSON from scripts or pipelines with `elasticat {logs|metrics|traces}`
 - **Perspectives** - The 'p' hotkey will let you filter by both service and resources
 - **Kibana Integration** - Open your browser with the current view in the more powerful Kibana browser UI with `K`
+- **Built in AI Chat Assistant** - Press `c` to chat with an AI about your observability data, powered by Elastic Agent Builder. Press `C` to send the current item you're looking at to the chat window.
 
 ## Table of Contents
 
