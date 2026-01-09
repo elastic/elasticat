@@ -1,6 +1,6 @@
 # ElastiCat
 
-**A TUI for OpenTelemetry powered by Elasticsearch**
+**An Experimental TUI for Development with OpenTelemetry powered by Elasticsearch**
 
 [![CI (main)](https://github.com/elastic/elasticat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/elastic/elasticat/actions/workflows/ci.yml?query=branch%3Amain)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
@@ -49,7 +49,7 @@ No Go installation required if you download a pre-built binary.
 
 ## Quick Start
 
-**NOTE: ElastiCat is currently in alpha and not production quality. Beware!**
+**NOTE: ElastiCat is currently an experimental project, not production software. Beware!**
 
 ### 1. Get `elasticat`
 
