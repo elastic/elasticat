@@ -257,7 +257,9 @@ func (m Model) handleCommonAction(action Action) (Model, tea.Cmd, bool) {
 		m.cycleLookback()
 		return m, m.fetchCurrentViewData(), true
 	case ActionPerspective:
-		return m, m.cyclePerspective(), true
+		// Enter perspective view without cycling - starts with services (default)
+		// Cycling happens when already in perspective view (handled in handlers_perspective.go)
+		return m, m.enterPerspectiveView(), true
 	case ActionKibana:
 		if m.prepareKibanaURL() {
 			m.showCredsModal()
