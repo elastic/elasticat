@@ -85,15 +85,13 @@ dist: build
 # Usage: make dist-platform GOOS=linux GOARCH=amd64
 dist-platform:
 	@echo "Building for $(GOOS)/$(GOARCH)..."
-	@mkdir -p $(DIST_DIR)
 	$(eval EXT := $(if $(filter windows,$(GOOS)),.exe,))
 	$(eval ARCHIVE_EXT := $(if $(filter windows,$(GOOS)),.zip,.tar.gz))
 	$(eval BINARY := elasticat-$(GOOS)-$(GOARCH)$(EXT))
 	$(eval ARCHIVE_DIR := elasticat-$(GOOS)-$(GOARCH))
 	$(eval ARCHIVE := elasticat-$(VERSION)-$(GOOS)-$(GOARCH)$(ARCHIVE_EXT))
-	@GOOS=$(GOOS) GOARCH=$(GOARCH) go build -ldflags="-s -w" -o $(DIST_DIR)/$(BINARY) ./cmd/elasticat
 	@mkdir -p $(DIST_DIR)/$(ARCHIVE_DIR)
-	@mv $(DIST_DIR)/$(BINARY) $(DIST_DIR)/$(ARCHIVE_DIR)/
+	@GOOS=$(GOOS) GOARCH=$(GOARCH) go build -ldflags="-s -w" -o $(DIST_DIR)/$(ARCHIVE_DIR)/$(BINARY) ./cmd/elasticat
 	@cp LICENSE.txt NOTICE.txt README.md $(DIST_DIR)/$(ARCHIVE_DIR)/
 	@cd $(DIST_DIR) && \
 		if [ "$(GOOS)" = "windows" ]; then \

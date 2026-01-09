@@ -49,6 +49,8 @@ No Go installation required if you download a pre-built binary.
 
 ## Quick Start
 
+**Note! ElastiCat is alpha quality software!**
+
 ### 1. Get `elasticat`
 
 **One-liner install (macOS / Linux):**
