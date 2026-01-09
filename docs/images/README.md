@@ -14,7 +14,7 @@ Screenshots used in the main README.
 
 ## Updating Screenshots
 
-1. Run `elasticat ui` with demo data loaded
+1. Run `catseye` with demo data loaded
 2. Use a terminal with a clean theme
 3. Resize to a consistent width (e.g., 120 columns)
 4. Capture with your preferred screenshot tool

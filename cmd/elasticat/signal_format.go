@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/elastic/elasticat/internal/es"
-	"github.com/elastic/elasticat/internal/tui"
+	"github.com/elastic/elasticat/internal/fields"
 	"golang.org/x/term"
 )
 
@@ -52,9 +52,9 @@ func columnsForKind(kind signalKind, fieldsOverride []string) []displayColumn {
 		}
 		return cols
 	}
-	// Otherwise, use TUI defaults for the signal kind.
+	// Otherwise, use defaults for the signal kind.
 	cols := []displayColumn{}
-	for _, field := range tui.DefaultFields(kind.signalType()) {
+	for _, field := range fields.DefaultFields(kind.signalType()) {
 		if !field.Selected {
 			continue
 		}

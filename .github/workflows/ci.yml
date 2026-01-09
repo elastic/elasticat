@@ -67,17 +67,23 @@ jobs:
           - os: ubuntu-latest
             goos: linux
             goarch: amd64
-            binary: elasticat-linux-amd64
+            archive_dir: elasticat-linux-amd64
+            elasticat_binary: elasticat-linux-amd64
+            catseye_binary: catseye-linux-amd64
             archive_ext: tar.gz
           - os: macos-latest
             goos: darwin
             goarch: arm64
-            binary: elasticat-darwin-arm64
+            archive_dir: elasticat-darwin-arm64
+            elasticat_binary: elasticat-darwin-arm64
+            catseye_binary: catseye-darwin-arm64
             archive_ext: tar.gz
           - os: windows-latest
             goos: windows
             goarch: amd64
-            binary: elasticat-windows-amd64.exe
+            archive_dir: elasticat-windows-amd64
+            elasticat_binary: elasticat-windows-amd64.exe
+            catseye_binary: catseye-windows-amd64.exe
             archive_ext: zip
 
     steps:
@@ -95,29 +101,31 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libgl1-mesa-dev libxxf86vm-dev
 
-      - name: Build binary and create archive (Unix)
+      - name: Build binaries and create archive (Unix)
         if: matrix.os != 'windows-latest'
         run: |
-          mkdir -p dist/${{ matrix.binary }}
-          go build -o dist/${{ matrix.binary }}/${{ matrix.binary }} ./cmd/elasticat
-          cp LICENSE.txt NOTICE.txt README.md dist/${{ matrix.binary }}/
+          mkdir -p dist/${{ matrix.archive_dir }}
+          go build -o dist/${{ matrix.archive_dir }}/${{ matrix.elasticat_binary }} ./cmd/elasticat
+          go build -o dist/${{ matrix.archive_dir }}/${{ matrix.catseye_binary }} ./cmd/catseye
+          cp LICENSE.txt NOTICE.txt README.md dist/${{ matrix.archive_dir }}/
           cd dist
-          tar -czvf ${{ matrix.binary }}.tar.gz ${{ matrix.binary }}
+          tar -czvf ${{ matrix.archive_dir }}.tar.gz ${{ matrix.archive_dir }}
         shell: bash
 
-      - name: Build binary and create archive (Windows)
+      - name: Build binaries and create archive (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          New-Item -ItemType Directory -Force -Path dist/${{ matrix.binary }}
-          go build -o dist/${{ matrix.binary }}/${{ matrix.binary }} ./cmd/elasticat
-          Copy-Item LICENSE.txt, NOTICE.txt, README.md -Destination dist/${{ matrix.binary }}/
-          Compress-Archive -Path dist/${{ matrix.binary }} -DestinationPath dist/${{ matrix.binary }}.zip
+          New-Item -ItemType Directory -Force -Path dist/${{ matrix.archive_dir }}
+          go build -o dist/${{ matrix.archive_dir }}/${{ matrix.elasticat_binary }} ./cmd/elasticat
+          go build -o dist/${{ matrix.archive_dir }}/${{ matrix.catseye_binary }} ./cmd/catseye
+          Copy-Item LICENSE.txt, NOTICE.txt, README.md -Destination dist/${{ matrix.archive_dir }}/
+          Compress-Archive -Path dist/${{ matrix.archive_dir }} -DestinationPath dist/${{ matrix.archive_dir }}.zip
         shell: pwsh
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.binary }}.${{ matrix.archive_ext }}
-          path: dist/${{ matrix.binary }}.${{ matrix.archive_ext }}
+          name: ${{ matrix.archive_dir }}.${{ matrix.archive_ext }}
+          path: dist/${{ matrix.archive_dir }}.${{ matrix.archive_ext }}
           retention-days: 7
 

@@ -18,40 +18,7 @@ import (
 	"github.com/elastic/elasticat/internal/config"
 	"github.com/elastic/elasticat/internal/es"
 	"github.com/elastic/elasticat/internal/tui"
-	"github.com/spf13/cobra"
 )
-
-var uiCmd = &cobra.Command{
-	Use:   "ui [signal]",
-	Short: "Open the interactive TUI viewer",
-	Long: `Opens the interactive terminal UI for viewing logs, metrics, traces, or chat.
-
-Signal can be: logs (default), metrics, traces, or chat.
-Use 'chat' to start directly in AI chat mode powered by Elastic Agent Builder.`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		sig := tui.SignalLogs
-		if len(args) > 0 {
-			switch args[0] {
-			case "logs":
-				sig = tui.SignalLogs
-			case "metrics":
-				sig = tui.SignalMetrics
-			case "traces":
-				sig = tui.SignalTraces
-			case "chat":
-				sig = tui.SignalChat
-			default:
-				return fmt.Errorf("unknown signal %q (expected logs, metrics, traces, chat)", args[0])
-			}
-		}
-		return runTUI(cmd.Context(), sig)
-	},
-}
-
-func init() {
-	rootCmd.AddCommand(uiCmd)
-}
 
 func runTUI(parentCtx context.Context, sig tui.SignalType) (returnErr error) {
 	// Top-level panic handler - logs to file for debugging

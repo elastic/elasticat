@@ -7,7 +7,7 @@ Set Width 1600
 Set Height 1000
 
 # Launch the TUI
-Type "bin/elasticat ui"
+Type "bin/catseye"
 Enter
 Sleep 500ms
 

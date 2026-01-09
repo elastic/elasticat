@@ -1,6 +1,6 @@
-# ElastiCat
+# ElastiCat and Catseye
 
-**Your companion for developing OTel enabled applications** 
+**Your cozy companions for developing OTel enabled applications** 
 
 > [!WARNING]
 > ElastiCat is experimental!
@@ -19,7 +19,7 @@
 - **Your logs in OTel with two commands** - After `elasticat up` run `elasticat watch my-app*.log` and auto-ingest to Elasticsearch through the OTel Collector
 - **Ship traces and metrics with ease** - `elasticat up` exposes the collector on localhost:4317 (gRPC) / localhost:4318 (HTTP). Run `elasticat creds` to show more. 
 - **Tail those same logs with ease** - Run `elasticat tail` to output logs ingested by ES after OTel transformation
-- **Interactive TUI** - Browse logs, metrics, and traces with vim-style navigation with `elasticat ui`.
+- **Interactive TUI** - Browse logs, metrics, and traces with vim-style navigation with the separate `catseye` binary.
 - **Quick MCP Setup** - Run `elasticat mcp` to display an MCP configuration for integration into your LLM of choice.
 - **OTel Collector Config Editing** - Want to fine tune your collector config? `O` to edit the collector config in your editor with live reload. Make edits and watch how they affect real data.
 - **CLI Commands** - Query and filter telemetry data in ES as JSON from scripts or pipelines with `elasticat {logs|metrics|traces}`
@@ -123,9 +123,9 @@ elasticat mcp | pbcopy
 ### 6. Open the TUI
 
 ```bash
-elasticat ui           # Logs (default)
-elasticat ui metrics   # Metrics
-elasticat ui traces    # Traces
+catseye           # Logs (default)
+catseye metrics   # Metrics
+catseye traces    # Traces
 ```
 
 ### 7. Check status
@@ -172,7 +172,7 @@ Explore distributed traces, view spans, and navigate between transactions.
   <img src="docs/images/service-list.png" alt="Service Perspective" width="700">
 </p>
 
-Press `p` to filter by service, host, or any dimension - works across all signal types.
+Press `p` to filter by service or resource
 
 ### AI Chat Assistant
 
@@ -244,7 +244,7 @@ cd ../../
 elasticat watch examples/stock-tracker/logs/demo.log
 
 # In another terminal
-elasticat ui
+catseye
 ```
 
 ## Commands Reference
@@ -319,13 +319,13 @@ Tails files like `tail -F` and sends logs to OTLP.
 
 **Service name inference:** `gateway.log` becomes `gateway`, `server-err.log` becomes `server`.
 
-### Interactive TUI
+### Interactive TUI (catseye)
 
 ```bash
-elasticat ui [signal]
+catseye [signal]
 ```
 
-Signal is one of: `logs` (default), `metrics`, `traces`. The TUI automatically sets the correct index pattern.
+Signal is one of: `logs` (default), `metrics`, `traces`, `chat`. The TUI automatically sets the correct index pattern.
 
 ### CLI Queries (Non-Interactive)
 
@@ -376,7 +376,7 @@ elasticat metrics --index metrics-*
 elasticat traces --index traces-*
 ```
 
-For interactive exploration, use `elasticat ui metrics` or `elasticat ui traces` instead.
+For interactive exploration, use `catseye metrics` or `catseye traces` instead.
 
 **Shared flags for all CLI queries:**
 
@@ -413,7 +413,7 @@ elasticat config use-profile staging
 elasticat config get-profiles
 
 # Use a profile for a single command
-elasticat --profile staging ui logs
+catseye --profile staging logs
 ```
 
 #### Profile Commands
@@ -471,7 +471,7 @@ Security features:
 Override the current profile for a single command:
 
 ```bash
-elasticat --profile production ui logs
+catseye --profile production logs
 elasticat --profile staging search "error"
 ```
 
@@ -524,7 +524,7 @@ elasticat --profile staging search "error"
 
 ### No metrics/traces showing
 
-- **TUI:** Use `elasticat ui metrics` or `elasticat ui traces` (auto-selects correct index)
+- **TUI:** Use `catseye metrics` or `catseye traces` (auto-selects correct index)
 - **CLI:** Set `--index metrics-*` or `--index traces-*`
 
 ### OTLP sending doesn't work
@@ -552,7 +552,7 @@ elasticat config set-profile cloud \
 elasticat config use-profile cloud
 
 # Now all commands use your cloud cluster
-elasticat ui
+catseye
 ```
 
 **Getting your credentials:**
@@ -593,8 +593,8 @@ elasticat config get-profiles
 elasticat config use-profile cloud
 
 # Or use --profile for a single command
-elasticat --profile local ui logs
-elasticat --profile cloud ui traces
+catseye --profile local logs
+catseye --profile cloud traces
 ```
 
 ### Example: Local + Cloud Setup
@@ -617,7 +617,7 @@ elasticat config set-profile staging \
 elasticat config use-profile local
 
 # Quick check on staging
-elasticat --profile staging ui logs
+catseye --profile staging logs
 ```
 
 ### Kibana Integration

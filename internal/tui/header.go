@@ -11,11 +11,11 @@ import (
 
 // renderTitleHeader renders the top header with title and operational info
 func (m Model) renderTitleHeader() string {
-	title := "\\ =^..^= 𝑬𝓵𝓪𝓼𝓽𝓲𝓒𝓪𝓽 =^..^= /"
+	title := "\\ =ↀ_ↀ= 𝓒𝓪𝓽𝓼𝓔𝔂𝓮 =ↀ_ↀ= /"
 
 	// Add perspective indicator when in perspective view
 	if m.UI.Mode == viewPerspectiveList {
-		title = "\\ =^..^= 𝑬𝓵𝓪𝓼𝓽𝓲𝓒𝓪𝓽 [" + m.Perspective.Current.String() + "] =^..^= /"
+		title = "\\ =ↀ_ↀ= 𝓒𝓪𝓽𝓼𝓔𝔂𝓮 [" + m.Perspective.Current.String() + "] =ↀ_ↀ= /"
 	}
 
 	// Build operational info for right side

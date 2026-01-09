@@ -1,12 +1,14 @@
 .PHONY: build install clean logs test fmt fmt-check license-check license-add notice dist dist-platform dist-clean prep sloc release demo
 
-# Build the elasticat binary
+# Build the elasticat and catseye binaries
 build:
 	go build $(LDFLAGS) -o bin/elasticat ./cmd/elasticat
+	go build $(LDFLAGS) -o bin/catseye ./cmd/catseye
 
 # Install to GOPATH/bin
 install:
 	go install $(LDFLAGS) ./cmd/elasticat
+	go install $(LDFLAGS) ./cmd/catseye
 
 # Clean build artifacts
 clean:
@@ -75,11 +77,12 @@ LDFLAGS := -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT)"
 # Distribution variables
 DIST_DIR := dist
 
-# Build a distribution archive with binary + license files
+# Build a distribution archive with binaries + license files
 dist: build
 	@echo "Creating distribution archive..."
 	@mkdir -p $(DIST_DIR)
 	@cp bin/elasticat $(DIST_DIR)/
+	@cp bin/catseye $(DIST_DIR)/
 	@cp LICENSE.txt $(DIST_DIR)/
 	@cp NOTICE.txt $(DIST_DIR)/
 	@cp README.md $(DIST_DIR)/
@@ -91,11 +94,13 @@ dist-platform:
 	@echo "Building for $(GOOS)/$(GOARCH)..."
 	$(eval EXT := $(if $(filter windows,$(GOOS)),.exe,))
 	$(eval ARCHIVE_EXT := $(if $(filter windows,$(GOOS)),.zip,.tar.gz))
-	$(eval BINARY := elasticat-$(GOOS)-$(GOARCH)$(EXT))
+	$(eval ELASTICAT_BINARY := elasticat-$(GOOS)-$(GOARCH)$(EXT))
+	$(eval CATSEYE_BINARY := catseye-$(GOOS)-$(GOARCH)$(EXT))
 	$(eval ARCHIVE_DIR := elasticat-$(GOOS)-$(GOARCH))
 	$(eval ARCHIVE := elasticat-$(VERSION)-$(GOOS)-$(GOARCH)$(ARCHIVE_EXT))
 	@mkdir -p $(DIST_DIR)/$(ARCHIVE_DIR)
-	@GOOS=$(GOOS) GOARCH=$(GOARCH) go build -ldflags="-s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)" -o $(DIST_DIR)/$(ARCHIVE_DIR)/$(BINARY) ./cmd/elasticat
+	@GOOS=$(GOOS) GOARCH=$(GOARCH) go build -ldflags="-s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)" -o $(DIST_DIR)/$(ARCHIVE_DIR)/$(ELASTICAT_BINARY) ./cmd/elasticat
+	@GOOS=$(GOOS) GOARCH=$(GOARCH) go build -ldflags="-s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)" -o $(DIST_DIR)/$(ARCHIVE_DIR)/$(CATSEYE_BINARY) ./cmd/catseye
 	@cp LICENSE.txt NOTICE.txt README.md $(DIST_DIR)/$(ARCHIVE_DIR)/
 	@cd $(DIST_DIR) && \
 		if [ "$(GOOS)" = "windows" ]; then \

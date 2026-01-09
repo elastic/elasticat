@@ -14,8 +14,8 @@ import (
 
 	"github.com/elastic/elasticat/internal/config"
 	"github.com/elastic/elasticat/internal/es"
+	"github.com/elastic/elasticat/internal/fields"
 	"github.com/elastic/elasticat/internal/index"
-	"github.com/elastic/elasticat/internal/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -58,14 +58,14 @@ type signalRunConfig struct {
 	defaultFollow   bool
 }
 
-func (k signalKind) signalType() tui.SignalType {
+func (k signalKind) signalType() fields.SignalType {
 	switch k {
 	case signalKindMetrics:
-		return tui.SignalMetrics
+		return fields.SignalMetrics
 	case signalKindTraces:
-		return tui.SignalTraces
+		return fields.SignalTraces
 	default:
-		return tui.SignalLogs
+		return fields.SignalLogs
 	}
 }
 
