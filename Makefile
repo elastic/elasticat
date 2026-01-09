@@ -2,11 +2,11 @@
 
 # Build the elasticat binary
 build:
-	go build -o bin/elasticat ./cmd/elasticat
+	go build $(LDFLAGS) -o bin/elasticat ./cmd/elasticat
 
 # Install to GOPATH/bin
 install:
-	go install ./cmd/elasticat
+	go install $(LDFLAGS) ./cmd/elasticat
 
 # Clean build artifacts
 clean:
@@ -67,9 +67,13 @@ notice:
 		-noticeOut NOTICE.txt \
 		-depsOut ""
 
+# Version variables (set via git tags)
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+LDFLAGS := -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT)"
+
 # Distribution variables
 DIST_DIR := dist
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 
 # Build a distribution archive with binary + license files
 dist: build
@@ -91,7 +95,7 @@ dist-platform:
 	$(eval ARCHIVE_DIR := elasticat-$(GOOS)-$(GOARCH))
 	$(eval ARCHIVE := elasticat-$(VERSION)-$(GOOS)-$(GOARCH)$(ARCHIVE_EXT))
 	@mkdir -p $(DIST_DIR)/$(ARCHIVE_DIR)
-	@GOOS=$(GOOS) GOARCH=$(GOARCH) go build -ldflags="-s -w" -o $(DIST_DIR)/$(ARCHIVE_DIR)/$(BINARY) ./cmd/elasticat
+	@GOOS=$(GOOS) GOARCH=$(GOARCH) go build -ldflags="-s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)" -o $(DIST_DIR)/$(ARCHIVE_DIR)/$(BINARY) ./cmd/elasticat
 	@cp LICENSE.txt NOTICE.txt README.md $(DIST_DIR)/$(ARCHIVE_DIR)/
 	@cd $(DIST_DIR) && \
 		if [ "$(GOOS)" = "windows" ]; then \
