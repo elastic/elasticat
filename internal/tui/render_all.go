@@ -229,6 +229,15 @@ func (m Model) View() string {
 			m.renderOtelConfigModal(),
 		)
 		return overlayCenter(base, modal, m.UI.Width, m.UI.Height)
+	case viewOtelConfigUnavailable:
+		// Render previous mode as background, then overlay unavailable modal
+		base := m.renderBase(m.peekViewStack())
+		modal := lipgloss.Place(
+			m.UI.Width, m.UI.Height,
+			lipgloss.Center, lipgloss.Center,
+			m.renderOtelConfigUnavailableModal(),
+		)
+		return overlayCenter(base, modal, m.UI.Width, m.UI.Height)
 	}
 	return m.renderBase(m.UI.Mode)
 }

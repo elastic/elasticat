@@ -30,6 +30,16 @@ func (m Model) handleOtelConfigExplainKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleOtelConfigUnavailableKey handles keys in the OTel config unavailable modal.
+func (m Model) handleOtelConfigUnavailableKey(msg tea.KeyMsg) (Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "enter", "o", "O":
+		m.popView()
+		return m, nil
+	}
+	return m, nil
+}
+
 // handleOtelConfigModalKey handles keys in the OTel config watching modal.
 func (m Model) handleOtelConfigModalKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.String() {

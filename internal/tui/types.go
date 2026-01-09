@@ -30,17 +30,18 @@ const (
 	viewIndex
 	viewQuery
 	viewFields
-	viewMetricsDashboard  // Aggregated metrics dashboard
-	viewMetricDetail      // Full-screen metric chart
-	viewTraceNames        // Aggregated transaction names for traces
-	viewPerspectiveList   // List of services or resources for perspective filtering
-	viewErrorModal        // Error dialog with copy/close options
-	viewQuitConfirm       // Quit confirmation modal
-	viewHelp              // Hotkeys overlay
-	viewChat              // AI chat with Agent Builder
-	viewCredsModal        // Stack credentials modal
-	viewOtelConfigExplain // OTel config explanation (before opening editor)
-	viewOtelConfigModal   // OTel config editing/watching modal
+	viewMetricsDashboard      // Aggregated metrics dashboard
+	viewMetricDetail          // Full-screen metric chart
+	viewTraceNames            // Aggregated transaction names for traces
+	viewPerspectiveList       // List of services or resources for perspective filtering
+	viewErrorModal            // Error dialog with copy/close options
+	viewQuitConfirm           // Quit confirmation modal
+	viewHelp                  // Hotkeys overlay
+	viewChat                  // AI chat with Agent Builder
+	viewCredsModal            // Stack credentials modal
+	viewOtelConfigExplain     // OTel config explanation (before opening editor)
+	viewOtelConfigModal       // OTel config editing/watching modal
+	viewOtelConfigUnavailable // OTel config unavailable (non-local profile)
 )
 
 // MetricsViewMode toggles between aggregated and document views for metrics

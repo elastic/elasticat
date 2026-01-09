@@ -278,6 +278,64 @@ func (m Model) renderOtelConfigExplainModal() string {
 	return modalStyle.Render(content)
 }
 
+func (m Model) renderOtelConfigUnavailableModal() string {
+	// Modal dimensions
+	modalWidth := min(m.UI.Width-8, 65)
+
+	// Modal box style - use yellow/orange border for warning
+	modalStyle := lipgloss.NewStyle().
+		Width(modalWidth).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("214")). // Orange border
+		Padding(1, 2).
+		Align(lipgloss.Left)
+
+	// Title
+	title := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("214")).
+		Render("⚠ OTel Config Not Available")
+
+	var b strings.Builder
+
+	// Explanation text
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	highlightStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Bold(true)
+
+	b.WriteString(dimStyle.Render("The OTel Collector config editor is only available"))
+	b.WriteString("\n")
+	b.WriteString(dimStyle.Render("when using the locally managed stack."))
+	b.WriteString("\n\n")
+
+	b.WriteString(highlightStyle.Render("Current profile: "))
+	if m.profileName != "" {
+		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("226")).Render(m.profileName))
+	} else {
+		b.WriteString(dimStyle.Render("(none)"))
+	}
+	b.WriteString("\n\n")
+
+	b.WriteString(dimStyle.Render("To use this feature:"))
+	b.WriteString("\n")
+	b.WriteString(dimStyle.Render("  • Run 'elasticat up' to start the local stack"))
+	b.WriteString("\n")
+	b.WriteString(dimStyle.Render("  • Run 'elasticat config use elastic-start-local'"))
+
+	// Actions
+	actions := lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(keysHint("dismiss", "esc", "enter"))
+
+	content := lipgloss.JoinVertical(
+		lipgloss.Left,
+		title,
+		"",
+		b.String(),
+		"",
+		actions,
+	)
+
+	return modalStyle.Render(content)
+}
+
 func (m Model) renderOtelConfigModal() string {
 	// Modal dimensions
 	modalWidth := min(m.UI.Width-8, 70)

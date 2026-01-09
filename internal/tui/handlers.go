@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/elastic/elasticat/internal/config"
 )
 
 // handleKey routes key events to mode-specific handlers
@@ -52,7 +53,12 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case ActionOtelConfig:
 		// Show OTel config explanation modal from any view (except during text input)
-		if !m.isTextInputActive() && m.UI.Mode != viewOtelConfigExplain && m.UI.Mode != viewOtelConfigModal {
+		if !m.isTextInputActive() && m.UI.Mode != viewOtelConfigExplain && m.UI.Mode != viewOtelConfigModal && m.UI.Mode != viewOtelConfigUnavailable {
+			// OTel config editing only works with the locally managed stack
+			if m.profileName != config.StartLocalProfileName {
+				m.pushView(viewOtelConfigUnavailable)
+				return m, nil
+			}
 			m.pushView(viewOtelConfigExplain)
 			return m, nil
 		}
@@ -99,6 +105,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleOtelConfigExplainKey(msg)
 	case viewOtelConfigModal:
 		return m.handleOtelConfigModalKey(msg)
+	case viewOtelConfigUnavailable:
+		return m.handleOtelConfigUnavailableKey(msg)
 	}
 
 	return m, nil

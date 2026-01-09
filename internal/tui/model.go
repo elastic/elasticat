@@ -40,6 +40,7 @@ type Model struct {
 	esAPIKey    string           // ES/Kibana API key for Agent Builder auth
 	esUsername  string           // ES/Kibana username for Agent Builder auth
 	esPassword  string           // ES/Kibana password for Agent Builder auth
+	profileName string           // Active profile name (for feature gating)
 
 	// === Embedded State ===
 	Filters     FilterState
@@ -72,9 +73,10 @@ func (m *Model) setViewportContent(content string) {
 // mock data sources for testing.
 // NewModelOpts holds optional configuration for NewModel.
 type NewModelOpts struct {
-	ESAPIKey   string
-	ESUsername string
-	ESPassword string
+	ESAPIKey    string
+	ESUsername  string
+	ESPassword  string
+	ProfileName string // Active profile name (for feature gating)
 }
 
 func NewModel(ctx context.Context, client DataSource, signal SignalType, tuiCfg config.TUIConfig, kibanaURL, kibanaSpace string) Model {
@@ -139,6 +141,7 @@ func NewModelWithOpts(ctx context.Context, client DataSource, signal SignalType,
 		esAPIKey:    opts.ESAPIKey,
 		esUsername:  opts.ESUsername,
 		esPassword:  opts.ESPassword,
+		profileName: opts.ProfileName,
 		requests:    newRequestManager(),
 
 		Filters: FilterState{

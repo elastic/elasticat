@@ -87,9 +87,10 @@ func runTUI(parentCtx context.Context, sig tui.SignalType) (returnErr error) {
 	}
 
 	model := tui.NewModelWithOpts(notifyCtx, client, sig, cfg.TUI, cfg.Kibana.URL, cfg.Kibana.Space, tui.NewModelOpts{
-		ESAPIKey:   cfg.ES.APIKey,
-		ESUsername: cfg.ES.Username,
-		ESPassword: cfg.ES.Password,
+		ESAPIKey:    cfg.ES.APIKey,
+		ESUsername:  cfg.ES.Username,
+		ESPassword:  cfg.ES.Password,
+		ProfileName: cfg.ProfileName,
 	})
 	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithContext(notifyCtx))
 

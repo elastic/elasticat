@@ -237,7 +237,7 @@ func (m Model) isBaseView() bool {
 func (m Model) isModalView() bool {
 	switch m.UI.Mode {
 	case viewErrorModal, viewQuitConfirm, viewHelp, viewCredsModal,
-		viewOtelConfigExplain, viewOtelConfigModal:
+		viewOtelConfigExplain, viewOtelConfigModal, viewOtelConfigUnavailable:
 		return true
 	}
 	return false
